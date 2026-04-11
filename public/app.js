@@ -1186,6 +1186,7 @@ function vpUpdateVolIcon() {
 function vpUpdateProgress() {
   const vid = $('videoPlayer');
   if (!vid.duration) return;
+  if (vp.progressDragging) return; // Don't fight with drag handler
   const pct = (vid.currentTime / vid.duration) * 100;
   $('vpProgressFill').style.width = pct + '%';
   $('vpProgressDot').style.left   = pct + '%';
@@ -1223,6 +1224,9 @@ function vpInitProgress() {
   function startDrag(e) {
     e.preventDefault();
     vp.progressDragging = true;
+    vp.controlsLocked = true;
+    clearTimeout(vp.controlsTimer);
+    $('vpWrap').classList.remove('controls-hidden');
     track.classList.add('dragging');
     updateDrag(e);
     document.addEventListener('mousemove', updateDrag);
@@ -1233,16 +1237,19 @@ function vpInitProgress() {
 
   function updateDrag(e) {
     if (!vp.progressDragging) return;
+    e.preventDefault && e.preventDefault();
     const ratio = vpProgressFromEvent(e);
     const vid   = $('videoPlayer');
     $('vpProgressFill').style.width = (ratio * 100) + '%';
     $('vpProgressDot').style.left   = (ratio * 100) + '%';
+    $('vpCurrentTime').textContent  = fmtTime(ratio * (vid.duration || 0));
     updateTooltip(ratio);
   }
 
   function endDrag(e) {
     if (!vp.progressDragging) return;
     vp.progressDragging = false;
+    vp.controlsLocked = false;
     track.classList.remove('dragging');
     document.removeEventListener('mousemove', updateDrag);
     document.removeEventListener('mouseup', endDrag);
@@ -1251,6 +1258,7 @@ function vpInitProgress() {
     const ratio = vpProgressFromEvent(e.changedTouches ? { clientX: e.changedTouches[0].clientX } : e);
     const vid   = $('videoPlayer');
     vid.currentTime = ratio * (vid.duration || 0);
+    vpShowControls();
   }
 
   track.addEventListener('mousedown', startDrag);
