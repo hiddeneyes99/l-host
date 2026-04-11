@@ -22,8 +22,34 @@ const { execFile } = require('child_process');
 const app  = express();
 const HOST = '0.0.0.0';
 
-// ── Gzip all responses — reduces transfer size 60-80% ─────────────────────
-app.use(compression());
+// ── Gzip responses — skip video (already compressed; gzip wastes CPU for 0 gain)
+const VIDEO_EXTS = new Set(['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp']);
+app.use(compression({
+  filter: (req, res) => {
+    if (req.path === '/file' && req.query && req.query.path) {
+      const ext = path.extname(req.query.path).toLowerCase();
+      if (VIDEO_EXTS.has(ext)) return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6,
+}));
+
+// ── Per-file concurrent reader limiter — protects mobile host from I/O overload
+const FILE_READERS    = new Map(); // absPath → active reader count
+const MAX_FILE_READERS = 4;
+
+function acquireReader(absPath) {
+  const n = FILE_READERS.get(absPath) || 0;
+  if (n >= MAX_FILE_READERS) return false;
+  FILE_READERS.set(absPath, n + 1);
+  return true;
+}
+function releaseReader(absPath) {
+  const n = FILE_READERS.get(absPath) || 0;
+  if (n <= 1) FILE_READERS.delete(absPath);
+  else FILE_READERS.set(absPath, n - 1);
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  PROTOCOL 1 — Dynamic Path Handling
@@ -1108,8 +1134,57 @@ app.get('/api/category/:cat', (req, res) => {
   res.json({ category: cat, results: slice, total, page, limit, hasMore: (page + 1) * limit < total });
 });
 
+// ── Video preview-frame API ────────────────────────────────────────────────
+//  Returns a WebP frame extracted at the requested timestamp (seconds).
+//  Client uses this for the progress-bar scrub preview instead of a live
+//  hidden <video> element — much lighter on the host (no stream, one FFmpeg
+//  process per unique second, result cached in-memory).
+const PREVIEW_FRAME_CACHE_MAX = 120; // ~120 unique frames across all videos
+const previewFrameCache = new Map(); // `${absPath}::${roundedSec}` → Buffer
+
+app.get('/api/preview-frame', async (req, res) => {
+  const relPath = decodeURIComponent(req.query.path || '');
+  const t       = Math.max(0, Math.round(parseFloat(req.query.t) || 0));
+  const absPath = safePath(relPath);
+  if (!absPath || !canRead(absPath)) return res.status(403).send('Denied');
+
+  const key = `${absPath}::${t}`;
+
+  // Memory cache hit — instant return, no FFmpeg
+  if (previewFrameCache.has(key)) {
+    const buf = previewFrameCache.get(key);
+    return res.set({
+      'Content-Type':   'image/webp',
+      'Content-Length': buf.length,
+      'Cache-Control':  'public, max-age=3600',
+    }).end(buf);
+  }
+
+  try {
+    // 320×180 WebP, quality 72 — small file, fast extraction
+    const buf = await thumbThrottle(() =>
+      spawnFFmpegThumb(absPath, 320, 180, 10000, t, '72')
+    );
+    // LRU evict oldest if over limit
+    if (previewFrameCache.size >= PREVIEW_FRAME_CACHE_MAX) {
+      previewFrameCache.delete(previewFrameCache.keys().next().value);
+    }
+    previewFrameCache.set(key, buf);
+    res.set({
+      'Content-Type':   'image/webp',
+      'Content-Length': buf.length,
+      'Cache-Control':  'public, max-age=3600',
+    }).end(buf);
+  } catch (_) {
+    res.status(500).send('Frame extraction failed');
+  }
+});
+
 // ── Stream / download a file ───────────────────────────────────────────────
-const CHUNK_MAX = 4 * 1024 * 1024; // 4 MB max per chunk — keeps RAM low on mobile
+//  Chunk size tuning:
+//   • 4 MB  — safe on mobile hosts (low RAM), fast enough for LAN
+//   • Larger chunks = fewer HTTP round-trips but more RAM on host
+const CHUNK_MAX = 4 * 1024 * 1024;
 
 app.get('/file', (req, res) => {
   const relPath = decodeURIComponent(req.query.path || '');
@@ -1125,49 +1200,61 @@ app.get('/file', (req, res) => {
   const range    = req.headers.range;
   const download = req.query.dl === '1';
 
-  // ── ETag + conditional caching for images & audio ──────────────────────
-  //  Browsers cache the file after the first load, then use 304 Not Modified
-  //  for subsequent requests — dramatically reduces load time on revisit.
-  const isStaticMedia = mime.startsWith('image/') || mime.startsWith('audio/');
-  const etag = `"${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
-  if (isStaticMedia && !download) {
-    if (req.headers['if-none-match'] === etag) {
-      return res.writeHead(304).end();
+  const isVideo  = mime.startsWith('video/') && !download;
+  const isStatic = mime.startsWith('image/') || mime.startsWith('audio/');
+  const etag     = `"${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
+
+  // ── ETag conditional cache for static media (image / audio) ────────────
+  if (isStatic && !download && req.headers['if-none-match'] === etag) {
+    return res.writeHead(304).end();
+  }
+
+  // ── Per-file reader limit for video — protects mobile host ─────────────
+  if (isVideo) {
+    if (!acquireReader(absPath)) {
+      return res.status(429)
+        .set({ 'Retry-After': '2', 'Content-Type': 'text/plain' })
+        .send('Server busy — too many concurrent streams on this file. Retry in 2 s.');
     }
+    const release = () => releaseReader(absPath);
+    res.on('close',  release);
+    res.on('finish', release);
   }
 
   if (range) {
     const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
     const start        = parseInt(startStr, 10) || 0;
     const requestedEnd = endStr ? parseInt(endStr, 10) : size - 1;
-    // Cap chunk to CHUNK_MAX — critical for instant playback & seek on large files
     const end          = Math.min(requestedEnd, start + CHUNK_MAX - 1, size - 1);
     const chunkSize    = end - start + 1;
     try {
-      const stream = fs.createReadStream(absPath, { start, end });
+      const stream = fs.createReadStream(absPath, { start, end, highWaterMark: 256 * 1024 });
       const rangeHeaders = {
         'Content-Range':  `bytes ${start}-${end}/${size}`,
         'Accept-Ranges':  'bytes',
         'Content-Length': chunkSize,
         'Content-Type':   mime,
+        'Last-Modified':  stat.mtime.toUTCString(),
+        'ETag':           etag,
       };
-      if (isStaticMedia) { rangeHeaders['Cache-Control'] = 'public, max-age=86400'; rangeHeaders['ETag'] = etag; }
+      // Cache video chunks for 1 h — browser won't re-fetch the same byte range on re-seek
+      if (isVideo)  rangeHeaders['Cache-Control'] = 'public, max-age=3600';
+      if (isStatic) rangeHeaders['Cache-Control'] = 'public, max-age=86400';
       res.writeHead(206, rangeHeaders);
       stream.pipe(res);
       stream.on('error', () => res.end());
     } catch (_) { res.status(500).end(); }
   } else {
-    // Non-range: stream entire file (downloads), but set Accept-Ranges so player can seek
     const headers = {
       'Content-Length': size,
       'Content-Type':   mime,
       'Accept-Ranges':  'bytes',
+      'Last-Modified':  stat.mtime.toUTCString(),
+      'ETag':           etag,
     };
-    if (isStaticMedia && !download) {
-      // 24-hour browser cache for images and audio — huge speed win on revisit
+    if (isStatic && !download) {
       headers['Cache-Control'] = 'public, max-age=86400';
-      headers['ETag']          = etag;
-    } else {
+    } else if (!download) {
       headers['Cache-Control'] = 'no-cache';
     }
     if (download) headers['Content-Disposition'] = `attachment; filename="${path.basename(absPath)}"`;

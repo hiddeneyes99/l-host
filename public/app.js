@@ -35,6 +35,32 @@ function savePrefs() {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch(_) {}
 }
 
+// ── Cookie helpers (video player preferences persist across sessions) ───────
+function setCookie(name, value, days) {
+  const expires = new Date(Date.now() + (days || 365) * 86400000).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Lax`;
+}
+function getCookie(name) {
+  const c = document.cookie.split(';').find(s => s.trim().startsWith(name + '='));
+  return c ? decodeURIComponent(c.split('=').slice(1).join('=').trim()) : null;
+}
+
+// ── Video player persistent preferences (cookies) ──────────────────────────
+const vpPrefs = {
+  volume:     Math.max(0, Math.min(1, parseFloat(getCookie('vp_vol')    ?? '1'))),
+  speed:      parseFloat(getCookie('vp_speed')  ?? '1'),
+  brightness: Math.max(0.1, Math.min(1, parseFloat(getCookie('vp_bright') ?? '1'))),
+  aspectIdx:  parseInt(getCookie('vp_aspect')  ?? '0', 10),
+  muted:      getCookie('vp_muted') === '1',
+};
+function saveVpPrefs() {
+  setCookie('vp_vol',    vpPrefs.volume);
+  setCookie('vp_speed',  vpPrefs.speed);
+  setCookie('vp_bright', vpPrefs.brightness);
+  setCookie('vp_aspect', vpPrefs.aspectIdx);
+  setCookie('vp_muted',  vpPrefs.muted ? '1' : '0');
+}
+
 function buildListParams() {
   return `sort=${prefs.sortBy}&sortDir=${prefs.sortDir}&hidden=${prefs.showHidden ? '1' : '0'}`;
 }
@@ -477,26 +503,26 @@ const ASPECT_LABELS = { fit:'Fit', fill:'Fill', stretch:'Stretch' };
 const vp = {
   item: null,
   url: '',
-  speed: 1,
-  aspectIdx: 0,
+  // Restored from cookies on every session
+  speed:      vpPrefs.speed,
+  aspectIdx:  vpPrefs.aspectIdx,
   theater: false,
-  brightness: 1,     // 0.2 → 1
-  volume: 1,
-  muted: false,
+  brightness: vpPrefs.brightness,
+  volume:     vpPrefs.volume,
+  muted:      vpPrefs.muted,
   controlsTimer: null,
   controlsLocked: false,
   lockTimer: null,
   progressDragging: false,
-  previewVideo: null,
-  previewCanvas: null,
   previewTimer: null,
+  previewAbortCtrl: null, // AbortController for in-flight preview-frame fetch
   clickTimer: null,
   suppressClickUntil: 0,
   // gesture tracking
   touch: {
     startX: 0, startY: 0, startVal: 0,
     type: null,         // 'vol' | 'bright' | null
-    leftTap: 0, rightTap: 0, // timestamps for double-tap
+    leftTap: 0, rightTap: 0,
     tapCount: 0,
     controlsWereHidden: false,
   },
@@ -1047,6 +1073,9 @@ function openVideo(item) {
   if (vp.url === newUrl && vid.readyState >= 1) {
     // ── Same video already loaded — no re-download ──────────────────────
     vp.item = item;
+    vid.volume = vp.volume;
+    vid.muted  = vp.muted;
+    $('vpBrightness').style.opacity = 1 - vp.brightness;
     const resume = loadResume(item.path);
     if (resume > 2 && vid.duration && resume < vid.duration - 3) {
       vid.currentTime = resume;
@@ -1056,7 +1085,11 @@ function openVideo(item) {
     // ── Different (or first) video — load it ────────────────────────────
     vp.item = item;
     vp.url  = newUrl;
-    vpSetAspect(0);
+    // Restore saved prefs to the new element
+    vid.volume      = vp.volume;
+    vid.muted       = vp.muted;
+    vpSetAspect(vp.aspectIdx);
+    $('vpBrightness').style.opacity = 1 - vp.brightness;
     vid.src          = newUrl;
     vid.playbackRate = vp.speed;
 
@@ -1082,9 +1115,9 @@ function closeVideo() {
   clearTimeout(vp.controlsTimer);
   clearTimeout(vp.previewTimer);
   clearTimeout(vp.clickTimer);
-  if (vp.previewVideo) {
-    try { vp.previewVideo.pause(); vp.previewVideo.removeAttribute('src'); vp.previewVideo.load(); } catch(_) {}
-  }
+  if (vp.previewAbortCtrl) { vp.previewAbortCtrl.abort(); vp.previewAbortCtrl = null; }
+  const _thumb = $('vpProgressThumb');
+  if (_thumb && _thumb._blobUrl) { URL.revokeObjectURL(_thumb._blobUrl); _thumb._blobUrl = null; }
   $('videoModal').classList.add('hidden');
   document.body.style.overflow = '';
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -1168,12 +1201,16 @@ function vpSetVolume(v) {
   const pct = $('vpVolPct');
   if (pct) pct.textContent = Math.round(vp.volume * 100) + '%';
   vpUpdateVolIcon();
+  vpPrefs.volume = vp.volume;
+  saveVpPrefs();
 }
 
 function vpToggleMute() {
   vp.muted = !vp.muted;
   $('videoPlayer').muted = vp.muted;
   vpUpdateVolIcon();
+  vpPrefs.muted = vp.muted;
+  saveVpPrefs();
 }
 
 function vpUpdateVolIcon() {
@@ -1275,60 +1312,50 @@ function vpInitProgress() {
   });
 }
 
-function vpEnsurePreviewVideo() {
-  if (!vp.previewVideo) {
-    vp.previewVideo = document.createElement('video');
-    vp.previewVideo.muted = true;
-    vp.previewVideo.playsInline = true;
-    vp.previewVideo.preload = 'metadata';
-    vp.previewVideo.crossOrigin = 'anonymous';
-  }
-  if (!vp.previewCanvas) {
-    vp.previewCanvas = document.createElement('canvas');
-    vp.previewCanvas.width = 160;
-    vp.previewCanvas.height = 90;
-  }
-  if (vp.previewVideo.src !== new URL(vp.url, location.href).href) {
-    vp.previewVideo.src = vp.url;
-    vp.previewVideo.load();
-  }
-  return vp.previewVideo;
-}
-
+// ── Server-side preview frame — replaces the old hidden <video> element ────
+//  Calls /api/preview-frame which uses FFmpeg on the host to extract a frame.
+//  Benefits vs live video:
+//   • No second video stream open on host (lower I/O)
+//   • Server caches results (same second → instant response)
+//   • SW caches in browser (repeat seeks are instant, zero server hit)
 function vpSchedulePreview(time) {
-  const vid = $('videoPlayer');
+  const vid     = $('videoPlayer');
   const tooltip = $('vpProgressTooltip');
-  const thumb = $('vpProgressThumb');
+  const thumb   = $('vpProgressThumb');
+
   if (!vp.url || !vid.duration || !Number.isFinite(time)) {
     tooltip.classList.remove('has-thumb');
     return;
   }
+
+  // Abort any in-flight request
+  if (vp.previewAbortCtrl) { vp.previewAbortCtrl.abort(); vp.previewAbortCtrl = null; }
   clearTimeout(vp.previewTimer);
-  vp.previewTimer = setTimeout(() => {
-    const pv = vpEnsurePreviewVideo();
-    const seekTime = Math.max(0, Math.min((pv.duration || vid.duration) - 0.05, time));
-    const draw = () => {
-      try {
-        const canvas = vp.previewCanvas;
-        const ctx = canvas.getContext('2d', { alpha: false });
-        ctx.drawImage(pv, 0, 0, canvas.width, canvas.height);
-        thumb.src = canvas.toDataURL('image/jpeg', 0.7);
-        tooltip.classList.add('has-thumb');
-      } catch (_) {
-        tooltip.classList.remove('has-thumb');
-      }
-    };
-    const seekAndDraw = () => {
-      const onSeeked = () => {
-        pv.removeEventListener('seeked', onSeeked);
-        draw();
-      };
-      pv.addEventListener('seeked', onSeeked, { once: true });
-      try { pv.currentTime = seekTime; } catch(_) { tooltip.classList.remove('has-thumb'); }
-    };
-    if (pv.readyState >= 1) seekAndDraw();
-    else pv.addEventListener('loadedmetadata', seekAndDraw, { once: true });
-  }, 90);
+
+  // Debounce 150 ms — only fire when user pauses scrubbing
+  vp.previewTimer = setTimeout(async () => {
+    const t       = Math.max(0, Math.min(Math.round(vid.duration) - 1, Math.round(time)));
+    const relPath = new URLSearchParams(new URL(vp.url, location.href).search).get('path');
+    if (!relPath) return;
+
+    vp.previewAbortCtrl = new AbortController();
+    try {
+      const res  = await fetch(`/api/preview-frame?path=${encodeURIComponent(relPath)}&t=${t}`,
+                               { signal: vp.previewAbortCtrl.signal });
+      if (!res.ok) { tooltip.classList.remove('has-thumb'); return; }
+      const blob = await res.blob();
+      // Revoke previous blob URL to free memory
+      if (thumb._blobUrl) URL.revokeObjectURL(thumb._blobUrl);
+      thumb._blobUrl = URL.createObjectURL(blob);
+      thumb.src = thumb._blobUrl;
+      tooltip.classList.add('has-thumb');
+    } catch (_) {
+      // AbortError or network error — silently ignore
+      tooltip.classList.remove('has-thumb');
+    } finally {
+      vp.previewAbortCtrl = null;
+    }
+  }, 150);
 }
 
 // ── Speed ──────────────────────────────────────────────────────────────────
@@ -1343,8 +1370,10 @@ function vpBuildSpeedMenu() {
       vp.speed = s;
       $('videoPlayer').playbackRate = s;
       $('vpSpeedBtn').textContent = s === 1 ? '1×' : s + '×';
-      vpBuildSpeedMenu(); // rebuild to update active
+      vpBuildSpeedMenu();
       $('vpSpeedPopup').classList.add('hidden');
+      vpPrefs.speed = s;
+      saveVpPrefs();
     });
     list.appendChild(item);
   });
@@ -1359,6 +1388,8 @@ function vpSetAspect(idx) {
   if (aspect === 'fill')    vid.classList.add('aspect-fill');
   if (aspect === 'stretch') vid.classList.add('aspect-stretch');
   toast('Aspect: ' + ASPECT_LABELS[aspect]);
+  vpPrefs.aspectIdx = vp.aspectIdx;
+  saveVpPrefs();
 }
 
 // ── Theater / Fullscreen ───────────────────────────────────────────────────
@@ -1419,6 +1450,8 @@ function vpSetBrightness(v) {
   vp.brightness = Math.max(0.1, Math.min(1, v));
   $('vpBrightness').style.opacity = 1 - vp.brightness;
   vpShowHud('bright', vp.brightness);
+  vpPrefs.brightness = vp.brightness;
+  saveVpPrefs();
 }
 
 // ── Gesture layer (touch) ──────────────────────────────────────────────────
