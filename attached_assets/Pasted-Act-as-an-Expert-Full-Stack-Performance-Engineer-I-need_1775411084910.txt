@@ -1,0 +1,19 @@
+Act as an Expert Full-Stack Performance Engineer. I need to deeply optimize the core engine of my existing Node.js + Vanilla JS local file manager ('L-Host'). The goal is to make it capable of handling 10,000+ files in a single folder and streaming heavy 4K videos without buffering or crashing the browser.
+
+CRITICAL CONSTRAINT: DO NOT change the existing visual design, CSS theme, layout, or color palette (deep dark theme with glowing cyan/teal accents). You are only upgrading the 'under-the-hood' mechanics and adding specific loading UI elements that match the current aesthetic.
+
+Please implement the following 3 major upgrades across the codebase (server.js, app.js, style.css):
+
+1. Backend Media Chunking (server.js - /file route):
+Currently, the server sends the entire file for Range requests. Fix the HTTP 206 Partial Content logic to enforce strict chunking. Limit each chunk to a maximum of 2MB (or 5MB). When a browser requests bytes=0-, calculate the end byte properly so only the chunk is sent. This is essential for instant video playback and flawless seeking without eating up device RAM.
+
+2. Backend Pagination (server.js - /api/ls route):
+Modify the directory listing API to support pagination using query parameters (e.g., ?page=1&limit=50). The API should return the total number of items, total pages, and only the specific slice of 50 items for the requested page. Do the same for the /api/search and /api/category/ routes.
+
+3. Frontend Infinite Scroll & Skeleton Loaders (app.js & style.css):
+
+Skeleton UI: Replace the current simple loading spinner with modern, glowing skeleton loader cards. Add CSS keyframes for a subtle, dark-themed shimmer effect that matches the existing UI.
+
+Infinite Scroll: In app.js, modify the Maps() and renderItems() functions to support pagination. Render 50 items initially. Place an invisible 'sentinel' <div> at the bottom of the grid. Use the IntersectionObserver API to detect when the user scrolls to the sentinel, and automatically fetch and append the next page of items. Show the skeleton loaders at the bottom while the next page is fetching.
+
+Provide the updated code snippets for server.js, app.js, and style.css specifically addressing these performance upgrades

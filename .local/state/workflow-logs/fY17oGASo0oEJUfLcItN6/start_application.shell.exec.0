@@ -1,0 +1,18 @@
+[index] full scan starting: /home/runner/workspace/files
+[index] watching for file changes
+
+╔════════════════════════════════════════════════╗
+║  l-host  •  Local File Manager                 ║
+╠════════════════════════════════════════════════╣
+║  Environment : replit                         ║
+║  Root Dir    : /home/runner/workspace/files   ║
+╠════════════════════════════════════════════════╣
+║  Local  → http://localhost:5000                ║
+║  Network→ http://172.31.66.2:5000              ║
+╚════════════════════════════════════════════════╝
+
+  Tip: set ROOT_DIR=/sdcard to browse a specific folder.
+
+[index] full scan done — 0 entries in 5 ms
+[thumbs] ✓ FFmpeg 6.1.2 — video thumbnails enabled
+[index] saved 0 entries (master + 6 categories)
