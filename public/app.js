@@ -2059,6 +2059,35 @@ async function loadCategory(cat) {
   } catch (e) { grid.innerHTML = `<div class="empty-state"><p>Error: ${e.message}</p></div>`; }
 }
 
+// ── Recent All View ────────────────────────────────────────────────────────
+async function loadRecentAll() {
+  history.pushState({ lhost: true }, '');
+  showView('recentAll');
+  const grid = $('recentAllGrid');
+  grid.innerHTML = '';
+  grid.appendChild(createSkeletons(12));
+
+  try {
+    const data = await fetchJson('/api/recent?limit=50');
+    const items = data.items || [];
+    grid.innerHTML = '';
+    if (!items.length) {
+      grid.innerHTML = '<div class="empty-state"><p>No recent files yet</p></div>';
+      return;
+    }
+    const badge = document.createElement('div');
+    badge.className = 'pg-count-badge';
+    badge.textContent = `${items.length} recent file${items.length !== 1 ? 's' : ''}`;
+    grid.appendChild(badge);
+
+    const imageSet = items.filter(i => i.category === 'image');
+    const audioSet = items.filter(i => i.category === 'audio');
+    for (const item of items) {
+      grid.appendChild(createItemEl(item, imageSet, audioSet));
+    }
+  } catch (e) { grid.innerHTML = `<div class="empty-state"><p>Error: ${e.message}</p></div>`; }
+}
+
 // ── Search ─────────────────────────────────────────────────────────────────
 let searchTimeout;
 async function doSearch(q) {
@@ -2438,6 +2467,7 @@ function refreshCurrentView() {
   if (state.currentView === 'browser') navigate(state.currentPath);
   else if (state.currentView === 'cat') loadCategory(pg.param);
   else if (state.currentView === 'search') doSearch(pg.param);
+  else if (state.currentView === 'recentAll') loadRecentAll();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2493,6 +2523,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Category icons
   qsa('[data-cat]').forEach(el => el.addEventListener('click', () => loadCategory(el.dataset.cat)));
   qsa('[data-browse]').forEach(el => el.addEventListener('click', () => navigate('')));
+  $('recentViewAllBtn').addEventListener('click', () => loadRecentAll());
+  $('recentAllBackBtn').addEventListener('click', () => loadHome());
   $('uploadCatBtn').addEventListener('click', openUploadModal);
 
   // ── View menu button ────────────────────────────────────────────────────

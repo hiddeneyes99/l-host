@@ -201,7 +201,7 @@
         <section class="section">
           <div class="section-header">
             <span class="section-title">Recent Files</span>
-            <button class="view-all-btn" data-browse>View All</button>
+            <button class="view-all-btn" id="recentViewAllBtn">View All</button>
           </div>
           <div class="recent-grid" id="recentGrid">
             <div class="loader-wrap"><div class="loader"></div></div>
@@ -293,6 +293,18 @@
           <span id="searchResultsLabel">Results</span>
         </div>
         <div class="file-grid" id="searchGrid"></div>
+      </div>
+
+      <!-- RECENT ALL VIEW -->
+      <div class="view hidden" id="recentAllView">
+        <div class="browser-actions">
+          <button class="action-btn" id="recentAllBackBtn">
+            <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
+            Back
+          </button>
+          <span class="cat-view-title">Recent Files</span>
+        </div>
+        <div class="file-grid" id="recentAllGrid"></div>
       </div>
     </main>
 
