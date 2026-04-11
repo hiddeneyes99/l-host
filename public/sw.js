@@ -1,15 +1,15 @@
 // ── l-host Service Worker ─────────────────────────────────────────────────
 //  Strategy:
 //   • App shell (HTML, CSS, JS)  → Cache-first with network fallback
-//   • /api/thumb + /api/preview  → Cache-first (thumbnail images)
+//   • /api/thumb + /api/preview  → Cache-first (image thumbnails)
 //   • /file (video/audio)        → BYPASS SW entirely — browser handles range
 //                                  requests natively; SW interception breaks
 //                                  range/seek on some mobile browsers.
 //   • Everything else            → Network-first
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_SHELL   = 'lhost-shell-v1';
-const CACHE_THUMBS  = 'lhost-thumbs-v1';
+const CACHE_SHELL   = 'lhost-shell-v2';
+const CACHE_THUMBS  = 'lhost-thumbs-v2';
 
 const SHELL_ASSETS = [
   '/',

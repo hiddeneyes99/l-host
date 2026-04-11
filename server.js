@@ -233,6 +233,7 @@ function buildFileInfo(absPath, relPath, name) {
     mtime:    stat.mtime.getTime(),
     mtimeStr: stat.mtime.toLocaleDateString(),
     readable: canRead(absPath),
+    hidden:   pathHasHiddenSegment(relPath),
     path:     relPath.replace(/\\/g, '/'),
   };
 }
@@ -247,7 +248,7 @@ function buildFileInfo(absPath, relPath, name) {
 
 const INDEX_FILE    = path.join(__dirname, 'data', 'index.json');
 const APP_DATA_DIR  = path.join(__dirname, 'data');   // excluded from index & watcher
-const INDEX_VERSION = 2;
+const INDEX_VERSION = 3;
 
 // ── In-memory index state ──────────────────────────────────────────────────
 const idx = {
@@ -266,7 +267,17 @@ function pathHasHiddenSegment(relPath) {
   return String(relPath || '')
     .replace(/\\/g, '/')
     .split('/')
-    .some(part => part.startsWith('.') && part.length > 1);
+    .some(part => {
+      const p = part.trim();
+      const lower = p.toLowerCase();
+      return (p.startsWith('.') && p.length > 1)
+        || lower === '$recycle.bin'
+        || lower === 'recycler'
+        || lower === 'recycle.bin'
+        || lower === 'trash'
+        || lower === 'trashed'
+        || lower.startsWith('trashed-');
+    });
 }
 
 function rebuildMaps() {
@@ -371,6 +382,7 @@ async function buildFullIndex() {
         mtime:    stat.mtime.getTime(),
         mtimeStr: stat.mtime.toLocaleDateString(),
         readable: canRead(absPath),
+        hidden:   pathHasHiddenSegment(relPath),
         path:     relPath.replace(/\\/g, '/'),
       });
       if (isDir) await walk(absPath, relPath, depth + 1);
@@ -423,6 +435,7 @@ async function incrementalUpdateDir(absDir) {
       mtime:    stat.mtime.getTime(),
       mtimeStr: stat.mtime.toLocaleDateString(),
       readable: canRead(absPath),
+      hidden:   pathHasHiddenSegment(relPath),
       path:     relPath.replace(/\\/g, '/'),
     });
   }
@@ -722,10 +735,10 @@ async function thumbWorkerLoop() {
       const stat = safeStatSync(absPath);
       if (!stat || !stat.isFile()) continue;
       const mime = getMime(absPath);
-      const isMedia = mime.startsWith('image/') || mime.startsWith('video/');
+      const isMedia = mime.startsWith('image/');
       if (!isMedia) continue;
-      const cat      = mime.startsWith('video/') ? 'video' : 'image';
-      const typeTag  = cat === 'video' ? 'v' : 'i';
+      const cat      = 'image';
+      const typeTag  = 'i';
       const etag = `"th4-${typeTag}-${THUMB_W}x${THUMB_H}-${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
       const diskPath = thumbDiskKey(etag, cat);
       if (fs.existsSync(diskPath)) continue; // already cached, skip
@@ -740,13 +753,10 @@ async function thumbWorkerLoop() {
 }
 
 function startThumbPregen() {
-  // Images first (fast), then videos (FFmpeg keyframe extraction)
-  const mediaFiles = idx.files.filter(i => i.category === 'image' || i.category === 'video');
+  const mediaFiles = idx.files.filter(i => i.category === 'image');
   if (!mediaFiles.length) return;
-  // Put images at front of queue, videos at back — images are cheaper
   const images = mediaFiles.filter(i => i.category === 'image');
-  const videos = mediaFiles.filter(i => i.category === 'video');
-  thumbQueue.jobs.push(...images, ...videos);
+  thumbQueue.jobs.push(...images);
   const toStart = Math.min(thumbQueue.WORKERS, thumbQueue.WORKERS - thumbQueue.running);
   for (let i = 0; i < toStart; i++) {
     if (thumbQueue.running < thumbQueue.WORKERS) {
@@ -754,7 +764,7 @@ function startThumbPregen() {
       thumbWorkerLoop().catch(() => { thumbQueue.running--; });
     }
   }
-  console.log(`[thumbs] pre-generating ${images.length} images + ${videos.length} videos (${thumbQueue.WORKERS} workers)`);
+  console.log(`[thumbs] pre-generating ${images.length} images (${thumbQueue.WORKERS} workers)`);
 }
 
 // ── Queue specific paths on-demand (called by frontend lazy loader) ────────
@@ -764,7 +774,7 @@ function enqueueThumbOnDemand(relPath) {
   const item = idx.byRelPath.get(relPath);
   if (!item || item.type === 'dir') return;
   const mime = getMime(item.name);
-  if (!mime.startsWith('image/') && !mime.startsWith('video/')) return;
+  if (!mime.startsWith('image/')) return;
   // Push to front of queue so on-demand items are processed first
   thumbQueue.jobs.unshift(item);
   if (thumbQueue.running < thumbQueue.WORKERS) {
@@ -820,7 +830,7 @@ app.get('/api/imgmeta', async (req, res) => {
   }
 });
 
-// ── Thumbnail API — WebP 200×150, disk + memory cached (images + videos) ───
+// ── Thumbnail API — WebP 200×150, disk + memory cached ─────────────────────
 app.get('/api/thumb', async (req, res) => {
   const relPath = decodeURIComponent(req.query.path || '');
   const absPath = safePath(relPath);
@@ -835,10 +845,14 @@ app.get('/api/thumb', async (req, res) => {
   const isVideo = mime.startsWith('video/');
   if (!isImage && !isVideo) return res.status(404).end();
 
+  if (isVideo) {
+    return res.status(404).json({ clientSide: true });
+  }
+
   const w       = Math.min(600, Math.max(50, parseInt(req.query.w || String(THUMB_W), 10)));
   const h       = Math.min(480, Math.max(50, parseInt(req.query.h || String(THUMB_H), 10)));
-  const cat     = isVideo ? 'video' : 'image';
-  const typeTag = isVideo ? 'v' : 'i';
+  const cat     = 'image';
+  const typeTag = 'i';
   const etag    = `"th4-${typeTag}-${w}x${h}-${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
 
   if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
@@ -870,15 +884,6 @@ app.get('/api/thumb', async (req, res) => {
     }).end(buf);
   }
 
-  // ── Video: never block the HTTP request on FFmpeg.
-  //    Return 404 immediately and let the background queue generate it.
-  //    Frontend retries until the thumbnail is ready in cache.
-  if (isVideo) {
-    enqueueThumbOnDemand(relPath);
-    return res.status(404).json({ queued: true });
-  }
-
-  // ── Image: generate on-demand (FFmpeg → category thumbs dir)
   try {
     const buf = await generateThumbnail(absPath, w, h);
     if (!buf) return res.status(404).end();
@@ -1006,7 +1011,7 @@ function applySort(items, sort, dir) {
 
 function applyHidden(items, showHidden) {
   if (showHidden) return items;
-  return items.filter(i => !pathHasHiddenSegment(i.path || i.name));
+  return items.filter(i => !i.hidden && !pathHasHiddenSegment(i.path || i.name));
 }
 
 app.get('/api/ls', (req, res) => {

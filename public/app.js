@@ -399,6 +399,7 @@ const memObserver = typeof IntersectionObserver !== 'undefined'
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PG_LIMIT = 125; // items per page — larger batch = fewer API calls
+const VP_PREVIEW_BUCKET_SECONDS = 5;
 
 const pg = {
   view:     null,  // 'browser' | 'cat' | 'search'
@@ -519,7 +520,7 @@ const vp = {
   previewVideoUrl: '',
   previewBusy: false,
   previewPendingTime: null,
-  previewCache: new LRUCache(40),
+  previewCache: new LRUCache(24),
   clickTimer: null,
   suppressClickUntil: 0,
   // gesture tracking
@@ -1126,7 +1127,7 @@ function closeVideo() {
   vp.previewVideoUrl = '';
   vp.previewBusy = false;
   vp.previewPendingTime = null;
-  vp.previewCache = new LRUCache(40);
+    vp.previewCache = new LRUCache(24);
   const _thumb = $('vpProgressThumb');
   if (_thumb && _thumb._blobUrl) { URL.revokeObjectURL(_thumb._blobUrl); _thumb._blobUrl = null; }
   $('videoModal').classList.add('hidden');
@@ -1340,7 +1341,7 @@ function vpSchedulePreview(time) {
     const maxT = Math.max(0, (vid.duration || 0) - 0.25);
     const t = Math.max(0, Math.min(maxT, time));
     vpRenderClientPreview(t, tooltip, thumb);
-  }, 90);
+  }, 220);
 }
 
 function vpGetPreviewVideo() {
@@ -1352,7 +1353,7 @@ function vpGetPreviewVideo() {
 
   const pv = document.createElement('video');
   pv.muted = true;
-  pv.preload = 'metadata';
+  pv.preload = 'none';
   pv.playsInline = true;
   pv.crossOrigin = 'anonymous';
   pv.src = vp.url;
@@ -1363,7 +1364,8 @@ function vpGetPreviewVideo() {
 }
 
 function vpRenderClientPreview(time, tooltip, thumb) {
-  const cacheKey = `${vp.url}::${Math.round(time)}`;
+  const previewTime = Math.max(0, Math.round(time / VP_PREVIEW_BUCKET_SECONDS) * VP_PREVIEW_BUCKET_SECONDS);
+  const cacheKey = `${vp.url}::${previewTime}`;
   const cached = vp.previewCache.get(cacheKey);
   if (cached) {
     thumb.src = cached;
@@ -1428,9 +1430,9 @@ function vpRenderClientPreview(time, tooltip, thumb) {
 
   try {
     if (pv.readyState < 1) {
-      pv.addEventListener('loadedmetadata', () => { pv.currentTime = time; }, { once: true });
+      pv.addEventListener('loadedmetadata', () => { pv.currentTime = previewTime; }, { once: true });
     } else {
-      pv.currentTime = time;
+      pv.currentTime = previewTime;
     }
   } catch (_) {
     fail();

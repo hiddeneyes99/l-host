@@ -41,6 +41,7 @@ The app is configured for Replit with:
 - Server binding to `0.0.0.0`
 - A safe Replit default file root at `files/`
 - Path traversal protection via server-side path resolution under `ROOT_DIR`
+- Hidden-file mode indexes all readable filesystem entries, including dot-prefixed folders such as WhatsApp `.Statuses`; turning Hidden Files off filters those paths from browse, search, and category views
 
 ## Running
 
@@ -78,7 +79,8 @@ ROOT_DIR=/ node server.js
 - Server-side pagination for listings, search, and categories
 - Persistent file index stored in `data/index.json`
 - Background index refresh and filesystem watcher when available
-- Thumbnail caches for media previews
+- Image thumbnail caches for media previews
+- Video thumbnails and timeline previews are generated in the browser with canvas instead of server-side FFmpeg work
 - 4 MB video chunk cap for safer streaming in constrained environments
 
 ## API Endpoints
