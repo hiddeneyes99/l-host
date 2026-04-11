@@ -498,6 +498,7 @@ const vp = {
     type: null,         // 'vol' | 'bright' | null
     leftTap: 0, rightTap: 0, // timestamps for double-tap
     tapCount: 0,
+    controlsWereHidden: false,
   },
 };
 
@@ -1164,6 +1165,8 @@ function vpSetVolume(v) {
   const range = $('vpVolRange');
   range.value = vp.volume;
   range.style.setProperty('--vol-pct', (vp.volume * 100) + '%');
+  const pct = $('vpVolPct');
+  if (pct) pct.textContent = Math.round(vp.volume * 100) + '%';
   vpUpdateVolIcon();
 }
 
@@ -1415,6 +1418,7 @@ function vpInitGestures() {
   const layer = $('vpGestureLayer');
 
   layer.addEventListener('touchstart', e => {
+    vp.touch.controlsWereHidden = $('vpWrap').classList.contains('controls-hidden');
     vpShowControls();
     const t = e.changedTouches[0];
     vp.touch.startX   = t.clientX;
@@ -1473,8 +1477,7 @@ function vpInitGestures() {
         const relY = (t.clientY - rect.top)  / rect.height;
         const isCenter = relX > 0.3 && relX < 0.7 && relY > 0.25 && relY < 0.75;
         vp.clickTimer = setTimeout(() => {
-          const controlsHidden = $('vpWrap').classList.contains('controls-hidden');
-          if (controlsHidden) {
+          if (vp.touch.controlsWereHidden) {
             vpShowControls();
           } else {
             // Hide controls
@@ -1530,6 +1533,42 @@ function vpSyncPlayIcon(playing) {
     : '<polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/>';
 }
 
+// ── Info Panel ─────────────────────────────────────────────────────────────
+function vpShowInfo() {
+  const vid  = $('videoPlayer');
+  const body = $('vpInfoBody');
+  const item = vp.item;
+  body.innerHTML = '';
+  const rows = [
+    ['Name',       item?.name || '—'],
+    ['Duration',   vid.duration ? fmtTime(vid.duration) : '—'],
+    ['Resolution', (vid.videoWidth && vid.videoHeight) ? `${vid.videoWidth} × ${vid.videoHeight}` : '—'],
+    ['Size',       item?.sizeStr || '—'],
+    ['Speed',      vp.speed + '×'],
+    ['Path',       item?.path || '—'],
+  ];
+  rows.forEach(([k, v]) => {
+    const row = document.createElement('div');
+    row.className = 'vp-info-row';
+    row.innerHTML = `<span class="vp-info-key">${k}</span><span class="vp-info-val">${v}</span>`;
+    body.appendChild(row);
+  });
+  $('vpInfoPanel').classList.remove('hidden');
+  $('vpInfoBtn').classList.add('active');
+  vpLockControls(8000);
+}
+
+function vpHideInfo() {
+  $('vpInfoPanel').classList.add('hidden');
+  $('vpInfoBtn').classList.remove('active');
+  vp.controlsLocked = false;
+  vpShowControls();
+}
+
+function vpToggleInfo() {
+  $('vpInfoPanel').classList.contains('hidden') ? vpShowInfo() : vpHideInfo();
+}
+
 // ── Wire up all player events ──────────────────────────────────────────────
 function vpInit() {
   const vid = $('videoPlayer');
@@ -1565,6 +1604,9 @@ function vpInit() {
   $('vpTheaterBtn').addEventListener('click', e => { e.stopPropagation(); vpToggleTheater(); vpShowControls(); });
   $('vpPipBtn').addEventListener('click', e => { e.stopPropagation(); vpTogglePiP(); });
   $('vpFsBtn').addEventListener('click', e => { e.stopPropagation(); vpToggleFullscreen(); vpShowControls(); });
+  $('vpInfoBtn').addEventListener('click', e => { e.stopPropagation(); vpToggleInfo(); });
+  $('vpInfoClose').addEventListener('click', e => { e.stopPropagation(); vpHideInfo(); });
+  $('vpInfoPanel').addEventListener('click', e => e.stopPropagation());
 
   // Screencast / Remote Playback (Cast to TV)
   $('vpCastBtn').addEventListener('click', e => {
