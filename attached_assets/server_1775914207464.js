@@ -22,34 +22,8 @@ const { execFile } = require('child_process');
 const app  = express();
 const HOST = '0.0.0.0';
 
-// ── Gzip responses — skip video (already compressed; gzip wastes CPU for 0 gain)
-const VIDEO_EXTS = new Set(['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp']);
-app.use(compression({
-  filter: (req, res) => {
-    if (req.path === '/file' && req.query && req.query.path) {
-      const ext = path.extname(req.query.path).toLowerCase();
-      if (VIDEO_EXTS.has(ext)) return false;
-    }
-    return compression.filter(req, res);
-  },
-  level: 6,
-}));
-
-// ── Per-file concurrent reader limiter — protects mobile host from I/O overload
-const FILE_READERS    = new Map(); // absPath → active reader count
-const MAX_FILE_READERS = 4;
-
-function acquireReader(absPath) {
-  const n = FILE_READERS.get(absPath) || 0;
-  if (n >= MAX_FILE_READERS) return false;
-  FILE_READERS.set(absPath, n + 1);
-  return true;
-}
-function releaseReader(absPath) {
-  const n = FILE_READERS.get(absPath) || 0;
-  if (n <= 1) FILE_READERS.delete(absPath);
-  else FILE_READERS.set(absPath, n - 1);
-}
+// ── Gzip all responses — reduces transfer size 60-80% ─────────────────────
+app.use(compression());
 
 // ══════════════════════════════════════════════════════════════════════════
 //  PROTOCOL 1 — Dynamic Path Handling
@@ -247,7 +221,7 @@ function buildFileInfo(absPath, relPath, name) {
 
 const INDEX_FILE    = path.join(__dirname, 'data', 'index.json');
 const APP_DATA_DIR  = path.join(__dirname, 'data');   // excluded from index & watcher
-const INDEX_VERSION = 5;
+const INDEX_VERSION = 2;
 
 // ── In-memory index state ──────────────────────────────────────────────────
 const idx = {
@@ -343,6 +317,7 @@ async function buildFullIndex() {
 
   async function walk(absDir, relDir, depth) {
     if (depth > 15) return;
+    // Never walk into the app's own data directory (thumbs, index, etc.)
     if (absDir.startsWith(APP_DATA_DIR)) return;
     let entries;
     try { entries = await fs.promises.readdir(absDir); } catch (_) { return; }
@@ -445,6 +420,8 @@ function startWatcher() {
       const abs = path.resolve(ROOT_DIR, filename);
       // Skip changes inside the app's own data directory (thumbs, index, etc.)
       if (abs.startsWith(APP_DATA_DIR)) return;
+      // Skip hidden dot-files / system dirs
+      if (filename.startsWith('.')) return;
       const stat   = safeStatSync(abs);
       const absDir = stat?.isDirectory() ? abs : path.dirname(abs);
       pending.add(absDir);
@@ -714,10 +691,10 @@ async function thumbWorkerLoop() {
       const stat = safeStatSync(absPath);
       if (!stat || !stat.isFile()) continue;
       const mime = getMime(absPath);
-      const isMedia = mime.startsWith('image/');
+      const isMedia = mime.startsWith('image/') || mime.startsWith('video/');
       if (!isMedia) continue;
-      const cat      = 'image';
-      const typeTag  = 'i';
+      const cat      = mime.startsWith('video/') ? 'video' : 'image';
+      const typeTag  = cat === 'video' ? 'v' : 'i';
       const etag = `"th4-${typeTag}-${THUMB_W}x${THUMB_H}-${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
       const diskPath = thumbDiskKey(etag, cat);
       if (fs.existsSync(diskPath)) continue; // already cached, skip
@@ -732,10 +709,13 @@ async function thumbWorkerLoop() {
 }
 
 function startThumbPregen() {
-  const mediaFiles = idx.files.filter(i => i.category === 'image');
+  // Images first (fast), then videos (FFmpeg keyframe extraction)
+  const mediaFiles = idx.files.filter(i => i.category === 'image' || i.category === 'video');
   if (!mediaFiles.length) return;
+  // Put images at front of queue, videos at back — images are cheaper
   const images = mediaFiles.filter(i => i.category === 'image');
-  thumbQueue.jobs.push(...images);
+  const videos = mediaFiles.filter(i => i.category === 'video');
+  thumbQueue.jobs.push(...images, ...videos);
   const toStart = Math.min(thumbQueue.WORKERS, thumbQueue.WORKERS - thumbQueue.running);
   for (let i = 0; i < toStart; i++) {
     if (thumbQueue.running < thumbQueue.WORKERS) {
@@ -743,7 +723,7 @@ function startThumbPregen() {
       thumbWorkerLoop().catch(() => { thumbQueue.running--; });
     }
   }
-  console.log(`[thumbs] pre-generating ${images.length} images (${thumbQueue.WORKERS} workers)`);
+  console.log(`[thumbs] pre-generating ${images.length} images + ${videos.length} videos (${thumbQueue.WORKERS} workers)`);
 }
 
 // ── Queue specific paths on-demand (called by frontend lazy loader) ────────
@@ -753,7 +733,7 @@ function enqueueThumbOnDemand(relPath) {
   const item = idx.byRelPath.get(relPath);
   if (!item || item.type === 'dir') return;
   const mime = getMime(item.name);
-  if (!mime.startsWith('image/')) return;
+  if (!mime.startsWith('image/') && !mime.startsWith('video/')) return;
   // Push to front of queue so on-demand items are processed first
   thumbQueue.jobs.unshift(item);
   if (thumbQueue.running < thumbQueue.WORKERS) {
@@ -809,7 +789,7 @@ app.get('/api/imgmeta', async (req, res) => {
   }
 });
 
-// ── Thumbnail API — WebP 200×150, disk + memory cached ─────────────────────
+// ── Thumbnail API — WebP 200×150, disk + memory cached (images + videos) ───
 app.get('/api/thumb', async (req, res) => {
   const relPath = decodeURIComponent(req.query.path || '');
   const absPath = safePath(relPath);
@@ -824,14 +804,10 @@ app.get('/api/thumb', async (req, res) => {
   const isVideo = mime.startsWith('video/');
   if (!isImage && !isVideo) return res.status(404).end();
 
-  if (isVideo) {
-    return res.status(404).json({ clientSide: true });
-  }
-
   const w       = Math.min(600, Math.max(50, parseInt(req.query.w || String(THUMB_W), 10)));
   const h       = Math.min(480, Math.max(50, parseInt(req.query.h || String(THUMB_H), 10)));
-  const cat     = 'image';
-  const typeTag = 'i';
+  const cat     = isVideo ? 'video' : 'image';
+  const typeTag = isVideo ? 'v' : 'i';
   const etag    = `"th4-${typeTag}-${w}x${h}-${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
 
   if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
@@ -863,6 +839,15 @@ app.get('/api/thumb', async (req, res) => {
     }).end(buf);
   }
 
+  // ── Video: never block the HTTP request on FFmpeg.
+  //    Return 404 immediately and let the background queue generate it.
+  //    Frontend retries until the thumbnail is ready in cache.
+  if (isVideo) {
+    enqueueThumbOnDemand(relPath);
+    return res.status(404).json({ queued: true });
+  }
+
+  // ── Image: generate on-demand (FFmpeg → category thumbs dir)
   try {
     const buf = await generateThumbnail(absPath, w, h);
     if (!buf) return res.status(404).end();
@@ -993,46 +978,6 @@ function applyHidden(items, showHidden) {
   return items.filter(i => !i.name.startsWith('.'));
 }
 
-function walkCategoryFallback(startPath, cat, showHidden, maxItems = 20000) {
-  const rawAll = [];
-  function walk(dir, relDir, depth) {
-    if (depth > 15 || rawAll.length >= maxItems) return;
-    const entries = safeReaddirSync(dir);
-    for (const name of entries) {
-      if (rawAll.length >= maxItems) break;
-      if (!showHidden && name.startsWith('.')) continue;
-      const full = path.join(dir, name);
-      const rel = relDir ? relDir + '/' + name : name;
-      const info = buildFileInfo(full, rel, name);
-      if (!info) continue;
-      if (info.type === 'dir') walk(full, rel, depth + 1);
-      else if (info.category === cat) rawAll.push(info);
-    }
-  }
-  walk(startPath, '', 0);
-  return rawAll;
-}
-
-function walkSearchFallback(startPath, q, showHidden, maxItems = 20000) {
-  const all = [];
-  function walk(dir, relDir, depth) {
-    if (depth > 15 || all.length >= maxItems) return;
-    const entries = safeReaddirSync(dir);
-    for (const name of entries) {
-      if (all.length >= maxItems) break;
-      if (!showHidden && name.startsWith('.')) continue;
-      const full = path.join(dir, name);
-      const rel = relDir ? relDir + '/' + name : name;
-      const info = buildFileInfo(full, rel, name);
-      if (!info) continue;
-      if (name.toLowerCase().includes(q)) all.push(info);
-      if (info.type === 'dir') walk(full, rel, depth + 1);
-    }
-  }
-  walk(startPath, '', 0);
-  return all;
-}
-
 app.get('/api/ls', (req, res) => {
   const relPath    = decodeURIComponent(req.query.path || '');
   const absPath    = safePath(relPath);
@@ -1098,7 +1043,23 @@ app.get('/api/search', (req, res) => {
     return res.json({ results: slice, total, page, limit, hasMore: (page + 1) * limit < total, query: q });
   }
 
-  const all = walkSearchFallback(startPath, q, showHidden);
+  // ── Fallback: disk walk (only before index is ready) ─────────────────────
+  const all = [];
+  const MAX = 1000;
+  function walk(dir, depth) {
+    if (depth > 10 || all.length >= MAX) return;
+    const entries = safeReaddirSync(dir);
+    for (const name of entries) {
+      if (all.length >= MAX) break;
+      if (!showHidden && name.startsWith('.')) continue;
+      const full = path.join(dir, name);
+      const info = buildFileInfo(full, path.relative(ROOT_DIR, full), name);
+      if (!info) continue;
+      if (name.toLowerCase().includes(q)) all.push(info);
+      if (info.type === 'dir') walk(full, depth + 1);
+    }
+  }
+  walk(startPath, 0);
   const total = all.length;
   const slice = all.slice(page * limit, (page + 1) * limit);
   res.json({ results: slice, total, page, limit, hasMore: (page + 1) * limit < total, query: q });
@@ -1122,9 +1083,25 @@ app.get('/api/category/:cat', (req, res) => {
     return res.json({ category: cat, results: slice, total, page, limit, hasMore: (page + 1) * limit < total });
   }
 
+  // ── Fallback: disk walk (only before index is ready) ─────────────────────
   const startPath = safePath('');
   if (!startPath) return res.status(403).json({ error: 'Access denied' });
-  const rawAll = walkCategoryFallback(startPath, cat, showHidden);
+  const rawAll = [];
+  const MAX = 5000;
+  function walk(dir, depth) {
+    if (depth > 12 || rawAll.length >= MAX) return;
+    const entries = safeReaddirSync(dir);
+    for (const name of entries) {
+      if (rawAll.length >= MAX) break;
+      if (!showHidden && name.startsWith('.')) continue;
+      const full = path.join(dir, name);
+      const info = buildFileInfo(full, path.relative(ROOT_DIR, full), name);
+      if (!info) continue;
+      if (info.type === 'dir') { walk(full, depth + 1); }
+      else if (info.category === cat) rawAll.push(info);
+    }
+  }
+  walk(startPath, 0);
   const all   = applySort(rawAll, sort, sortDir);
   const total = all.length;
   const slice = all.slice(page * limit, (page + 1) * limit);
@@ -1132,10 +1109,7 @@ app.get('/api/category/:cat', (req, res) => {
 });
 
 // ── Stream / download a file ───────────────────────────────────────────────
-//  Chunk size tuning:
-//   • 4 MB  — safe on mobile hosts (low RAM), fast enough for LAN
-//   • Larger chunks = fewer HTTP round-trips but more RAM on host
-const CHUNK_MAX = 4 * 1024 * 1024;
+const CHUNK_MAX = 4 * 1024 * 1024; // 4 MB max per chunk — keeps RAM low on mobile
 
 app.get('/file', (req, res) => {
   const relPath = decodeURIComponent(req.query.path || '');
@@ -1151,61 +1125,49 @@ app.get('/file', (req, res) => {
   const range    = req.headers.range;
   const download = req.query.dl === '1';
 
-  const isVideo  = mime.startsWith('video/') && !download;
-  const isStatic = mime.startsWith('image/') || mime.startsWith('audio/');
-  const etag     = `"${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
-
-  // ── ETag conditional cache for static media (image / audio) ────────────
-  if (isStatic && !download && req.headers['if-none-match'] === etag) {
-    return res.writeHead(304).end();
-  }
-
-  // ── Per-file reader limit for video — protects mobile host ─────────────
-  if (isVideo) {
-    if (!acquireReader(absPath)) {
-      return res.status(429)
-        .set({ 'Retry-After': '2', 'Content-Type': 'text/plain' })
-        .send('Server busy — too many concurrent streams on this file. Retry in 2 s.');
+  // ── ETag + conditional caching for images & audio ──────────────────────
+  //  Browsers cache the file after the first load, then use 304 Not Modified
+  //  for subsequent requests — dramatically reduces load time on revisit.
+  const isStaticMedia = mime.startsWith('image/') || mime.startsWith('audio/');
+  const etag = `"${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
+  if (isStaticMedia && !download) {
+    if (req.headers['if-none-match'] === etag) {
+      return res.writeHead(304).end();
     }
-    const release = () => releaseReader(absPath);
-    res.on('close',  release);
-    res.on('finish', release);
   }
 
   if (range) {
     const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
     const start        = parseInt(startStr, 10) || 0;
     const requestedEnd = endStr ? parseInt(endStr, 10) : size - 1;
+    // Cap chunk to CHUNK_MAX — critical for instant playback & seek on large files
     const end          = Math.min(requestedEnd, start + CHUNK_MAX - 1, size - 1);
     const chunkSize    = end - start + 1;
     try {
-      const stream = fs.createReadStream(absPath, { start, end, highWaterMark: 256 * 1024 });
+      const stream = fs.createReadStream(absPath, { start, end });
       const rangeHeaders = {
         'Content-Range':  `bytes ${start}-${end}/${size}`,
         'Accept-Ranges':  'bytes',
         'Content-Length': chunkSize,
         'Content-Type':   mime,
-        'Last-Modified':  stat.mtime.toUTCString(),
-        'ETag':           etag,
       };
-      // Cache video chunks for 1 h — browser won't re-fetch the same byte range on re-seek
-      if (isVideo)  rangeHeaders['Cache-Control'] = 'public, max-age=3600';
-      if (isStatic) rangeHeaders['Cache-Control'] = 'public, max-age=86400';
+      if (isStaticMedia) { rangeHeaders['Cache-Control'] = 'public, max-age=86400'; rangeHeaders['ETag'] = etag; }
       res.writeHead(206, rangeHeaders);
       stream.pipe(res);
       stream.on('error', () => res.end());
     } catch (_) { res.status(500).end(); }
   } else {
+    // Non-range: stream entire file (downloads), but set Accept-Ranges so player can seek
     const headers = {
       'Content-Length': size,
       'Content-Type':   mime,
       'Accept-Ranges':  'bytes',
-      'Last-Modified':  stat.mtime.toUTCString(),
-      'ETag':           etag,
     };
-    if (isStatic && !download) {
+    if (isStaticMedia && !download) {
+      // 24-hour browser cache for images and audio — huge speed win on revisit
       headers['Cache-Control'] = 'public, max-age=86400';
-    } else if (!download) {
+      headers['ETag']          = etag;
+    } else {
       headers['Cache-Control'] = 'no-cache';
     }
     if (download) headers['Content-Disposition'] = `attachment; filename="${path.basename(absPath)}"`;
