@@ -1,8 +1,6 @@
 // ── l-host Service Worker ─────────────────────────────────────────────────
 //  Strategy:
 //   • App shell (HTML, CSS, JS)  → Cache-first with network fallback
-//   • /api/preview-frame         → Cache-first (server already caches, this
-//                                  keeps repeat seeks instant with zero server hit)
 //   • /api/thumb + /api/preview  → Cache-first (thumbnail images)
 //   • /file (video/audio)        → BYPASS SW entirely — browser handles range
 //                                  requests natively; SW interception breaks
@@ -55,9 +53,8 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // 3. Preview frames + thumbnails → cache-first (images only change if file changes)
-  if (path.startsWith('/api/preview-frame') ||
-      path.startsWith('/api/thumb') ||
+  // 3. Thumbnails → cache-first (images only change if file changes)
+  if (path.startsWith('/api/thumb') ||
       path.startsWith('/api/preview')) {
     e.respondWith(cacheFirst(CACHE_THUMBS, request));
     return;

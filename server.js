@@ -262,6 +262,13 @@ const idx = {
 };
 
 // ── Rebuild in-memory lookup maps from idx.all ─────────────────────────────
+function pathHasHiddenSegment(relPath) {
+  return String(relPath || '')
+    .replace(/\\/g, '/')
+    .split('/')
+    .some(part => part.startsWith('.') && part.length > 1);
+}
+
 function rebuildMaps() {
   idx.byRelPath.clear();
   idx.byParent.clear();
@@ -446,8 +453,6 @@ function startWatcher() {
       const abs = path.resolve(ROOT_DIR, filename);
       // Skip changes inside the app's own data directory (thumbs, index, etc.)
       if (abs.startsWith(APP_DATA_DIR)) return;
-      // Skip hidden dot-files / system dirs
-      if (filename.startsWith('.')) return;
       const stat   = safeStatSync(abs);
       const absDir = stat?.isDirectory() ? abs : path.dirname(abs);
       pending.add(absDir);
@@ -1001,7 +1006,7 @@ function applySort(items, sort, dir) {
 
 function applyHidden(items, showHidden) {
   if (showHidden) return items;
-  return items.filter(i => !i.name.startsWith('.'));
+  return items.filter(i => !pathHasHiddenSegment(i.path || i.name));
 }
 
 app.get('/api/ls', (req, res) => {
@@ -1132,52 +1137,6 @@ app.get('/api/category/:cat', (req, res) => {
   const total = all.length;
   const slice = all.slice(page * limit, (page + 1) * limit);
   res.json({ category: cat, results: slice, total, page, limit, hasMore: (page + 1) * limit < total });
-});
-
-// ── Video preview-frame API ────────────────────────────────────────────────
-//  Returns a WebP frame extracted at the requested timestamp (seconds).
-//  Client uses this for the progress-bar scrub preview instead of a live
-//  hidden <video> element — much lighter on the host (no stream, one FFmpeg
-//  process per unique second, result cached in-memory).
-const PREVIEW_FRAME_CACHE_MAX = 120; // ~120 unique frames across all videos
-const previewFrameCache = new Map(); // `${absPath}::${roundedSec}` → Buffer
-
-app.get('/api/preview-frame', async (req, res) => {
-  const relPath = decodeURIComponent(req.query.path || '');
-  const t       = Math.max(0, Math.round(parseFloat(req.query.t) || 0));
-  const absPath = safePath(relPath);
-  if (!absPath || !canRead(absPath)) return res.status(403).send('Denied');
-
-  const key = `${absPath}::${t}`;
-
-  // Memory cache hit — instant return, no FFmpeg
-  if (previewFrameCache.has(key)) {
-    const buf = previewFrameCache.get(key);
-    return res.set({
-      'Content-Type':   'image/webp',
-      'Content-Length': buf.length,
-      'Cache-Control':  'public, max-age=3600',
-    }).end(buf);
-  }
-
-  try {
-    // 320×180 WebP, quality 72 — small file, fast extraction
-    const buf = await thumbThrottle(() =>
-      spawnFFmpegThumb(absPath, 320, 180, 10000, t, '72')
-    );
-    // LRU evict oldest if over limit
-    if (previewFrameCache.size >= PREVIEW_FRAME_CACHE_MAX) {
-      previewFrameCache.delete(previewFrameCache.keys().next().value);
-    }
-    previewFrameCache.set(key, buf);
-    res.set({
-      'Content-Type':   'image/webp',
-      'Content-Length': buf.length,
-      'Cache-Control':  'public, max-age=3600',
-    }).end(buf);
-  } catch (_) {
-    res.status(500).send('Frame extraction failed');
-  }
 });
 
 // ── Stream / download a file ───────────────────────────────────────────────

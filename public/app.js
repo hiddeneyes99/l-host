@@ -515,7 +515,11 @@ const vp = {
   lockTimer: null,
   progressDragging: false,
   previewTimer: null,
-  previewAbortCtrl: null, // AbortController for in-flight preview-frame fetch
+  previewVideo: null,
+  previewVideoUrl: '',
+  previewBusy: false,
+  previewPendingTime: null,
+  previewCache: new LRUCache(40),
   clickTimer: null,
   suppressClickUntil: 0,
   // gesture tracking
@@ -1115,7 +1119,14 @@ function closeVideo() {
   clearTimeout(vp.controlsTimer);
   clearTimeout(vp.previewTimer);
   clearTimeout(vp.clickTimer);
-  if (vp.previewAbortCtrl) { vp.previewAbortCtrl.abort(); vp.previewAbortCtrl = null; }
+  if (vp.previewVideo) {
+    try { vp.previewVideo.pause(); vp.previewVideo.removeAttribute('src'); vp.previewVideo.load(); } catch(_) {}
+    vp.previewVideo = null;
+  }
+  vp.previewVideoUrl = '';
+  vp.previewBusy = false;
+  vp.previewPendingTime = null;
+  vp.previewCache = new LRUCache(40);
   const _thumb = $('vpProgressThumb');
   if (_thumb && _thumb._blobUrl) { URL.revokeObjectURL(_thumb._blobUrl); _thumb._blobUrl = null; }
   $('videoModal').classList.add('hidden');
@@ -1307,17 +1318,12 @@ function vpInitProgress() {
   });
 
   track.addEventListener('mouseleave', () => {
+    clearTimeout(vp.previewTimer);
     tooltip.classList.remove('has-thumb');
     thumb.removeAttribute('src');
   });
 }
 
-// ── Server-side preview frame — replaces the old hidden <video> element ────
-//  Calls /api/preview-frame which uses FFmpeg on the host to extract a frame.
-//  Benefits vs live video:
-//   • No second video stream open on host (lower I/O)
-//   • Server caches results (same second → instant response)
-//   • SW caches in browser (repeat seeks are instant, zero server hit)
 function vpSchedulePreview(time) {
   const vid     = $('videoPlayer');
   const tooltip = $('vpProgressTooltip');
@@ -1328,34 +1334,107 @@ function vpSchedulePreview(time) {
     return;
   }
 
-  // Abort any in-flight request
-  if (vp.previewAbortCtrl) { vp.previewAbortCtrl.abort(); vp.previewAbortCtrl = null; }
   clearTimeout(vp.previewTimer);
 
-  // Debounce 150 ms — only fire when user pauses scrubbing
-  vp.previewTimer = setTimeout(async () => {
-    const t       = Math.max(0, Math.min(Math.round(vid.duration) - 1, Math.round(time)));
-    const relPath = new URLSearchParams(new URL(vp.url, location.href).search).get('path');
-    if (!relPath) return;
+  vp.previewTimer = setTimeout(() => {
+    const maxT = Math.max(0, (vid.duration || 0) - 0.25);
+    const t = Math.max(0, Math.min(maxT, time));
+    vpRenderClientPreview(t, tooltip, thumb);
+  }, 90);
+}
 
-    vp.previewAbortCtrl = new AbortController();
-    try {
-      const res  = await fetch(`/api/preview-frame?path=${encodeURIComponent(relPath)}&t=${t}`,
-                               { signal: vp.previewAbortCtrl.signal });
-      if (!res.ok) { tooltip.classList.remove('has-thumb'); return; }
-      const blob = await res.blob();
-      // Revoke previous blob URL to free memory
-      if (thumb._blobUrl) URL.revokeObjectURL(thumb._blobUrl);
-      thumb._blobUrl = URL.createObjectURL(blob);
-      thumb.src = thumb._blobUrl;
-      tooltip.classList.add('has-thumb');
-    } catch (_) {
-      // AbortError or network error — silently ignore
-      tooltip.classList.remove('has-thumb');
-    } finally {
-      vp.previewAbortCtrl = null;
+function vpGetPreviewVideo() {
+  if (vp.previewVideo && vp.previewVideoUrl === vp.url) return vp.previewVideo;
+
+  if (vp.previewVideo) {
+    try { vp.previewVideo.pause(); vp.previewVideo.removeAttribute('src'); vp.previewVideo.load(); } catch(_) {}
+  }
+
+  const pv = document.createElement('video');
+  pv.muted = true;
+  pv.preload = 'metadata';
+  pv.playsInline = true;
+  pv.crossOrigin = 'anonymous';
+  pv.src = vp.url;
+
+  vp.previewVideo = pv;
+  vp.previewVideoUrl = vp.url;
+  return pv;
+}
+
+function vpRenderClientPreview(time, tooltip, thumb) {
+  const cacheKey = `${vp.url}::${Math.round(time)}`;
+  const cached = vp.previewCache.get(cacheKey);
+  if (cached) {
+    thumb.src = cached;
+    tooltip.classList.add('has-thumb');
+    return;
+  }
+
+  if (vp.previewBusy) {
+    vp.previewPendingTime = time;
+    return;
+  }
+
+  const pv = vpGetPreviewVideo();
+  vp.previewBusy = true;
+  vp.previewPendingTime = null;
+
+  let done = false;
+  const cleanup = () => {
+    pv.removeEventListener('seeked', onSeeked);
+    pv.removeEventListener('error', onError);
+    clearTimeout(timeout);
+  };
+  const finish = () => {
+    cleanup();
+    vp.previewBusy = false;
+    if (vp.previewPendingTime !== null && !$('videoModal').classList.contains('hidden')) {
+      const nextTime = vp.previewPendingTime;
+      vp.previewPendingTime = null;
+      vpRenderClientPreview(nextTime, tooltip, thumb);
     }
-  }, 150);
+  };
+  const fail = () => {
+    if (done) return;
+    done = true;
+    tooltip.classList.remove('has-thumb');
+    finish();
+  };
+  const timeout = setTimeout(fail, 3500);
+
+  function onError() { fail(); }
+
+  function onSeeked() {
+    if (done) return;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 320;
+      canvas.height = 180;
+      canvas.getContext('2d').drawImage(pv, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+      vp.previewCache.set(cacheKey, dataUrl);
+      thumb.src = dataUrl;
+      tooltip.classList.add('has-thumb');
+      done = true;
+      finish();
+    } catch (_) {
+      fail();
+    }
+  }
+
+  pv.addEventListener('seeked', onSeeked, { once: true });
+  pv.addEventListener('error', onError, { once: true });
+
+  try {
+    if (pv.readyState < 1) {
+      pv.addEventListener('loadedmetadata', () => { pv.currentTime = time; }, { once: true });
+    } else {
+      pv.currentTime = time;
+    }
+  } catch (_) {
+    fail();
+  }
 }
 
 // ── Speed ──────────────────────────────────────────────────────────────────
@@ -1783,7 +1862,7 @@ async function loadFolders() {
   const scroll = $('foldersScroll');
   scroll.innerHTML = '<div class="loader-wrap"><div class="loader"></div></div>';
   try {
-    const data = await fetchJson('/api/ls?path=');
+    const data = await fetchJson(`/api/ls?path=&page=0&limit=50&${buildListParams()}`);
     const dirs = data.items.filter(i => i.type === 'dir').slice(0, 10);
     if (!dirs.length) { scroll.innerHTML = '<div style="color:var(--text3);padding:16px;font-size:13px;">No folders found</div>'; return; }
     scroll.innerHTML = '';
