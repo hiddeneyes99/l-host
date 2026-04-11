@@ -1862,8 +1862,8 @@ async function loadRecent() {
   const grid = $('recentGrid');
   grid.innerHTML = '<div class="loader-wrap"><div class="loader"></div></div>';
   try {
-    const stateData = await fetchJson('/api/userstate');
-    const recents = (stateData.recent || []).slice(0, 8);
+    const data = await fetchJson('/api/recent?limit=8');
+    const recents = data.items || [];
     if (recents.length) {
       renderRecentCards(grid, recents);
       return;
@@ -2092,8 +2092,8 @@ async function doSearch(q) {
 
 // ── Open file ──────────────────────────────────────────────────────────────
 function openFile(item, imageSet = [], audioSet = []) {
-  // Persist to server so recent list survives restarts
-  fetch('/api/userstate/recent', {
+  // Persist to recent.json via dedicated endpoint
+  fetch('/api/recent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(item),

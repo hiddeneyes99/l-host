@@ -1404,19 +1404,78 @@ app.get('/api/info', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-//  USER STATE — Persistent recent files + favourites
+//  USER STATE — Persistent favourites
 //  Survives server restarts; stored in data/userstate.json
 // ══════════════════════════════════════════════════════════════════════════
 
-const STATE_FILE = path.join(__dirname, 'data', 'userstate.json');
+const STATE_FILE  = path.join(__dirname, 'data', 'userstate.json');
+const RECENT_FILE = path.join(__dirname, 'data', 'recent.json');
+const RECENT_MAX  = 50;
 
+// ── Recent files — fast separate file ────────────────────────────────────
+function loadRecent() {
+  try {
+    if (fs.existsSync(RECENT_FILE)) {
+      const data = JSON.parse(fs.readFileSync(RECENT_FILE, 'utf8'));
+      if (Array.isArray(data.items)) return data.items;
+    }
+  } catch (_) {}
+  // Migration: pull from old userstate.json if it exists
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      const old = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      if (Array.isArray(old.recent) && old.recent.length) return old.recent.slice(0, RECENT_MAX);
+    }
+  } catch (_) {}
+  return [];
+}
+
+let recentItems = loadRecent();
+let _recentSaveTimer = null;
+
+function saveRecent() {
+  clearTimeout(_recentSaveTimer);
+  _recentSaveTimer = setTimeout(() => {
+    try {
+      fs.mkdirSync(path.dirname(RECENT_FILE), { recursive: true });
+      fs.writeFileSync(RECENT_FILE, JSON.stringify({ updatedAt: Date.now(), items: recentItems }));
+    } catch (_) {}
+  }, 400);
+}
+
+// GET /api/recent — return all recent files (fast, tiny file)
+app.get('/api/recent', (req, res) => {
+  const limit = Math.min(RECENT_MAX, Math.max(1, parseInt(req.query.limit || String(RECENT_MAX), 10)));
+  res.json({ items: recentItems.slice(0, limit), total: recentItems.length });
+});
+
+// POST /api/recent — add / bump an item to top
+app.post('/api/recent', express.json(), (req, res) => {
+  const item = req.body;
+  if (!item || !item.path) return res.status(400).json({ error: 'Missing path' });
+  recentItems = recentItems.filter(r => r.path !== item.path);
+  recentItems.unshift({ ...item, openedAt: Date.now() });
+  if (recentItems.length > RECENT_MAX) recentItems = recentItems.slice(0, RECENT_MAX);
+  saveRecent();
+  res.json({ ok: true, total: recentItems.length });
+});
+
+// DELETE /api/recent — clear history
+app.delete('/api/recent', (req, res) => {
+  recentItems = [];
+  saveRecent();
+  res.json({ ok: true });
+});
+
+// ── Userstate — favorites only ────────────────────────────────────────────
 function loadUserState() {
   try {
     if (fs.existsSync(STATE_FILE)) {
-      return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      return { favorites: data.favorites || [] };
     }
   } catch (_) {}
-  return { recent: [], favorites: [] };
+  return { favorites: [] };
 }
 
 let userState = loadUserState();
@@ -1432,24 +1491,24 @@ function saveUserState() {
   }, 500);
 }
 
-// GET /api/userstate — read full state
-app.get('/api/userstate', (req, res) => res.json(userState));
+// GET /api/userstate — kept for backward compat (favorites + recent merged)
+app.get('/api/userstate', (req, res) => res.json({ ...userState, recent: recentItems }));
 
-// POST /api/userstate/recent — add / bump an item to top
+// POST /api/userstate/recent — backward compat alias → delegates to /api/recent
 app.post('/api/userstate/recent', express.json(), (req, res) => {
   const item = req.body;
   if (!item || !item.path) return res.status(400).json({ error: 'Missing path' });
-  userState.recent = userState.recent.filter(r => r.path !== item.path);
-  userState.recent.unshift({ ...item, openedAt: Date.now() });
-  if (userState.recent.length > 50) userState.recent = userState.recent.slice(0, 50);
-  saveUserState();
+  recentItems = recentItems.filter(r => r.path !== item.path);
+  recentItems.unshift({ ...item, openedAt: Date.now() });
+  if (recentItems.length > RECENT_MAX) recentItems = recentItems.slice(0, RECENT_MAX);
+  saveRecent();
   res.json({ ok: true });
 });
 
-// DELETE /api/userstate/recent — clear history
+// DELETE /api/userstate/recent — backward compat alias
 app.delete('/api/userstate/recent', (req, res) => {
-  userState.recent = [];
-  saveUserState();
+  recentItems = [];
+  saveRecent();
   res.json({ ok: true });
 });
 
