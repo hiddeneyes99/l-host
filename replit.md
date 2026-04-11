@@ -41,7 +41,7 @@ The app is configured for Replit with:
 - Server binding to `0.0.0.0`
 - A safe Replit default file root at `files/`
 - Path traversal protection via server-side path resolution under `ROOT_DIR`
-- Hidden-file mode indexes all readable filesystem entries, including dot-prefixed folders such as WhatsApp `.Statuses`; turning Hidden Files off filters those paths from browse, search, and category views
+- Hidden-file mode indexes all readable filesystem entries, including dot-prefixed folders, `.nomedia` folders, trash/deleted-style folders, and WhatsApp `.Statuses`; turning Hidden Files off filters those paths from browse, search, and category views
 
 ## Running
 

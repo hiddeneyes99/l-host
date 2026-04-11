@@ -248,7 +248,7 @@ function buildFileInfo(absPath, relPath, name) {
 
 const INDEX_FILE    = path.join(__dirname, 'data', 'index.json');
 const APP_DATA_DIR  = path.join(__dirname, 'data');   // excluded from index & watcher
-const INDEX_VERSION = 3;
+const INDEX_VERSION = 4;
 
 // ── In-memory index state ──────────────────────────────────────────────────
 const idx = {
@@ -276,8 +276,39 @@ function pathHasHiddenSegment(relPath) {
         || lower === 'recycle.bin'
         || lower === 'trash'
         || lower === 'trashed'
+        || lower === 'deleted'
+        || lower.startsWith('deleted-')
         || lower.startsWith('trashed-');
     });
+}
+
+function isHiddenName(name) {
+  const p = String(name || '').trim();
+  const lower = p.toLowerCase();
+  return (p.startsWith('.') && p.length > 1)
+    || lower === '$recycle.bin'
+    || lower === 'recycler'
+    || lower === 'recycle.bin'
+    || lower === 'trash'
+    || lower === 'trashed'
+    || lower === 'deleted'
+    || lower.startsWith('deleted-')
+    || lower.startsWith('trashed-');
+}
+
+function hasNomediaAncestor(absPath) {
+  try {
+    let dir = safeStatSync(absPath)?.isDirectory() ? absPath : path.dirname(absPath);
+    const root = path.resolve(ROOT_DIR);
+    while (dir && dir.startsWith(root)) {
+      if (fs.existsSync(path.join(dir, '.nomedia'))) return true;
+      if (dir === root) break;
+      const next = path.dirname(dir);
+      if (next === dir) break;
+      dir = next;
+    }
+  } catch (_) {}
+  return false;
 }
 
 function rebuildMaps() {
@@ -359,12 +390,12 @@ async function buildFullIndex() {
   const t0  = Date.now();
   const all = [];
 
-  async function walk(absDir, relDir, depth) {
-    if (depth > 15) return;
-    // Never walk into the app's own data directory (thumbs, index, etc.)
+  async function walk(absDir, relDir, depth, hiddenInherited = false) {
+    if (depth > 40) return;
     if (absDir.startsWith(APP_DATA_DIR)) return;
     let entries;
     try { entries = await fs.promises.readdir(absDir); } catch (_) { return; }
+    const dirHidden = hiddenInherited || entries.some(n => String(n).toLowerCase() === '.nomedia');
     await Promise.all(entries.map(async name => {
       const absPath = path.join(absDir, name);
       const relPath = relDir ? relDir + '/' + name : name;
@@ -372,6 +403,7 @@ async function buildFullIndex() {
       try { stat = await fs.promises.stat(absPath); } catch (_) { return; }
       const isDir = stat.isDirectory();
       const ext   = path.extname(name);
+      const hidden = dirHidden || isHiddenName(name) || pathHasHiddenSegment(relPath) || hasNomediaAncestor(absPath);
       all.push({
         name,
         type:     isDir ? 'dir'  : 'file',
@@ -382,14 +414,14 @@ async function buildFullIndex() {
         mtime:    stat.mtime.getTime(),
         mtimeStr: stat.mtime.toLocaleDateString(),
         readable: canRead(absPath),
-        hidden:   pathHasHiddenSegment(relPath),
+        hidden,
         path:     relPath.replace(/\\/g, '/'),
       });
-      if (isDir) await walk(absPath, relPath, depth + 1);
+      if (isDir) await walk(absPath, relPath, depth + 1, hidden);
     }));
   }
 
-  await walk(ROOT_DIR, '', 0);
+  await walk(ROOT_DIR, '', 0, false);
   idx.all     = all;
   idx.builtAt = Date.now();
   idx.rootDir = ROOT_DIR;
@@ -425,6 +457,7 @@ async function incrementalUpdateDir(absDir) {
     try { stat = await fs.promises.stat(absPath); } catch (_) { continue; }
     const isDir = stat.isDirectory();
     const ext   = path.extname(name);
+    const hidden = isHiddenName(name) || pathHasHiddenSegment(relPath) || hasNomediaAncestor(absPath);
     idx.all.push({
       name,
       type:     isDir ? 'dir'  : 'file',
@@ -435,7 +468,7 @@ async function incrementalUpdateDir(absDir) {
       mtime:    stat.mtime.getTime(),
       mtimeStr: stat.mtime.toLocaleDateString(),
       readable: canRead(absPath),
-      hidden:   pathHasHiddenSegment(relPath),
+      hidden,
       path:     relPath.replace(/\\/g, '/'),
     });
   }
@@ -1014,6 +1047,50 @@ function applyHidden(items, showHidden) {
   return items.filter(i => !i.hidden && !pathHasHiddenSegment(i.path || i.name));
 }
 
+function walkCategoryFallback(startPath, cat, showHidden, maxItems = 20000) {
+  const rawAll = [];
+  function walk(dir, relDir, depth, hiddenInherited = false) {
+    if (depth > 40 || rawAll.length >= maxItems) return;
+    const entries = safeReaddirSync(dir);
+    const dirHidden = hiddenInherited || entries.some(n => String(n).toLowerCase() === '.nomedia');
+    for (const name of entries) {
+      if (rawAll.length >= maxItems) break;
+      const full = path.join(dir, name);
+      const rel = relDir ? relDir + '/' + name : name;
+      const info = buildFileInfo(full, rel, name);
+      if (!info) continue;
+      info.hidden = dirHidden || isHiddenName(name) || pathHasHiddenSegment(rel) || hasNomediaAncestor(full);
+      if (!showHidden && info.hidden) continue;
+      if (info.type === 'dir') walk(full, rel, depth + 1, info.hidden);
+      else if (info.category === cat) rawAll.push(info);
+    }
+  }
+  walk(startPath, '', 0, false);
+  return rawAll;
+}
+
+function walkSearchFallback(startPath, q, showHidden, maxItems = 20000) {
+  const all = [];
+  function walk(dir, relDir, depth, hiddenInherited = false) {
+    if (depth > 40 || all.length >= maxItems) return;
+    const entries = safeReaddirSync(dir);
+    const dirHidden = hiddenInherited || entries.some(n => String(n).toLowerCase() === '.nomedia');
+    for (const name of entries) {
+      if (all.length >= maxItems) break;
+      const full = path.join(dir, name);
+      const rel = relDir ? relDir + '/' + name : name;
+      const info = buildFileInfo(full, rel, name);
+      if (!info) continue;
+      info.hidden = dirHidden || isHiddenName(name) || pathHasHiddenSegment(rel) || hasNomediaAncestor(full);
+      if (!showHidden && info.hidden) continue;
+      if (name.toLowerCase().includes(q)) all.push(info);
+      if (info.type === 'dir') walk(full, rel, depth + 1, info.hidden);
+    }
+  }
+  walk(startPath, '', 0, false);
+  return all;
+}
+
 app.get('/api/ls', (req, res) => {
   const relPath    = decodeURIComponent(req.query.path || '');
   const absPath    = safePath(relPath);
@@ -1079,23 +1156,7 @@ app.get('/api/search', (req, res) => {
     return res.json({ results: slice, total, page, limit, hasMore: (page + 1) * limit < total, query: q });
   }
 
-  // ── Fallback: disk walk (only before index is ready) ─────────────────────
-  const all = [];
-  const MAX = 1000;
-  function walk(dir, depth) {
-    if (depth > 10 || all.length >= MAX) return;
-    const entries = safeReaddirSync(dir);
-    for (const name of entries) {
-      if (all.length >= MAX) break;
-      if (!showHidden && name.startsWith('.')) continue;
-      const full = path.join(dir, name);
-      const info = buildFileInfo(full, path.relative(ROOT_DIR, full), name);
-      if (!info) continue;
-      if (name.toLowerCase().includes(q)) all.push(info);
-      if (info.type === 'dir') walk(full, depth + 1);
-    }
-  }
-  walk(startPath, 0);
+  const all = walkSearchFallback(startPath, q, showHidden);
   const total = all.length;
   const slice = all.slice(page * limit, (page + 1) * limit);
   res.json({ results: slice, total, page, limit, hasMore: (page + 1) * limit < total, query: q });
@@ -1119,25 +1180,9 @@ app.get('/api/category/:cat', (req, res) => {
     return res.json({ category: cat, results: slice, total, page, limit, hasMore: (page + 1) * limit < total });
   }
 
-  // ── Fallback: disk walk (only before index is ready) ─────────────────────
   const startPath = safePath('');
   if (!startPath) return res.status(403).json({ error: 'Access denied' });
-  const rawAll = [];
-  const MAX = 5000;
-  function walk(dir, depth) {
-    if (depth > 12 || rawAll.length >= MAX) return;
-    const entries = safeReaddirSync(dir);
-    for (const name of entries) {
-      if (rawAll.length >= MAX) break;
-      if (!showHidden && name.startsWith('.')) continue;
-      const full = path.join(dir, name);
-      const info = buildFileInfo(full, path.relative(ROOT_DIR, full), name);
-      if (!info) continue;
-      if (info.type === 'dir') { walk(full, depth + 1); }
-      else if (info.category === cat) rawAll.push(info);
-    }
-  }
-  walk(startPath, 0);
+  const rawAll = walkCategoryFallback(startPath, cat, showHidden);
   const all   = applySort(rawAll, sort, sortDir);
   const total = all.length;
   const slice = all.slice(page * limit, (page + 1) * limit);

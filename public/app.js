@@ -1353,10 +1353,10 @@ function vpGetPreviewVideo() {
 
   const pv = document.createElement('video');
   pv.muted = true;
-  pv.preload = 'none';
+  pv.preload = 'metadata';
   pv.playsInline = true;
-  pv.crossOrigin = 'anonymous';
   pv.src = vp.url;
+  try { pv.load(); } catch (_) {}
 
   vp.previewVideo = pv;
   vp.previewVideoUrl = vp.url;
@@ -1407,7 +1407,7 @@ function vpRenderClientPreview(time, tooltip, thumb) {
 
   function onError() { fail(); }
 
-  function onSeeked() {
+  function captureFrame() {
     if (done) return;
     try {
       const canvas = document.createElement('canvas');
@@ -1425,14 +1425,26 @@ function vpRenderClientPreview(time, tooltip, thumb) {
     }
   }
 
+  function onSeeked() { captureFrame(); }
+  function onLoadedData() {
+    if (Math.abs((pv.currentTime || 0) - previewTime) < 0.2) captureFrame();
+  }
+
   pv.addEventListener('seeked', onSeeked, { once: true });
+  pv.addEventListener('loadeddata', onLoadedData, { once: true });
   pv.addEventListener('error', onError, { once: true });
 
   try {
     if (pv.readyState < 1) {
-      pv.addEventListener('loadedmetadata', () => { pv.currentTime = previewTime; }, { once: true });
+      pv.addEventListener('loadedmetadata', () => {
+        try {
+          pv.currentTime = Math.min(Math.max(0, previewTime), Math.max(0, (pv.duration || previewTime) - 0.25));
+        } catch (_) {
+          fail();
+        }
+      }, { once: true });
     } else {
-      pv.currentTime = previewTime;
+      pv.currentTime = Math.min(Math.max(0, previewTime), Math.max(0, (pv.duration || previewTime) - 0.25));
     }
   } catch (_) {
     fail();
