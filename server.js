@@ -179,10 +179,14 @@ const MIME_MAP = {
   '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif',
   '.webp':'image/webp','.bmp':'image/bmp','.svg':'image/svg+xml',
   '.ico':'image/x-icon','.tiff':'image/tiff',
+  '.heic':'image/heic','.heif':'image/heif',
   '.pdf':'application/pdf','.txt':'text/plain','.md':'text/markdown',
   '.log':'text/plain','.json':'application/json','.xml':'application/xml',
   '.html':'text/html','.css':'text/css','.js':'application/javascript',
+  '.ts':'text/plain','.py':'text/plain','.sh':'text/plain',
+  '.c':'text/plain','.cpp':'text/plain','.h':'text/plain','.java':'text/plain',
   '.zip':'application/zip','.tar':'application/x-tar','.gz':'application/gzip',
+  '.tgz':'application/x-tar','.tar.gz':'application/gzip',
   '.rar':'application/x-rar-compressed','.7z':'application/x-7z-compressed',
   '.apk':'application/vnd.android.package-archive',
 };
@@ -192,9 +196,9 @@ const getMime = p => MIME_MAP[path.extname(p).toLowerCase()] || 'application/oct
 function getCategory(ext) {
   const e = ext.toLowerCase();
   if (['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp'].includes(e)) return 'video';
-  if (['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg','.ico','.tiff'].includes(e)) return 'image';
+  if (['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg','.ico','.tiff','.heic','.heif'].includes(e)) return 'image';
   if (['.mp3','.wav','.flac','.aac','.ogg','.m4a','.wma'].includes(e)) return 'audio';
-  if (['.zip','.tar','.gz','.rar','.7z'].includes(e)) return 'archive';
+  if (['.zip','.tar','.gz','.tgz','.rar','.7z'].includes(e)) return 'archive';
   if (['.apk'].includes(e)) return 'apk';
   return 'file';
 }
@@ -1215,6 +1219,130 @@ app.get('/file', (req, res) => {
       stream.pipe(res);
       stream.on('error', () => res.end());
     } catch (_) { res.status(500).end(); }
+  }
+});
+
+// ── HEIC / HEIF → JPEG inline preview ─────────────────────────────────────
+app.get('/api/heic-preview', async (req, res) => {
+  const relPath = decodeURIComponent(req.query.path || '');
+  const absPath = safePath(relPath);
+  if (!absPath) return res.status(403).send('Access denied');
+  if (!canRead(absPath)) return res.status(403).send('Permission denied');
+  const stat = safeStatSync(absPath);
+  if (!stat || !stat.isFile()) return res.status(404).send('Not found');
+
+  const etag = `"heicprev-${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
+  if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
+
+  try {
+    const buf = await new Promise((resolve, reject) => {
+      const chunks = [];
+      let settled = false;
+      const done = (fn, val) => { if (!settled) { settled = true; fn(val); } };
+      const args = ['-i', absPath, '-f', 'image2', '-vcodec', 'mjpeg', '-q:v', '3', 'pipe:1'];
+      const proc = require('child_process').spawn(FFMPEG_PATH, args, { stdio: ['ignore','pipe','ignore'] });
+      proc.stdout.on('data', c => chunks.push(c));
+      proc.on('close', code => {
+        const b = Buffer.concat(chunks);
+        if (code !== 0 || b.length < 100) return done(reject, new Error('ffmpeg failed'));
+        done(resolve, b);
+      });
+      proc.on('error', err => done(reject, err));
+      setTimeout(() => { try { proc.kill('SIGKILL'); } catch(_) {} done(reject, new Error('timeout')); }, 20000);
+    });
+    res.writeHead(200, {
+      'Content-Type': 'image/jpeg',
+      'Content-Length': buf.length,
+      'Cache-Control': 'public, max-age=86400',
+      'ETag': etag,
+    });
+    res.end(buf);
+  } catch (e) {
+    res.writeHead(200, { 'Content-Type': 'image/heic', 'Content-Length': stat.size });
+    fs.createReadStream(absPath).pipe(res);
+  }
+});
+
+// ── Archive contents listing ────────────────────────────────────────────────
+app.get('/api/archive-list', async (req, res) => {
+  const relPath = decodeURIComponent(req.query.path || '');
+  const absPath = safePath(relPath);
+  if (!absPath) return res.status(403).json({ error: 'Access denied' });
+  if (!canRead(absPath)) return res.status(403).json({ error: 'Permission denied' });
+  const stat = safeStatSync(absPath);
+  if (!stat || !stat.isFile()) return res.status(404).json({ error: 'Not found' });
+
+  const ext = path.extname(absPath).toLowerCase();
+  const isZipLike = ['.zip', '.apk', '.jar', '.xlsx', '.docx', '.pptx'].includes(ext);
+  const isTar = ['.tar', '.tgz'].includes(ext);
+  const isGz = ext === '.gz';
+
+  try {
+    if (isZipLike) {
+      const AdmZip = require('adm-zip');
+      const zip = new AdmZip(absPath);
+      const entries = zip.getEntries().map(e => ({
+        name: e.name || path.basename(e.entryName),
+        path: e.entryName.replace(/\\/g, '/'),
+        size: e.header.size,
+        compressedSize: e.header.compressedSize,
+        isDir: e.isDirectory,
+        modified: e.header.time ? new Date(e.header.time).toLocaleDateString() : '',
+      }));
+      return res.json({ type: 'zip', entries, total: entries.length });
+    }
+
+    if (isTar || isGz) {
+      const tarArgs = isTar ? ['-tf', absPath] : (ext === '.gz' ? ['-tzf', absPath] : ['-tf', absPath]);
+      const lines = await new Promise((resolve, reject) => {
+        const { spawn } = require('child_process');
+        const proc = spawn('tar', tarArgs, { stdio: ['ignore','pipe','ignore'] });
+        const out = [];
+        proc.stdout.on('data', d => out.push(d));
+        proc.on('close', code => {
+          if (code !== 0 && out.length === 0) return reject(new Error('tar failed'));
+          resolve(Buffer.concat(out).toString().trim().split('\n').filter(Boolean));
+        });
+        proc.on('error', reject);
+        setTimeout(() => { try { proc.kill(); } catch(_) {} reject(new Error('timeout')); }, 10000);
+      });
+      const entries = lines.map(l => ({
+        name: path.basename(l) || l,
+        path: l,
+        size: null,
+        isDir: l.endsWith('/'),
+        modified: '',
+      }));
+      return res.json({ type: 'tar', entries, total: entries.length });
+    }
+
+    // Try 7z for rar/7z
+    if (['.rar', '.7z'].includes(ext)) {
+      const lines = await new Promise((resolve, reject) => {
+        const { spawn } = require('child_process');
+        const proc = spawn('7z', ['l', '-ba', absPath], { stdio: ['ignore','pipe','ignore'] });
+        const out = [];
+        proc.stdout.on('data', d => out.push(d));
+        proc.on('close', code => {
+          const raw = Buffer.concat(out).toString().trim();
+          if (!raw) return reject(new Error('no output'));
+          resolve(raw.split('\n').filter(Boolean));
+        });
+        proc.on('error', reject);
+        setTimeout(() => { try { proc.kill(); } catch(_) {} reject(new Error('timeout')); }, 10000);
+      });
+      const entries = lines.map(l => {
+        const parts = l.trim().split(/\s+/);
+        const name = parts.slice(5).join(' ') || l;
+        const attr = parts[4] || '';
+        return { name: path.basename(name) || name, path: name, size: parseInt(parts[3]) || null, isDir: attr.startsWith('D'), modified: '' };
+      });
+      return res.json({ type: '7z', entries, total: entries.length });
+    }
+
+    return res.status(400).json({ error: 'Unsupported archive type' });
+  } catch (e) {
+    return res.status(500).json({ error: 'Could not read archive: ' + e.message });
   }
 });
 

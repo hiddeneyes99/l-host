@@ -810,6 +810,53 @@
       </div>
     </div>
 
+    <!-- ── PDF VIEWER MODAL ── -->
+    <div class="modal hidden" id="pdfModal">
+      <div class="modal-backdrop" id="pdfBackdrop"></div>
+      <div class="pdf-container">
+        <div class="player-header">
+          <button class="icon-btn" id="pdfClose">
+            <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+          <span class="player-title" id="pdfTitle"></span>
+          <a class="icon-btn" id="pdfDl" title="Download">
+            <svg viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </a>
+        </div>
+        <iframe class="pdf-frame" id="pdfFrame" src="" title="PDF Viewer"></iframe>
+      </div>
+    </div>
+
+    <!-- ── ARCHIVE VIEWER MODAL ── -->
+    <div class="modal hidden" id="archiveModal">
+      <div class="modal-backdrop" id="archiveBackdrop"></div>
+      <div class="archive-container">
+        <div class="player-header">
+          <button class="icon-btn" id="archiveClose">
+            <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+          <span class="player-title" id="archiveTitle"></span>
+          <a class="icon-btn" id="archiveDl" title="Download">
+            <svg viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </a>
+        </div>
+        <div class="archive-search-bar">
+          <input type="text" id="archiveSearchInput" placeholder="Filter files..." autocomplete="off" />
+        </div>
+        <div class="archive-body" id="archiveBody">
+          <div class="loader-wrap"><div class="loader"></div></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── INFO MODAL ── -->
     <div class="modal hidden" id="infoModal">
       <div class="modal-backdrop" id="infoBackdrop"></div>

@@ -69,16 +69,19 @@ function stageSize() {
 
 function ivGetViewUrl(item) {
   if (item._demo) return item.url;
+  if (item._heicPreview) return item._heicPreview;
   const IV_PREVIEW_MIN = 2 * 1024 * 1024;
   if (item.size && item.size < IV_PREVIEW_MIN) return `/file?path=${encodeURIComponent(item.path)}`;
   return `/api/preview?path=${encodeURIComponent(item.path)}`;
 }
 function ivGetUrl(item) {
   if (item._demo) return item.url;
+  if (item._heicPreview) return item._heicPreview;
   return `/file?path=${encodeURIComponent(item.path)}`;
 }
 function ivGetThumbUrl(item) {
   if (item._demo) return item.thumb || item.url;
+  if (item._heicPreview) return item._heicPreview;
   return `/api/thumb?path=${encodeURIComponent(item.path)}&w=300&h=225`;
 }
 function ivGetMeta(item) {

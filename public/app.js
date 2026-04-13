@@ -2179,10 +2179,18 @@ function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
     const vids = videoSet.length ? videoSet : [item];
     openVideo(item, vids);
   } else if (cat === 'image') {
-    openImage(item, imageSet, url);
+    if (['.heic', '.heif'].includes(item.ext)) {
+      openHeic(item, imageSet);
+    } else {
+      openImage(item, imageSet, url);
+    }
   } else if (cat === 'audio') {
     openAudio(item, url, audioSet);
-  } else if (['.txt','.md','.log','.json','.xml','.html','.css','.js','.py','.sh','.c','.cpp','.h'].includes(item.ext)) {
+  } else if (item.ext === '.pdf') {
+    openPdf(item, url);
+  } else if (cat === 'archive' || cat === 'apk' || ['.zip','.tar','.gz','.tgz','.rar','.7z','.apk','.jar'].includes(item.ext)) {
+    openArchive(item, url);
+  } else if (['.txt','.md','.log','.json','.xml','.html','.css','.js','.ts','.py','.sh','.c','.cpp','.h','.java','.yaml','.yml','.ini','.conf','.csv','.sql','.bat','.ps1','.rb','.go','.rs'].includes(item.ext)) {
     openText(item, url);
   } else {
     const a = document.createElement('a');
@@ -2191,6 +2199,97 @@ function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
     a.click();
   }
 }
+
+// ── PDF Viewer ──────────────────────────────────────────────────────────────
+function openPdf(item, url) {
+  $('pdfTitle').textContent = item.name;
+  $('pdfDl').href = url + '&dl=1';
+  $('pdfDl').download = item.name;
+  $('pdfFrame').src = url;
+  openModal('pdfModal');
+}
+
+// ── HEIC / HEIF viewer — server converts to JPEG ──────────────────────────
+async function openHeic(item, imageSet) {
+  const previewUrl = `/api/heic-preview?path=${encodeURIComponent(item.path)}`;
+  const fakeItem = Object.assign({}, item, { _heicPreview: previewUrl });
+  const list = (imageSet && imageSet.length) ? imageSet.map(i =>
+    ['.heic', '.heif'].includes(i.ext) ? Object.assign({}, i, { _heicPreview: `/api/heic-preview?path=${encodeURIComponent(i.path)}` }) : i
+  ) : [fakeItem];
+  const startIdx = Math.max(0, list.findIndex(i => i.path === item.path));
+  document.body.style.overflow = 'hidden';
+  history.pushState({ lhost: true }, '');
+  ivOpen(list, startIdx, false);
+}
+
+// ── Archive / ZIP viewer ───────────────────────────────────────────────────
+let _archiveAllEntries = [];
+
+async function openArchive(item, url) {
+  $('archiveTitle').textContent = item.name;
+  $('archiveDl').href = url + '&dl=1';
+  $('archiveDl').download = item.name;
+  $('archiveSearchInput').value = '';
+  $('archiveBody').innerHTML = '<div class="loader-wrap"><div class="loader"></div></div>';
+  openModal('archiveModal');
+
+  try {
+    const data = await fetchJson(`/api/archive-list?path=${encodeURIComponent(item.path)}`);
+    _archiveAllEntries = data.entries || [];
+    renderArchiveEntries(_archiveAllEntries, data.total);
+  } catch (e) {
+    $('archiveBody').innerHTML = `<div class="archive-error">Could not read archive<br><small>${e.message}</small></div>`;
+  }
+}
+
+function archiveIcon(entry) {
+  if (entry.isDir) return '📁';
+  const ext = (entry.name.match(/\.([^.]+)$/) || [])[1];
+  if (!ext) return '📄';
+  const e = '.' + ext.toLowerCase();
+  if (['.mp4','.mkv','.avi','.mov','.webm'].includes(e)) return '🎬';
+  if (['.jpg','.jpeg','.png','.gif','.webp','.heic'].includes(e)) return '🖼️';
+  if (['.mp3','.wav','.flac','.aac','.ogg'].includes(e)) return '🎵';
+  if (['.pdf'].includes(e)) return '📄';
+  if (['.zip','.rar','.7z','.tar','.gz'].includes(e)) return '🗜️';
+  if (['.txt','.md','.log'].includes(e)) return '📝';
+  if (['.js','.ts','.py','.c','.cpp','.java','.json','.xml'].includes(e)) return '🔧';
+  return '📄';
+}
+
+function formatArchiveSize(bytes) {
+  if (bytes == null || bytes === 0) return '';
+  const k = 1024, s = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(Math.max(bytes,1)) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + s[Math.min(i, s.length-1)];
+}
+
+function renderArchiveEntries(entries, total) {
+  if (!entries.length) {
+    $('archiveBody').innerHTML = '<div class="archive-empty">Archive is empty</div>';
+    return;
+  }
+  const html = [`<div class="archive-stats">${total} items</div>`];
+  for (const e of entries) {
+    const parentPath = e.path.includes('/') ? e.path.substring(0, e.path.lastIndexOf('/')) : '';
+    html.push(`<div class="archive-entry">
+      <span class="archive-entry-icon">${archiveIcon(e)}</span>
+      <div class="archive-entry-info">
+        <div class="archive-entry-name" title="${e.path}">${e.name || e.path}</div>
+        ${parentPath ? `<div class="archive-entry-path">${parentPath}/</div>` : ''}
+      </div>
+      <span class="archive-entry-size">${formatArchiveSize(e.size)}</span>
+    </div>`);
+  }
+  $('archiveBody').innerHTML = html.join('');
+}
+
+$('archiveSearchInput').addEventListener('input', () => {
+  const q = $('archiveSearchInput').value.toLowerCase();
+  if (!q) { renderArchiveEntries(_archiveAllEntries, _archiveAllEntries.length); return; }
+  const filtered = _archiveAllEntries.filter(e => (e.path || '').toLowerCase().includes(q));
+  renderArchiveEntries(filtered, filtered.length);
+});
 
 // ── Image viewer (delegates to iv.js) ─────────────────────────────────────
 function openImage(item, imageSet, url) {
@@ -2548,7 +2647,7 @@ document.addEventListener('DOMContentLoaded', () => {
       history.replaceState({ lhost: true }, '');
       return;
     }
-    const modals = ['textModal','infoModal','uploadModal','folderModal'];
+    const modals = ['textModal','infoModal','uploadModal','folderModal','pdfModal','archiveModal'];
     for (const id of modals) {
       if (!$(id).classList.contains('hidden')) {
         closeModal(id);
@@ -2655,10 +2754,16 @@ document.addEventListener('DOMContentLoaded', () => {
   $('navInfo').addEventListener('click', showInfo);
 
    // Non-video modals close (image viewer handled by ivInit)
-  ['audio','text','info','upload'].forEach(name => {
-    $(`${name}Close`).addEventListener('click', () => closeModal(`${name}Modal`));
+  ['audio','text','info','upload','pdf','archive'].forEach(name => {
+    $(`${name}Close`).addEventListener('click', () => {
+      if (name === 'pdf') $('pdfFrame').src = '';
+      closeModal(`${name}Modal`);
+    });
     const bd = $(`${name}Backdrop`);
-    if (bd) bd.addEventListener('click', () => closeModal(`${name}Modal`));
+    if (bd) bd.addEventListener('click', () => {
+      if (name === 'pdf') $('pdfFrame').src = '';
+      closeModal(`${name}Modal`);
+    });
   });
 
   // Mini player controls
@@ -2743,8 +2848,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (e.key === 'Escape') {
       if (videoOpen) { closeVideo(); return; }
-      ['audioModal','textModal','infoModal','uploadModal','folderModal'].forEach(id => {
-        if (!$(id).classList.contains('hidden')) closeModal(id);
+      ['audioModal','textModal','infoModal','uploadModal','folderModal','pdfModal','archiveModal'].forEach(id => {
+        if (!$(id).classList.contains('hidden')) {
+          if (id === 'pdfModal') $('pdfFrame').src = '';
+          closeModal(id);
+        }
       });
       if (state.searchOpen) $('searchToggleBtn').click();
     }

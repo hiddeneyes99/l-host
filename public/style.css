@@ -2720,3 +2720,117 @@ img.lazy-img:not([src]) {
   transform: translateX(20px);
   background: #fff;
 }
+
+/* PDF VIEWER MODAL */
+.pdf-container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.pdf-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #525659;
+}
+
+/* ARCHIVE VIEWER MODAL */
+.archive-container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  max-width: 700px;
+  max-height: 90vh;
+  background: var(--bg2);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: auto;
+}
+#archiveModal {
+  padding: 20px;
+}
+.archive-search-bar {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--bg4);
+}
+.archive-search-bar input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--bg4);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text1);
+  font-size: 14px;
+  outline: none;
+}
+.archive-search-bar input:focus {
+  border-color: var(--accent);
+}
+.archive-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.archive-stats {
+  padding: 6px 16px 10px;
+  font-size: 12px;
+  color: var(--text2);
+}
+.archive-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--bg3);
+  font-size: 13px;
+  transition: background 0.15s;
+}
+.archive-entry:hover { background: var(--bg3); }
+.archive-entry-icon { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; }
+.archive-entry-info { flex: 1; min-width: 0; }
+.archive-entry-name {
+  color: var(--text1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+.archive-entry-path {
+  color: var(--text3);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.archive-entry-size {
+  color: var(--text2);
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.archive-error {
+  padding: 24px 16px;
+  color: var(--text2);
+  text-align: center;
+  font-size: 14px;
+}
+.archive-empty {
+  padding: 40px 16px;
+  color: var(--text3);
+  text-align: center;
+  font-size: 14px;
+}
+
+/* PDF MODAL — full screen */
+#pdfModal {
+  align-items: stretch;
+  justify-content: stretch;
+  display: block;
+}
