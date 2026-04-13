@@ -1701,24 +1701,48 @@ function mpInitMediaSession() {
       audio.pause();
       mpSetPlaying(false);
     });
+    // Stop — collapses to mini player (keeps audio alive, like Spotify minimize)
+    try {
+      navigator.mediaSession.setActionHandler('stop', () => {
+        audio.pause();
+        mpSetPlaying(false);
+        mpHideMini();
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+      });
+    } catch(_) {}
     navigator.mediaSession.setActionHandler('previoustrack', mpPrev);
     navigator.mediaSession.setActionHandler('nexttrack',     mpNext);
     navigator.mediaSession.setActionHandler('seekbackward', d => {
       audio.currentTime = Math.max(0, audio.currentTime - (d?.seekOffset || 10));
       mpUpdateProgress();
+      mpSyncPositionState(audio);
     });
     navigator.mediaSession.setActionHandler('seekforward', d => {
       audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + (d?.seekOffset || 10));
       mpUpdateProgress();
+      mpSyncPositionState(audio);
     });
     try {
       navigator.mediaSession.setActionHandler('seekto', d => {
         if (d?.seekTime !== undefined && audio.duration) {
           audio.currentTime = Math.min(audio.duration, Math.max(0, d.seekTime));
           mpUpdateProgress();
+          mpSyncPositionState(audio);
         }
       });
     } catch(_) {}
+  } catch(_) {}
+}
+
+function mpSyncPositionState(audio) {
+  if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+  if (!audio.duration) return;
+  try {
+    navigator.mediaSession.setPositionState({
+      duration:     audio.duration,
+      playbackRate: audio.playbackRate,
+      position:     Math.min(audio.currentTime, audio.duration),
+    });
   } catch(_) {}
 }
 
@@ -1923,18 +1947,20 @@ function mpInitEvents() {
 
   audio.addEventListener('timeupdate', () => {
     mpUpdateProgress();
-    if ('mediaSession' in navigator && audio.duration && navigator.mediaSession.setPositionState) {
+    mpSyncPositionState(audio);
+  });
+  audio.addEventListener('loadedmetadata', () => {
+    $('mpDuration').textContent = fmtTime(audio.duration);
+    // Set position state immediately so the OS notification shows the progress bar right away
+    if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
       try {
         navigator.mediaSession.setPositionState({
           duration:     audio.duration,
           playbackRate: audio.playbackRate,
-          position:     Math.min(audio.currentTime, audio.duration),
+          position:     0,
         });
       } catch(_) {}
     }
-  });
-  audio.addEventListener('loadedmetadata', () => {
-    $('mpDuration').textContent = fmtTime(audio.duration);
   });
   audio.addEventListener('ended', () => {
     // Sleep: end of track

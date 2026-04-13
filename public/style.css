@@ -1012,11 +1012,9 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   border-radius: 0;
   border: none;
   overflow: hidden;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
-.mp-container::-webkit-scrollbar { width: 0; }
 
 .mp-ambient-blur {
   position: absolute;
@@ -1067,14 +1065,15 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px 0;
+  padding: 8px 0;
   position: relative;
   flex: 1;
-  min-height: 220px;
+  min-height: 0;
 }
 .mp-art-glow {
   position: absolute;
-  width: 220px; height: 220px;
+  width: clamp(140px, calc(100dvh - 450px), 220px);
+  height: clamp(140px, calc(100dvh - 450px), 220px);
   border-radius: 30px;
   background: var(--mp-color1, var(--accent));
   filter: blur(36px);
@@ -1083,7 +1082,8 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   pointer-events: none;
 }
 .mp-art {
-  width: 220px; height: 220px;
+  width: clamp(140px, calc(100dvh - 450px), 220px);
+  height: clamp(140px, calc(100dvh - 450px), 220px);
   border-radius: 24px;
   background: linear-gradient(135deg, var(--mp-color1, #00d4c8), var(--mp-color2, #0091ff));
   display: flex;
@@ -1119,7 +1119,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   z-index: 0;
   display: none;
   will-change: contents;
-  contain: strict;
+  contain: layout paint;
 }
 .mp-art-section.circle-mode .mp-circle-canvas { display: block; }
 .mp-art-section.circle-mode .mp-art {
@@ -1224,7 +1224,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 }
 
 /* Progress */
-.mp-progress-wrap { padding: 0 24px 8px; }
+.mp-progress-wrap { padding: 0 24px 8px; flex-shrink: 0; }
 .mp-progress-bar {
   position: relative;
   height: 34px;
@@ -1285,7 +1285,8 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   align-items: center;
   justify-content: center;
   gap: 14px;
-  padding: 8px 24px 24px;
+  padding: 6px 24px 18px;
+  flex-shrink: 0;
 }
 .mp-ctrl-secondary {
   width: 44px; height: 44px;
@@ -3740,6 +3741,7 @@ img.lazy-img:not([src]) {
 @media (min-width: 600px) {
   .mp-art { width: 260px; height: 260px; }
   .mp-art-glow { width: 260px; height: 260px; }
+  .mp-art-section { padding: 20px 0; }
   .mp-controls { gap: 20px; padding: 10px 32px 28px; }
   .mp-progress-wrap { padding: 0 32px 10px; }
   .mp-track-info { padding: 0 32px 16px; }
@@ -3755,9 +3757,9 @@ img.lazy-img:not([src]) {
   }
 }
 
-/* ── Mobile performance: remove expensive backdrop-filter blurs ─────────── */
-/* backdrop-filter triggers a full-screen GPU texture read + blur pass       */
-/* on every repaint — on mid-range Android this causes 200–400 ms jank.     */
+/* ── Mobile performance: remove expensive filter/backdrop-filter blurs ───── */
+/* backdrop-filter + filter:blur trigger full GPU texture reads on every     */
+/* repaint — on mid-range Android this causes 200–400 ms jank.              */
 @media (max-width: 768px) {
   .modal-backdrop           { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .mp-more-popup,
@@ -3769,4 +3771,15 @@ img.lazy-img:not([src]) {
   .vp-info-panel            { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .vp-speed-popup           { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .iv-more-menu             { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+  /* Disable the ambient blur behind the player — filter:blur() on a large
+     element forces a full repaint texture on every color transition.        */
+  .mp-ambient-blur          { filter: none; opacity: 0.22; }
+
+  /* Tighten player spacing so everything fits without scrolling             */
+  .mp-header                { padding: 12px 20px 8px; }
+  .mp-track-info            { padding: 0 20px 8px; }
+  .mp-progress-wrap         { padding: 0 20px 6px; }
+  .mp-controls              { padding: 4px 20px 14px; gap: 12px; }
+  .mp-sleep-row             { padding: 0 20px 10px; }
 }
