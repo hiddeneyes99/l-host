@@ -409,37 +409,52 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   background: radial-gradient(circle at 28% 18%, rgba(255,255,255,0.14), transparent 34%),
               linear-gradient(135deg, #231216, #35151c);
 }
-.file-type-pdf-svg {
-  width: 88%;
-  height: 88%;
-  color: #f42534;
-  filter: drop-shadow(0 8px 18px rgba(244,37,52,0.25));
+.pdf-mega-icon {
+  width: 82%;
+  height: 82%;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #ffffff 0%, #f5f7fb 58%, #e4e9f0 100%);
+  border: 5px solid #f42534;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 16px 32px rgba(0,0,0,0.34), 0 0 26px rgba(244,37,52,0.22);
 }
-.file-type-pdf-svg .pdf-page {
-  fill: rgba(255,255,255,0.98);
-  stroke: currentColor;
-  stroke-width: 8;
-  stroke-linejoin: round;
+.pdf-mega-fold {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 34%;
+  height: 34%;
+  background: linear-gradient(135deg, #fff 0%, #ffd8dd 48%, #f42534 50%, #f42534 100%);
+  border-left: 5px solid #f42534;
+  border-bottom: 5px solid #f42534;
+  border-radius: 0 12px 0 10px;
 }
-.file-type-pdf-svg .pdf-fold {
-  fill: rgba(244,37,52,0.16);
-  stroke: currentColor;
-  stroke-width: 8;
-  stroke-linejoin: round;
-}
-.file-type-pdf-svg .pdf-wave {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.file-type-pdf-svg text {
-  fill: #20242c;
-  font-size: 28px;
+.pdf-mega-mark {
+  margin-top: 16px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: #f42534;
+  color: #fff;
+  font-size: 20px;
   font-weight: 950;
-  font-family: Arial, sans-serif;
-  letter-spacing: 1px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  box-shadow: 0 8px 16px rgba(244,37,52,0.25);
+}
+.pdf-mega-line {
+  position: absolute;
+  left: 16%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(244,37,52,0.34);
+}
+.pdf-mega-line-1 { top: 22%; width: 36%; }
+.pdf-mega-line-2 { top: 34%; width: 46%; }
+.pdf-mega-line-3 { bottom: 18%; width: 56%; }
 }
 .file-type-zip { background: radial-gradient(circle at 28% 18%, rgba(255,220,120,0.24), transparent 34%), linear-gradient(135deg, #3b2d10, #b57917); }
 .file-type-rar { background: radial-gradient(circle at 28% 18%, rgba(220,170,255,0.24), transparent 34%), linear-gradient(135deg, #2a143f, #7135a8); }
@@ -568,14 +583,25 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 }
 .file-grid.list-view .file-item .thumb .file-icon-big { font-size: 22px; }
 .file-grid.list-view .file-type-img { width: 66%; height: 74%; }
-.file-grid.list-view .file-type-pdf-svg {
+.file-grid.list-view .pdf-mega-icon {
   width: 34px;
-  height: 38px;
+  height: 34px;
+  border-width: 3px;
+  border-radius: 9px;
 }
-.file-grid.list-view .file-type-pdf-svg .pdf-page,
-.file-grid.list-view .file-type-pdf-svg .pdf-fold,
-.file-grid.list-view .file-type-pdf-svg .pdf-wave {
-  stroke-width: 9;
+.file-grid.list-view .pdf-mega-fold {
+  border-left-width: 3px;
+  border-bottom-width: 3px;
+  border-radius: 0 7px 0 5px;
+}
+.file-grid.list-view .pdf-mega-mark {
+  margin-top: 6px;
+  padding: 3px 5px;
+  border-radius: 5px;
+  font-size: 8px;
+}
+.file-grid.list-view .pdf-mega-line {
+  height: 2px;
 }
 .file-grid.list-view .file-item .item-info { padding: 0; }
 .file-grid.list-view .file-item .item-name { -webkit-line-clamp: 1; }

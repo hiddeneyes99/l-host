@@ -109,12 +109,7 @@ function fileThumbHtml(item) {
   const visual = fileVisual(item);
   const label = visual.label ? `<span class="file-type-badge">${visual.label}</span>` : '';
   const mark = visual.fa
-    ? `<svg class="file-type-pdf-svg" viewBox="0 0 120 140" aria-hidden="true">
-        <path class="pdf-page" d="M18 4h58l26 26v106H18z"/>
-        <path class="pdf-fold" d="M76 4v26h26"/>
-        <path class="pdf-wave" d="M30 86c18-7 31-31 34-52 1-9-9-13-13-5-8 16 4 44 23 62 12 11 25 17 36 16"/>
-        <text x="60" y="123" text-anchor="middle">PDF</text>
-      </svg>`
+    ? '<span class="pdf-mega-icon"><span class="pdf-mega-fold"></span><span class="pdf-mega-mark">PDF</span><span class="pdf-mega-line pdf-mega-line-1"></span><span class="pdf-mega-line pdf-mega-line-2"></span><span class="pdf-mega-line pdf-mega-line-3"></span></span>'
     : visual.image
     ? `<img class="file-type-img" src="${visual.image}" alt="${visual.label || item.name}">`
     : `<span class="file-icon-big">${visual.icon}</span>`;
