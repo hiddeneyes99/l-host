@@ -85,7 +85,7 @@ function fileVisual(item) {
     return { icon: '🎵', label: 'AUD', className: 'file-type-audio' };
   }
   if (cat === 'apk') return { icon: '📱', label: 'APK', className: 'file-type-apk' };
-  if (ext === '.pdf') return { icon: 'PDF', label: '', className: 'file-type-pdf', pdf: true };
+  if (ext === '.pdf') return { icon: '', label: '', className: 'file-type-pdf', fa: 'fa-file-pdf-o' };
   if (['.ttf','.otf','.woff','.woff2','.eot'].includes(ext)) return { icon: '🔤', label: ext.replace('.', '').toUpperCase(), className: 'file-type-font' };
   if (['.tmp','.temp','.cache','.bak','.old'].includes(ext)) return { icon: '⏱️', label: ext.replace('.', '').toUpperCase(), className: 'file-type-temp' };
   if (['.zip','.jar'].includes(ext)) return { icon: '📦', label: ext === '.jar' ? 'JAR' : 'ZIP', className: 'file-type-zip' };
@@ -108,8 +108,8 @@ function fileVisual(item) {
 function fileThumbHtml(item) {
   const visual = fileVisual(item);
   const label = visual.label ? `<span class="file-type-badge">${visual.label}</span>` : '';
-  const mark = visual.pdf
-    ? '<span class="pdf-doc-icon"><span>PDF</span></span>'
+  const mark = visual.fa
+    ? `<i class="fa ${visual.fa} file-type-fa" aria-hidden="true"></i>`
     : visual.image
     ? `<img class="file-type-img" src="${visual.image}" alt="${visual.label || item.name}">`
     : `<span class="file-icon-big">${visual.icon}</span>`;
