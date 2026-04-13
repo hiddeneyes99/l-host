@@ -1039,9 +1039,9 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .mp-queue-section { position: relative; z-index: 1; }
 
 .mp-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   padding: 16px 24px 10px;
   flex-shrink: 0;
 }
@@ -1052,6 +1052,14 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   color: var(--accent);
   text-transform: uppercase;
   opacity: 0.75;
+  text-align: center;
+  white-space: nowrap;
+}
+.mp-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
 /* Art */
@@ -3239,12 +3247,6 @@ img.lazy-img:not([src]) {
    MUSIC PLAYER ENHANCEMENTS
    ═══════════════════════════════════════════════════════════════════ */
 
-/* Header actions group */
-.mp-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
 
 
 /* Track title marquee wrap */
