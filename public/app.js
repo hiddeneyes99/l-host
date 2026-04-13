@@ -688,6 +688,7 @@ const mp = {
   sleepEnd: 0,
   vizMode: 'bars',
   metaCache: {},
+  trackChanging: false,
 };
 
 function mpGetAudio() { return $('audioPlayer'); }
@@ -776,6 +777,10 @@ function mpLoadTrack(idx) {
 
   mpApplyColors(c1, c2);
 
+  mp.trackChanging = true;
+  mpUpdateMediaSession(item);
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+
   audio.src = trackUrl;
   audio.playbackRate = mp.speed;
   audio.volume = mp.muted ? 0 : mp.volume;
@@ -785,7 +790,7 @@ function mpLoadTrack(idx) {
   $('mpDuration').textContent = '0:00';
 
   mpInitAudioContext();
-  audio.play().then(() => mpSetPlaying(true)).catch(() => {});
+  audio.play().then(() => { mp.trackChanging = false; mpSetPlaying(true); }).catch(() => { mp.trackChanging = false; });
   mpRenderQueue();
 
   // Apply marquee for long titles
@@ -937,6 +942,8 @@ function mpRenderQueue() {
     const isCurr = idx === mp.index;
     const el = document.createElement('div');
     el.className = 'mp-queue-item' + (isCurr ? ' active' : '');
+    el.setAttribute('draggable', 'true');
+    el.dataset.queuePos = String(i);
     const badgeHtml = isCurr
       ? `<div class="mp-queue-playing"><span></span><span></span><span></span></div>`
       : `<span class="mp-queue-num">${i + 1}</span>`;
@@ -949,7 +956,10 @@ function mpRenderQueue() {
         <div class="mp-queue-name">${item.name.replace(/\.[^.]+$/,'')}</div>
         <div class="mp-queue-size">${item.sizeStr || ''}</div>
       </div>
-      ${badgeHtml}`;
+      ${badgeHtml}
+      <div class="mp-queue-drag-handle" title="Drag to reorder">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15" x2="16" y2="15"/></svg>
+      </div>`;
     const artUrl = `/api/art?path=${encodeURIComponent(item.path)}`;
     const artImg = el.querySelector('.mp-queue-art');
     const artIcon = el.querySelector('.mp-queue-icon');
@@ -957,13 +967,126 @@ function mpRenderQueue() {
     probe.onload = () => { artImg.src = artUrl; artImg.style.display = 'block'; if (artIcon) artIcon.style.opacity = '0'; };
     probe.onerror = () => {};
     probe.src = artUrl;
-    el.addEventListener('click', () => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('.mp-queue-drag-handle')) return;
       mpLoadTrack(idx);
-      // Close queue panel after a short delay so user sees the selection
       setTimeout(mpCloseQueue, 280);
     });
     list.appendChild(el);
   }
+
+  mpSetupQueueDrag(list);
+}
+
+function mpReorderQueue(fromPos, toPos) {
+  if (fromPos === toPos || fromPos < 0 || toPos < 0) return;
+  const total = mp.queue.length;
+  const currentItem = mp.queue[mp.index];
+
+  if (mp.shuffle) {
+    const moved = mp.shuffleOrder.splice(fromPos, 1)[0];
+    mp.shuffleOrder.splice(toPos, 0, moved);
+  } else {
+    const actualFrom = (mp.index + fromPos) % total;
+    const actualTo   = (mp.index + toPos)   % total;
+    const [moved] = mp.queue.splice(actualFrom, 1);
+    mp.queue.splice(actualTo, 0, moved);
+    mp.index = mp.queue.indexOf(currentItem);
+    if (mp.index < 0) mp.index = 0;
+  }
+  mpRenderQueue();
+}
+
+function mpSetupQueueDrag(list) {
+  let dragSrcPos = -1;
+
+  // ── Desktop drag-and-drop ──────────────────────────────────────────────────
+  list.addEventListener('dragstart', e => {
+    const item = e.target.closest('.mp-queue-item');
+    if (!item) return;
+    dragSrcPos = parseInt(item.dataset.queuePos);
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => item.classList.add('mp-q-dragging'), 0);
+  });
+  list.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.target.closest('.mp-queue-item');
+    if (!target) return;
+    qsa('.mp-queue-item', list).forEach(el => el.classList.remove('mp-q-dragover'));
+    if (parseInt(target.dataset.queuePos) !== dragSrcPos) target.classList.add('mp-q-dragover');
+  });
+  list.addEventListener('dragleave', e => {
+    if (!e.relatedTarget || !list.contains(e.relatedTarget)) {
+      qsa('.mp-queue-item', list).forEach(el => el.classList.remove('mp-q-dragover'));
+    }
+  });
+  list.addEventListener('drop', e => {
+    e.preventDefault();
+    const target = e.target.closest('.mp-queue-item');
+    qsa('.mp-queue-item', list).forEach(el => { el.classList.remove('mp-q-dragging', 'mp-q-dragover'); });
+    if (!target) return;
+    const destPos = parseInt(target.dataset.queuePos);
+    mpReorderQueue(dragSrcPos, destPos);
+    dragSrcPos = -1;
+  });
+  list.addEventListener('dragend', () => {
+    qsa('.mp-queue-item', list).forEach(el => { el.classList.remove('mp-q-dragging', 'mp-q-dragover'); });
+    dragSrcPos = -1;
+  });
+
+  // ── Mobile touch long-press drag ──────────────────────────────────────────
+  let touchSrcPos = -1, touchSrcEl = null;
+  let holdTimer = null, dragActive = false;
+  let startY = 0, ghost = null;
+
+  list.addEventListener('touchstart', e => {
+    const item = e.target.closest('.mp-queue-item');
+    if (!item) return;
+    touchSrcEl  = item;
+    touchSrcPos = parseInt(item.dataset.queuePos);
+    startY = e.touches[0].clientY;
+    holdTimer = setTimeout(() => {
+      dragActive = true;
+      item.classList.add('mp-q-dragging');
+      const r = item.getBoundingClientRect();
+      ghost = item.cloneNode(true);
+      ghost.classList.add('mp-q-ghost');
+      ghost.style.top    = r.top + 'px';
+      ghost.style.width  = r.width + 'px';
+      document.body.appendChild(ghost);
+    }, 380);
+  }, { passive: true });
+
+  list.addEventListener('touchmove', e => {
+    const dy = Math.abs(e.touches[0].clientY - startY);
+    if (!dragActive && dy > 10) { clearTimeout(holdTimer); return; }
+    if (!dragActive || !ghost) return;
+    e.preventDefault();
+    const y = e.touches[0].clientY;
+    ghost.style.top = (y - 28) + 'px';
+    qsa('.mp-queue-item:not(.mp-q-dragging)', list).forEach(el => {
+      const r = el.getBoundingClientRect();
+      el.classList.toggle('mp-q-dragover', y >= r.top && y <= r.bottom);
+    });
+  }, { passive: false });
+
+  list.addEventListener('touchend', e => {
+    clearTimeout(holdTimer);
+    if (ghost) { ghost.remove(); ghost = null; }
+    if (touchSrcEl) touchSrcEl.classList.remove('mp-q-dragging');
+    if (!dragActive) { touchSrcPos = -1; touchSrcEl = null; return; }
+    dragActive = false;
+    const y = e.changedTouches[0].clientY;
+    let destPos = touchSrcPos;
+    qsa('.mp-queue-item:not(.mp-q-dragging)', list).forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (y >= r.top && y <= r.bottom) destPos = parseInt(el.dataset.queuePos);
+      el.classList.remove('mp-q-dragover');
+    });
+    if (destPos !== touchSrcPos) mpReorderQueue(touchSrcPos, destPos);
+    touchSrcPos = -1; touchSrcEl = null;
+  }, { passive: true });
 }
 
 function mpStartVisualizer() {
@@ -1467,12 +1590,11 @@ function mpInitEvents() {
   const audio = mpGetAudio();
 
   // ── Escape parent stacking contexts ──────────────────────────────────────
-  // The popups use position:fixed + z-index:9999, but while nested inside
-  // .mp-header (z-index:1) → .mp-container (z-index:1) → .modal (z-index:200)
-  // their effective z-index is trapped and later siblings (art-section, controls)
-  // paint over them, blocking all clicks. Moving them to <body> puts their
-  // z-index in the root stacking context so nothing can cover them.
-  ['mpVolPopup', 'mpMorePopup', 'mpSleepOpts'].forEach(id => {
+  // Move vol/more popups to <body> so they escape any stacking-context trap
+  // inside .mp-container (overflow:hidden, z-index:1). mpSleepOpts is kept in
+  // its original DOM position but uses position:fixed (set below) so it also
+  // escapes the overflow clip.
+  ['mpVolPopup', 'mpMorePopup'].forEach(id => {
     const el = $(id);
     if (el && el.parentNode !== document.body) document.body.appendChild(el);
   });
@@ -1493,8 +1615,20 @@ function mpInitEvents() {
   }
   $('mpVolPopup') && $('mpVolPopup').addEventListener('click', e => e.stopPropagation());
 
-  // Sleep timer popup
-  $('mpSleepBtn') && $('mpSleepBtn').addEventListener('click', mpToggleSleepOpts);
+  // Sleep timer popup — position it above the button via fixed coords
+  $('mpSleepBtn') && $('mpSleepBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    const opts = $('mpSleepOpts');
+    if (!opts) return;
+    if (!opts.classList.contains('open')) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      opts.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+      opts.style.left   = Math.max(8, rect.left + rect.width / 2 - 80) + 'px';
+      opts.style.right  = 'auto';
+      opts.style.transform = 'none';
+    }
+    opts.classList.toggle('open');
+  });
   qsa('.mp-sleep-opt').forEach(btn => {
     btn.addEventListener('click', () => mpSelectSleepOpt(parseInt(btn.dataset.min)));
   });
@@ -1512,15 +1646,25 @@ function mpInitEvents() {
       popup.style.left  = 'auto';
     }
     popup.classList.toggle('open');
+    if (popup.classList.contains('open')) {
+      clearTimeout(mp._vizAutoClose);
+      mp._vizAutoClose = setTimeout(() => {
+        popup.classList.remove('open');
+      }, 6000);
+    } else {
+      clearTimeout(mp._vizAutoClose);
+    }
   });
   $('mpMorePopup') && $('mpMorePopup').addEventListener('click', e => e.stopPropagation());
 
-  // Visualizer mode buttons (inside More popup)
+  // Visualizer mode buttons — stay open, reset 6-second auto-close on each pick
   qsa('.mp-viz-mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       mpSetVizMode(btn.dataset.mode);
-      // Close More popup after selection
-      setTimeout(() => { $('mpMorePopup') && $('mpMorePopup').classList.remove('open'); }, 200);
+      clearTimeout(mp._vizAutoClose);
+      mp._vizAutoClose = setTimeout(() => {
+        $('mpMorePopup') && $('mpMorePopup').classList.remove('open');
+      }, 6000);
     });
   });
 
@@ -1589,7 +1733,7 @@ function mpInitEvents() {
   });
   audio.addEventListener('pause', () => {
     mpSetPlaying(false);
-    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    if (!mp.trackChanging && 'mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
   });
 
   const bar = $('mpProgressBar');
@@ -1613,7 +1757,11 @@ function mpInitEvents() {
   document.addEventListener('click', () => {
     mpCloseVolPopup();
     mpCloseSleepOpts();
-    $('mpMorePopup') && $('mpMorePopup').classList.remove('open');
+    const morePopup = $('mpMorePopup');
+    if (morePopup && morePopup.classList.contains('open')) {
+      morePopup.classList.remove('open');
+      clearTimeout(mp._vizAutoClose);
+    }
   });
 
   // Album art swipe gesture

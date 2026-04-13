@@ -1301,6 +1301,42 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .mp-queue-size { font-size: 11px; color: var(--text3); margin-top: 2px; }
 .mp-queue-item.active .mp-queue-name { color: var(--accent); }
 
+/* Queue drag-and-drop */
+.mp-queue-drag-handle {
+  flex-shrink: 0;
+  padding: 4px 6px;
+  color: var(--text3);
+  opacity: 0.45;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.mp-queue-drag-handle:active { cursor: grabbing; }
+.mp-queue-item:hover .mp-queue-drag-handle { opacity: 0.8; }
+.mp-queue-item.mp-q-dragging {
+  opacity: 0.35;
+  background: rgba(0,212,200,0.06);
+}
+.mp-queue-item.mp-q-dragover {
+  background: rgba(0,212,200,0.13);
+  border-radius: 10px;
+  outline: 1.5px solid rgba(0,212,200,0.35);
+}
+.mp-q-ghost {
+  position: fixed;
+  left: 0; right: 0;
+  z-index: 9999;
+  opacity: 0.92;
+  pointer-events: none;
+  border-radius: 10px;
+  background: rgba(22,26,38,0.97);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.65);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+}
+
 /* Audio file thumbnail in grid */
 .audio-thumb-art {
   width: 100%; height: 100%;
@@ -3401,12 +3437,9 @@ img.lazy-img:not([src]) {
 .mp-sleep-trigger.active { color: var(--accent); background: rgba(0,212,200,0.12); }
 .mp-sleep-trigger svg { opacity: 0.7; flex-shrink: 0; }
 
-/* Sleep options popup */
+/* Sleep options popup — position:fixed so it escapes overflow:hidden on .mp-container */
 .mp-sleep-opts {
-  position: absolute;
-  bottom: calc(100% - 10px);
-  left: 50%;
-  transform: translateX(-50%) translateY(8px) scale(0.95);
+  position: fixed;
   background: rgba(22,26,38,0.97);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
@@ -3414,17 +3447,18 @@ img.lazy-img:not([src]) {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 140px;
+  min-width: 160px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.55);
-  z-index: 200;
+  z-index: 9999;
   opacity: 0;
   pointer-events: none;
+  transform: translateY(8px) scale(0.95);
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .mp-sleep-opts.open {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(-50%) translateY(0) scale(1);
+  transform: translateY(0) scale(1);
 }
 .mp-sleep-opt {
   width: 100%;
@@ -3473,6 +3507,7 @@ img.lazy-img:not([src]) {
   flex-direction: column;
   transform: translateY(100%);
   transition: transform 0.34s cubic-bezier(.4,0,.2,1);
+  will-change: transform;
   z-index: 1100;
   overflow: hidden;
 }
