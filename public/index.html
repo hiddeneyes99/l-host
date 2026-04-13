@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
     <title>l-host — File Manager</title>
-    <link rel="stylesheet" href="/style.css?v=8" />
+    <link rel="stylesheet" href="/style.css?v=9" />
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📁</text></svg>"
@@ -708,9 +708,11 @@
                 </svg>
               </button>
               <div class="mp-vol-popup" id="mpVolPopup">
-                <div class="mp-vol-slider-wrap">
-                  <input type="range" class="mp-vol-slider" id="mpVolSlider" min="0" max="1" step="0.02" value="1">
-                </div>
+                <svg class="mp-vol-popup-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                </svg>
+                <input type="range" class="mp-vol-slider" id="mpVolSlider" min="0" max="1" step="0.02" value="1">
                 <span class="mp-vol-pct" id="mpVolPct">100%</span>
               </div>
             </div>
@@ -1040,11 +1042,11 @@
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       }
     </script>
-    <script src="/iv.js?v=8"></script>
-    <script src="/app.js?v=8"></script>
+    <script src="/iv.js?v=9"></script>
+    <script src="/app.js?v=9"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js?v=8').then(reg => reg.update()).catch(() => {});
+        navigator.serviceWorker.register('/sw.js?v=9').then(reg => reg.update()).catch(() => {});
       }
     </script>
   </body>

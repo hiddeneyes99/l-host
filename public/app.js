@@ -1182,8 +1182,12 @@ function mpToggleVolPopup(e) {
     const btn = $('mpVolMute');
     if (btn) {
       const rect = btn.getBoundingClientRect();
-      popup.style.top  = (rect.bottom + 8) + 'px';
-      popup.style.right = (window.innerWidth - rect.right) + 'px';
+      const popupW = 200;
+      // Align right edge of popup with right edge of button, but clamp to screen
+      let right = window.innerWidth - rect.right;
+      right = Math.max(8, Math.min(right, window.innerWidth - popupW - 8));
+      popup.style.top   = (rect.bottom + 6) + 'px';
+      popup.style.right = right + 'px';
       popup.style.left  = 'auto';
     }
   }
