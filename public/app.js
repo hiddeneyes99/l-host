@@ -1139,7 +1139,7 @@ function mpStartVisualizer() {
 
     const ctx = canvas.getContext('2d');
     const isMobile = window.matchMedia('(max-width: 600px)').matches;
-    const frameInterval = isMobile ? 50 : 33; // ~20fps mobile, ~30fps desktop — balanced
+    const frameInterval = isMobile ? 66 : 33; // ~15fps mobile, ~30fps desktop — balanced
     let lastTs = 0;
     let sizeDirty = true;
     let dpr = 1, CX = 160, CY = 160, ART_R = 110, INNER_R = 118, MAX_EXT = 52;
@@ -1183,8 +1183,8 @@ function mpStartVisualizer() {
     // Defer first resize to next paint so modal is fully laid out
     requestAnimationFrame(() => { vcResize(); });
 
-    const NUM_BARS    = 128;  // total bars around the full circle
-    const QUARTER     = NUM_BARS / 4; // 32 — 4-fold symmetry
+    const NUM_BARS    = isMobile ? 64 : 128;  // fewer bars on mobile — halves stroke calls
+    const QUARTER     = NUM_BARS / 4;
     const HALF        = NUM_BARS / 2;
     const ACTIVE_BINS = 29;  // use bins 0-29 (~0-10kHz) so every quadrant maps to musical range
 
@@ -1238,12 +1238,12 @@ function mpStartVisualizer() {
       const [r1,g1,b1] = _rgb1;
 
       if (!mp.analyser || !mp.isPlaying) {
-        // Idle: single glowing ring — ONE shadowBlur call is fine
+        // Idle: single glowing ring — skip shadowBlur on mobile
         ctx.beginPath();
         ctx.arc(CX, CY, INNER_R, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(${r1},${g1},${b1},0.35)`;
         ctx.lineWidth = 1.5;
-        ctx.shadowBlur = 10; ctx.shadowColor = c1;
+        if (!isMobile) { ctx.shadowBlur = 10; ctx.shadowColor = c1; }
         ctx.stroke();
         ctx.shadowBlur = 0;
         return;
@@ -1292,13 +1292,15 @@ function mpStartVisualizer() {
         ctx.stroke();
       }
 
-      // Inner border ring — pulses with energy, ONE shadowBlur call
+      // Inner border ring — pulses with energy; skip shadowBlur on mobile (expensive GPU op)
       ctx.beginPath();
       ctx.arc(CX, CY, INNER_R, 0, Math.PI * 2);
       ctx.strokeStyle = `rgba(${r1},${g1},${b1},${(0.2 + avg * 0.6).toFixed(2)})`;
       ctx.lineWidth   = 1.2;
-      ctx.shadowBlur  = avg > 0.08 ? Math.round(avg * 12) : 0;
-      ctx.shadowColor = c1;
+      if (!isMobile) {
+        ctx.shadowBlur  = avg > 0.08 ? Math.round(avg * 12) : 0;
+        ctx.shadowColor = c1;
+      }
       ctx.stroke();
       ctx.shadowBlur  = 0;
     }
