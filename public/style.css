@@ -3035,6 +3035,105 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 }
 .iv-demo-btn:hover { background: rgba(0,212,200,0.2); box-shadow: 0 0 12px rgba(0,212,200,0.25); }
 
+/* ── VIEW MENU DROPDOWN ─────────────────────────────────────────────────── */
+.view-menu {
+  position: fixed;
+  top: 56px;
+  right: 8px;
+  z-index: 900;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  width: 210px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vm-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin-bottom: 2px;
+}
+.vm-hidden-label { font-size: 13px; color: var(--text2); }
+.vm-dir-row {
+  display: flex;
+  gap: 6px;
+}
+.vm-dir-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg4);
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.vm-dir-btn svg { width: 13px; height: 13px; }
+.vm-dir-btn:hover { background: var(--surface); color: var(--text); }
+.vm-dir-btn.active { background: rgba(0,212,200,0.15); color: var(--accent); }
+.vm-sort-row {
+  display: flex;
+  gap: 4px;
+}
+.vm-opt {
+  flex: 1;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg4);
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  transition: background 0.15s, color 0.15s;
+}
+.vm-opt:hover { background: var(--surface); color: var(--text); }
+.vm-opt.active { background: rgba(0,212,200,0.15); color: var(--accent); }
+.vm-hidden-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.vm-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.vm-switch input { opacity: 0; width: 0; height: 0; }
+.vm-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--bg4);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.vm-slider::before {
+  content: '';
+  position: absolute;
+  width: 18px; height: 18px;
+  left: 3px; top: 3px;
+  background: var(--text2);
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+.vm-switch input:checked + .vm-slider { background: var(--accent); }
+.vm-switch input:checked + .vm-slider::before {
+  transform: translateX(20px);
+  background: #fff;
+}
+
 /* ── SIDEBAR DRAWER ─────────────────────────────────────────────────────── */
 .sidebar-overlay {
   position: fixed;

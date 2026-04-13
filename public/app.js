@@ -2848,6 +2848,12 @@ function showView(name) {
   qsa('.view').forEach(v => v.classList.add('hidden'));
   $(`${name}View`).classList.remove('hidden');
   state.currentView = name;
+  const isHome = name === 'home';
+  $('viewMenuBtn')?.classList.toggle('hidden', isHome);
+  if (isHome) {
+    $('viewMenu')?.classList.add('hidden');
+    $('viewMenuBtn')?.classList.remove('active');
+  }
 }
 
 // ── Home ───────────────────────────────────────────────────────────────────
@@ -3796,8 +3802,18 @@ function setListMode(mode) {
   $('vmList')?.classList.toggle('active', mode === 'list');
 }
 
-// ── View menu (no-op — view menu removed, sort/hidden prefs still stored) ──
-function syncViewMenu() {}
+// ── View menu ──────────────────────────────────────────────────────────────
+function syncViewMenu() {
+  $('vmGrid')?.classList.toggle('active', prefs.viewMode === 'grid');
+  $('vmList')?.classList.toggle('active', prefs.viewMode === 'list');
+  qsa('.vm-opt').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.sort === prefs.sortBy);
+  });
+  $('vmAsc')?.classList.toggle('active', prefs.sortDir === 'asc');
+  $('vmDesc')?.classList.toggle('active', prefs.sortDir === 'desc');
+  const tog = $('vmHiddenToggle');
+  if (tog) tog.checked = prefs.showHidden;
+}
 
 function refreshCurrentView() {
   if (state.currentView === 'browser') navigate(state.currentPath);
@@ -3862,6 +3878,39 @@ document.addEventListener('DOMContentLoaded', () => {
   $('recentViewAllBtn').addEventListener('click', () => loadRecentAll());
   $('recentAllBackBtn').addEventListener('click', () => loadHome());
   $('uploadCatBtn').addEventListener('click', openUploadModal);
+
+  // ── View menu button ────────────────────────────────────────────────────
+  $('viewMenuBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    const menu = $('viewMenu');
+    const open = !menu.classList.contains('hidden');
+    menu.classList.toggle('hidden', open);
+    $('viewMenuBtn').classList.toggle('active', !open);
+  });
+  $('vmGrid').addEventListener('click', () => { setListMode('grid'); syncViewMenu(); });
+  $('vmList').addEventListener('click', () => { setListMode('list'); syncViewMenu(); });
+  qsa('.vm-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      prefs.sortBy = btn.dataset.sort;
+      savePrefs(); syncViewMenu(); refreshCurrentView();
+    });
+  });
+  $('vmAsc').addEventListener('click', () => {
+    prefs.sortDir = 'asc'; savePrefs(); syncViewMenu(); refreshCurrentView();
+  });
+  $('vmDesc').addEventListener('click', () => {
+    prefs.sortDir = 'desc'; savePrefs(); syncViewMenu(); refreshCurrentView();
+  });
+  $('vmHiddenToggle').addEventListener('change', () => {
+    prefs.showHidden = $('vmHiddenToggle').checked;
+    savePrefs(); refreshCurrentView();
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#viewMenu') && !e.target.closest('#viewMenuBtn')) {
+      $('viewMenu').classList.add('hidden');
+      $('viewMenuBtn').classList.remove('active');
+    }
+  });
 
   // ── Sidebar drawer ──────────────────────────────────────────────────────
   function openSidebar() {

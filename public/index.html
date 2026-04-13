@@ -27,6 +27,9 @@
         <h1 class="topbar-title">Manage Your Files</h1>
         <span class="topbar-version">v1.0</span>
       </div>
+      <button class="icon-btn hidden" id="viewMenuBtn" title="View options">
+        <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h12M3 19h7" stroke-linecap="round"/></svg>
+      </button>
       <button class="icon-btn" id="searchToggleBtn" title="Search">
         <svg viewBox="0 0 24 24">
           <circle cx="11" cy="11" r="7" />
@@ -34,6 +37,38 @@
         </svg>
       </button>
     </header>
+
+    <!-- ── VIEW MENU DROPDOWN ── -->
+    <div class="view-menu hidden" id="viewMenu">
+      <div class="vm-section-label">View</div>
+      <div class="vm-dir-row">
+        <button class="vm-dir-btn" id="vmGrid">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+          Grid
+        </button>
+        <button class="vm-dir-btn" id="vmList">
+          <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          List
+        </button>
+      </div>
+      <div class="vm-section-label" style="margin-top:10px">Sort by</div>
+      <div class="vm-sort-row">
+        <button class="vm-opt" data-sort="name">Name</button>
+        <button class="vm-opt" data-sort="date">Date</button>
+        <button class="vm-opt" data-sort="size">Size</button>
+      </div>
+      <div class="vm-dir-row" style="margin-top:6px">
+        <button class="vm-dir-btn" id="vmAsc">↑ Asc</button>
+        <button class="vm-dir-btn" id="vmDesc">↓ Desc</button>
+      </div>
+      <div class="vm-hidden-row">
+        <span class="vm-hidden-label">Show hidden</span>
+        <label class="vm-switch">
+          <input type="checkbox" id="vmHiddenToggle">
+          <span class="vm-slider"></span>
+        </label>
+      </div>
+    </div>
 
     <!-- ── SIDEBAR DRAWER ── -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
