@@ -1139,7 +1139,7 @@ function mpStartVisualizer() {
 
     const ctx = canvas.getContext('2d');
     const isMobile = window.matchMedia('(max-width: 600px)').matches;
-    const frameInterval = isMobile ? 33 : 0; // ~30fps on mobile, 60fps on desktop
+    const frameInterval = isMobile ? 50 : 33; // ~20fps mobile, ~30fps desktop — balanced
     let lastTs = 0;
     let sizeDirty = true;
     let dpr = 1, CX = 160, CY = 160, ART_R = 110, INNER_R = 118, MAX_EXT = 52;
@@ -1197,6 +1197,24 @@ function mpStartVisualizer() {
     let _cachedC1 = '', _cachedC2 = '';
     let _rgb1 = [0,212,200], _rgb2 = [0,145,255];
 
+    // Pre-allocate frequency buffer — never reallocated per frame
+    let _freqBuf = null;
+
+    // Pre-compute per-bar colors into typed arrays — recomputed only on color change
+    const _barR = new Uint8Array(NUM_BARS);
+    const _barG = new Uint8Array(NUM_BARS);
+    const _barB = new Uint8Array(NUM_BARS);
+
+    function _rebuildBarColors(r1,g1,b1,r2,g2,b2) {
+      for (let i = 0; i < NUM_BARS; i++) {
+        const t = (Math.sin((i / NUM_BARS) * Math.PI * 4 - Math.PI / 2) + 1) / 2;
+        _barR[i] = Math.round(r1 + (r2 - r1) * t);
+        _barG[i] = Math.round(g1 + (g2 - g1) * t);
+        _barB[i] = Math.round(b1 + (b2 - b1) * t);
+      }
+    }
+    _rebuildBarColors(0,212,200,0,145,255);
+
     function drawCircle(ts) {
       if (mp.vizMode !== 'circle') { mp.rafId = null; if (_ro) _ro.disconnect(); return; }
       mp.rafId = requestAnimationFrame(drawCircle);
@@ -1211,91 +1229,75 @@ function mpStartVisualizer() {
       const c1 = mp.color1 || '#00d4c8';
       const c2 = mp.color2 || '#0091ff';
 
-      // Re-parse only when colors actually change (album switches)
+      // Re-parse + rebuild bar colors only when album changes
       if (c1 !== _cachedC1 || c2 !== _cachedC2) {
         _rgb1 = _hx(c1); _rgb2 = _hx(c2);
         _cachedC1 = c1; _cachedC2 = c2;
+        _rebuildBarColors(_rgb1[0],_rgb1[1],_rgb1[2], _rgb2[0],_rgb2[1],_rgb2[2]);
       }
       const [r1,g1,b1] = _rgb1;
-      const [r2,g2,b2] = _rgb2;
 
       if (!mp.analyser || !mp.isPlaying) {
-        // Idle: single clean glowing ring — no movement
+        // Idle: single glowing ring — ONE shadowBlur call is fine
         ctx.beginPath();
         ctx.arc(CX, CY, INNER_R, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(${r1},${g1},${b1},0.35)`;
         ctx.lineWidth = 1.5;
-        ctx.shadowBlur = 14; ctx.shadowColor = c1;
+        ctx.shadowBlur = 10; ctx.shadowColor = c1;
         ctx.stroke();
         ctx.shadowBlur = 0;
         return;
       }
 
-      const freqData = new Uint8Array(mp.analyser.frequencyBinCount);
-      mp.analyser.getByteFrequencyData(freqData);
-      const bins = freqData.length; // 64 for fftSize=128
+      // Reuse pre-allocated buffer — zero GC pressure
+      const binCount = mp.analyser.frequencyBinCount;
+      if (!_freqBuf || _freqBuf.length !== binCount) _freqBuf = new Uint8Array(binCount);
+      mp.analyser.getByteFrequencyData(_freqBuf);
+      const bins = binCount; // 64 for fftSize=128
 
-      // Average energy for glow breathing
-      let avg = 0;
-      for (let i = 0; i < bins; i++) avg += freqData[i];
-      avg /= (bins * 255);
+      // Average energy (integer math only)
+      let avgSum = 0;
+      for (let i = 0; i < bins; i++) avgSum += _freqBuf[i];
+      const avg = avgSum / (bins * 255);
 
-      // Breathing outer aura
-      if (avg > 0.04) {
-        const aura = ctx.createRadialGradient(CX, CY, INNER_R, CX, CY, INNER_R + MAX_EXT + 14);
-        aura.addColorStop(0, `rgba(${r1},${g1},${b1},${(avg * 0.22).toFixed(2)})`);
-        aura.addColorStop(0.5, `rgba(${r2},${g2},${b2},${(avg * 0.10).toFixed(2)})`);
-        aura.addColorStop(1, 'transparent');
-        ctx.fillStyle = aura;
+      // Cheap aura: one semi-transparent wide arc — no radial gradient
+      if (avg > 0.05) {
         ctx.beginPath();
-        ctx.arc(CX, CY, INNER_R + MAX_EXT + 14, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.lineCap = 'round';
-
-      // 4-fold symmetry: bass at top, right, bottom, left — full circle reacts to rhythm
-      for (let i = 0; i < NUM_BARS; i++) {
-        // Position within the current quarter (0-31)
-        const posInQ = i % QUARTER;
-        // Map to frequency bin: bass at start, high-mid at end of each quarter
-        const fi = Math.round(posInQ * ACTIVE_BINS / (QUARTER - 1));
-        const v  = freqData[Math.min(fi, bins - 1)] / 255;
-        const barLen = Math.max(2.5, v * MAX_EXT);
-
-        // Angle: start at top (−π/2), clockwise
-        const angle = (i / NUM_BARS) * Math.PI * 2 - Math.PI / 2;
-        const cosA  = Math.cos(angle), sinA = Math.sin(angle);
-
-        const x1 = CX + cosA * INNER_R;
-        const y1 = CY + sinA * INNER_R;
-        const x2 = CX + cosA * (INNER_R + barLen);
-        const y2 = CY + sinA * (INNER_R + barLen);
-
-        // Smooth gradient: c1 ↔ c2 oscillates smoothly around the circle (2 cycles)
-        const t  = (Math.sin((i / NUM_BARS) * Math.PI * 4 - Math.PI / 2) + 1) / 2;
-        const cr = Math.round(r1 + (r2 - r1) * t);
-        const cg = Math.round(g1 + (g2 - g1) * t);
-        const cb = Math.round(b1 + (b2 - b1) * t);
-        const alpha = (0.55 + v * 0.45).toFixed(2);
-
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.strokeStyle = `rgba(${cr},${cg},${cb},${alpha})`;
-        ctx.lineWidth   = Math.max(1.5, 1.8 + v * 2.2);
-        ctx.shadowBlur  = 3 + v * 14;
-        ctx.shadowColor = `rgb(${cr},${cg},${cb})`;
+        ctx.arc(CX, CY, INNER_R + MAX_EXT * 0.5, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${r1},${g1},${b1},${(avg * 0.18).toFixed(2)})`;
+        ctx.lineWidth = MAX_EXT * avg * 2.5;
         ctx.stroke();
       }
+
+      // ── Bars: NO shadowBlur per bar — massive perf win ──────────────────
+      ctx.lineCap = 'round';
       ctx.shadowBlur = 0;
 
-      // Inner border ring — blends c1 with energy brightness
+      // 4-fold symmetry: bass at top, right, bottom, left
+      for (let i = 0; i < NUM_BARS; i++) {
+        const posInQ = i % QUARTER;
+        const fi     = Math.round(posInQ * ACTIVE_BINS / (QUARTER - 1));
+        const v      = _freqBuf[fi < bins ? fi : bins - 1] / 255;
+        const barLen = v > 0.01 ? Math.max(2, v * MAX_EXT) : 2;
+
+        const angle = (i / NUM_BARS) * Math.PI * 2 - Math.PI * 0.5;
+        const cosA  = Math.cos(angle);
+        const sinA  = Math.sin(angle);
+
+        ctx.beginPath();
+        ctx.moveTo(CX + cosA * INNER_R,            CY + sinA * INNER_R);
+        ctx.lineTo(CX + cosA * (INNER_R + barLen), CY + sinA * (INNER_R + barLen));
+        ctx.strokeStyle = `rgba(${_barR[i]},${_barG[i]},${_barB[i]},${0.55 + v * 0.45})`;
+        ctx.lineWidth   = 1.6 + v * 2.2;
+        ctx.stroke();
+      }
+
+      // Inner border ring — pulses with energy, ONE shadowBlur call
       ctx.beginPath();
       ctx.arc(CX, CY, INNER_R, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(${r1},${g1},${b1},${(0.18 + avg * 0.55).toFixed(2)})`;
+      ctx.strokeStyle = `rgba(${r1},${g1},${b1},${(0.2 + avg * 0.6).toFixed(2)})`;
       ctx.lineWidth   = 1.2;
-      ctx.shadowBlur  = avg > 0.1 ? avg * 10 : 0;
+      ctx.shadowBlur  = avg > 0.08 ? Math.round(avg * 12) : 0;
       ctx.shadowColor = c1;
       ctx.stroke();
       ctx.shadowBlur  = 0;
