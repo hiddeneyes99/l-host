@@ -1137,105 +1137,139 @@ function mpStartVisualizer() {
     const canvas = $('mpCircleCanvas');
     if (!canvas) return;
 
-    const dpr    = Math.min(window.devicePixelRatio || 1, 2);
-    const SIZE_W = (canvas.parentElement?.offsetWidth  || 320);
-    const SIZE_H = (canvas.parentElement?.offsetHeight || 300);
-    canvas.width  = SIZE_W * dpr;
-    canvas.height = SIZE_H * dpr;
-    canvas.style.width  = SIZE_W + 'px';
-    canvas.style.height = SIZE_H + 'px';
     const ctx = canvas.getContext('2d');
-
-    const CX = SIZE_W / 2, CY = SIZE_H / 2;
-    const artElR   = $('mpArt');
-    const ART_R   = artElR ? Math.round(artElR.offsetWidth / 2) : 110; // read live from DOM
-    const INNER_R = ART_R + 8;                                         // gap before bars start
-    const MAX_EXT = Math.min(55, Math.min(CX, CY) - INNER_R - 4); // fit within canvas
-    const NUM_DOTS = 180;
     const isMobile = window.matchMedia('(max-width: 600px)').matches;
-    let rotation = 0;
+    const frameInterval = isMobile ? 33 : 0; // ~30fps on mobile, 60fps on desktop
     let lastTs = 0;
-    const frameInterval = isMobile ? 40 : 0;
+    let sizeDirty = true;
+    let dpr = 1, CX = 160, CY = 160, ART_R = 110, INNER_R = 118, MAX_EXT = 52;
+
+    function vcResize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const par = canvas.parentElement;
+      const SW = par ? par.offsetWidth : 320;
+      const SH = par ? par.offsetHeight : 320;
+      canvas.width  = SW * dpr;
+      canvas.height = SH * dpr;
+      canvas.style.width  = SW + 'px';
+      canvas.style.height = SH + 'px';
+
+      // Compute center from actual art element position for pixel-perfect alignment
+      const artEl = $('mpArt');
+      if (artEl) {
+        const cr = canvas.getBoundingClientRect();
+        const ar = artEl.getBoundingClientRect();
+        if (cr.width > 0) {
+          CX = ar.left - cr.left + ar.width  / 2;
+          CY = ar.top  - cr.top  + ar.height / 2;
+          ART_R = ar.width / 2;
+        } else {
+          CX = SW / 2; CY = SH / 2;
+          ART_R = artEl.offsetWidth / 2 || 110;
+        }
+      } else {
+        CX = SW / 2; CY = SH / 2; ART_R = 110;
+      }
+      INNER_R = ART_R + 7;
+      const room = Math.min(CX, CY, SW - CX, SH - CY) - INNER_R - 6;
+      MAX_EXT = Math.max(10, Math.min(isMobile ? 48 : 62, room));
+      sizeDirty = false;
+    }
+
+    const _ro = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => { sizeDirty = true; }) : null;
+    if (_ro) { _ro.observe(canvas.parentElement); }
+
+    // Defer first resize to next paint so modal is fully laid out
+    requestAnimationFrame(() => { vcResize(); });
+
+    const NUM_BARS = 128;  // total bars around the full circle
+    const HALF     = NUM_BARS / 2;
 
     function drawCircle(ts) {
-      if (mp.vizMode !== 'circle') { mp.rafId = null; return; }
+      if (mp.vizMode !== 'circle') { mp.rafId = null; if (_ro) _ro.disconnect(); return; }
       mp.rafId = requestAnimationFrame(drawCircle);
       if (document.hidden) return;
       if (frameInterval && ts - lastTs < frameInterval) return;
       lastTs = ts;
+      if (sizeDirty) vcResize();
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, SIZE_W, SIZE_H);
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
 
       const c1 = mp.color1 || '#00d4c8';
       const c2 = mp.color2 || '#0091ff';
-      rotation += 0.004;
 
       if (!mp.analyser || !mp.isPlaying) {
-        // Idle: subtle pulsing ring
+        // Idle: single clean glowing ring — no movement
         ctx.beginPath();
-        ctx.arc(CX, CY, INNER_R + 2, 0, Math.PI * 2);
-        ctx.strokeStyle = c1 + '50';
+        ctx.arc(CX, CY, INNER_R, 0, Math.PI * 2);
+        ctx.strokeStyle = c1 + '55';
         ctx.lineWidth = 1.5;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = c1;
+        ctx.shadowBlur = 14; ctx.shadowColor = c1;
         ctx.stroke();
         ctx.shadowBlur = 0;
         return;
       }
 
-      const data = new Uint8Array(mp.analyser.frequencyBinCount);
-      mp.analyser.getByteFrequencyData(data);
+      const freqData = new Uint8Array(mp.analyser.frequencyBinCount);
+      mp.analyser.getByteFrequencyData(freqData);
+      const bins = freqData.length; // 64 for fftSize=128
 
-      // Compute average energy for glow intensity
+      // Average energy
       let avg = 0;
-      for (let i = 0; i < data.length; i++) avg += data[i];
-      avg = avg / data.length / 255;
+      for (let i = 0; i < bins; i++) avg += freqData[i];
+      avg /= (bins * 255);
 
-      // Draw outer glow aura
-      const aura = ctx.createRadialGradient(CX, CY, INNER_R, CX, CY, INNER_R + MAX_EXT + 20);
-      aura.addColorStop(0, c1 + Math.round(avg * 60).toString(16).padStart(2,'0'));
-      aura.addColorStop(1, 'transparent');
-      ctx.fillStyle = aura;
-      ctx.beginPath();
-      ctx.arc(CX, CY, INNER_R + MAX_EXT + 20, 0, Math.PI * 2);
-      ctx.fill();
+      // Breathing outer aura
+      if (avg > 0.04) {
+        const aura = ctx.createRadialGradient(CX, CY, INNER_R, CX, CY, INNER_R + MAX_EXT + 14);
+        aura.addColorStop(0, c1 + Math.round(avg * 55).toString(16).padStart(2, '0'));
+        aura.addColorStop(1, 'transparent');
+        ctx.fillStyle = aura;
+        ctx.beginPath();
+        ctx.arc(CX, CY, INNER_R + MAX_EXT + 14, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
-      // Draw radiating frequency bars around the circle
-      const NUM_BARS = NUM_DOTS;
+      ctx.lineCap = 'round';
+
       for (let i = 0; i < NUM_BARS; i++) {
-        const angle = (i / NUM_BARS) * Math.PI * 2 + rotation;
-        const di    = Math.floor(i * data.length * 0.72 / NUM_BARS);
-        const v     = data[di] / 255;
-        const barLen = Math.max(2, v * MAX_EXT);
+        // Mirrored: first half low→high, second half high→low → symmetric waveform
+        const fi = i < HALF
+          ? Math.floor(i * bins / HALF)
+          : Math.floor((NUM_BARS - 1 - i) * bins / HALF);
+        const v = freqData[Math.min(fi, bins - 1)] / 255;
+        const barLen = Math.max(2.5, v * MAX_EXT);
 
-        // Bar radiates outward from the disc edge
-        const x1 = CX + Math.cos(angle) * INNER_R;
-        const y1 = CY + Math.sin(angle) * INNER_R;
-        const x2 = CX + Math.cos(angle) * (INNER_R + barLen);
-        const y2 = CY + Math.sin(angle) * (INNER_R + barLen);
+        // Start at top (−π/2) and go clockwise — matches reference design
+        const angle = (i / NUM_BARS) * Math.PI * 2 - Math.PI / 2;
+        const cosA = Math.cos(angle), sinA = Math.sin(angle);
 
-        // Color: blend c1/c2 with a breathing wave based on position + time
-        const t     = (Math.sin(i / NUM_BARS * Math.PI * 4 + rotation * 2) + 1) / 2;
-        const color = t > 0.5 ? c1 : c2;
-        const alpha = Math.round((0.4 + v * 0.6) * 255).toString(16).padStart(2, '0');
+        const x1 = CX + cosA * INNER_R;
+        const y1 = CY + sinA * INNER_R;
+        const x2 = CX + cosA * (INNER_R + barLen);
+        const y2 = CY + sinA * (INNER_R + barLen);
+
+        // Color: c1 on left half, c2 on right half for a dual-tone gradient feel
+        const color = i < HALF ? c1 : c2;
+        const alpha = Math.round((0.55 + v * 0.45) * 255).toString(16).padStart(2, '0');
 
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
         ctx.strokeStyle = color + alpha;
-        ctx.lineWidth   = Math.max(1.2, 1.6 + v * 2.2);
-        ctx.lineCap     = 'round';
-        ctx.shadowBlur  = 4 + v * 16;
+        ctx.lineWidth   = Math.max(1.5, 1.8 + v * 1.6);
+        ctx.shadowBlur  = avg > 0.08 ? (2 + v * 10) : 0;
         ctx.shadowColor = color;
         ctx.stroke();
       }
       ctx.shadowBlur = 0;
 
-      // Draw inner ring connecting art edge to dots
+      // Inner border ring
       ctx.beginPath();
       ctx.arc(CX, CY, INNER_R, 0, Math.PI * 2);
-      ctx.strokeStyle = c1 + Math.round(30 + avg * 50).toString(16).padStart(2,'0');
+      ctx.strokeStyle = c1 + Math.round(22 + avg * 65).toString(16).padStart(2, '0');
       ctx.lineWidth   = 1;
       ctx.stroke();
     }
@@ -1916,7 +1950,7 @@ function mpInitEvents() {
   mp.volume = isNaN(savedVol) ? 1 : Math.max(0, Math.min(1, savedVol));
   const savedSpeed = parseFloat(localStorage.getItem('lhost_mp_speed') ?? '1');
   mp.speed = MP_SPEEDS.includes(savedSpeed) ? savedSpeed : 1;
-  const savedViz = localStorage.getItem('lhost_mp_viz') || 'bars';
+  const savedViz = localStorage.getItem('lhost_mp_viz') || 'circle';
   mpSetVizMode(savedViz);
   mpUpdateVolDisplay();
 

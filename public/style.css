@@ -1066,10 +1066,10 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 16px 0 24px;
+  padding: 20px 0;
   position: relative;
   flex: 1;
-  min-height: 200px;
+  min-height: 220px;
 }
 .mp-art-glow {
   position: absolute;
