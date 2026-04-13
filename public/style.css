@@ -87,14 +87,6 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   margin-bottom: 1px;
   text-align: center;
 }
-.breadcrumb {
-  font-size: 11px;
-  color: var(--text2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
 
 .icon-btn {
   width: 36px; height: 36px;

@@ -1,0 +1,7 @@
+node_modules/
+attached_assets/
+.cache/
+.local/
+.replit
+replit.md
+*.log

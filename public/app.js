@@ -141,7 +141,7 @@ async function fetchJson(url) {
 
 function updateBreadcrumb(p) {
   const el = $('breadcrumb');
-  el.textContent = p ? '/ ' + p.replace(/\\/g, '/') : '/';
+  if (el) el.textContent = p ? '/ ' + p.replace(/\\/g, '/') : '/';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
