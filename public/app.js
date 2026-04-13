@@ -681,6 +681,13 @@ const mp = {
   progressDragging: false,
   color1: '#00d4c8',
   color2: '#0091ff',
+  volume: 1,
+  speed: 1,
+  muted: false,
+  sleepTimer: null,
+  sleepEnd: 0,
+  vizMode: 'bars',
+  metaCache: {},
 };
 
 function mpGetAudio() { return $('audioPlayer'); }
@@ -727,7 +734,6 @@ function mpLoadTrack(idx) {
 
   const [c1, c2] = audioPalette(item.name);
 
-  // Helper: push color pair to all ambient elements
   function mpApplyColors(col1, col2) {
     mp.color1 = col1; mp.color2 = col2;
     $('mpArtGlow').style.background = col1;
@@ -736,10 +742,15 @@ function mpLoadTrack(idx) {
     container.style.setProperty('--mp-color2', col2);
     $('mpAmbientBlur').style.setProperty('--mp-color1', col1);
     $('mpAmbientBlur').style.setProperty('--mp-color2', col2);
+    // Update vol slider gradient color
+    mpUpdateVolDisplay();
   }
 
-  // Reset art to gradient placeholder, then try to load real album art
+  // Art pop-in animation
   const artEl = $('mpArt');
+  artEl.classList.remove('mp-art-pop');
+  void artEl.offsetWidth;
+  artEl.classList.add('mp-art-pop');
   artEl.style.background = `linear-gradient(135deg, ${c1}, ${c2})`;
   const artIcon = artEl.querySelector('.mp-art-icon');
   if (artIcon) artIcon.style.display = '';
@@ -756,16 +767,18 @@ function mpLoadTrack(idx) {
     let old = artEl.querySelector('.mp-art-img');
     if (old) old.remove();
     artEl.appendChild(img);
-    // Extract dominant color from real album art and update ambience
     const extracted = extractColors(img);
     if (extracted) mpApplyColors(extracted[0], extracted[1]);
+    mpUpdateMediaSession(item);
   };
-  img.onerror = () => { /* keep gradient */ };
+  img.onerror = () => { mpUpdateMediaSession(item); };
   img.src = artUrl;
 
   mpApplyColors(c1, c2);
 
   audio.src = trackUrl;
+  audio.playbackRate = mp.speed;
+  audio.volume = mp.muted ? 0 : mp.volume;
   $('mpProgressFill').style.width = '0%';
   $('mpProgressDot').style.left = '0%';
   $('mpCurrentTime').textContent = '0:00';
@@ -774,7 +787,14 @@ function mpLoadTrack(idx) {
   mpInitAudioContext();
   audio.play().then(() => mpSetPlaying(true)).catch(() => {});
   mpRenderQueue();
-  // Keep mini player in sync if it's currently visible
+
+  // Apply marquee for long titles
+  setTimeout(() => mpApplyMarquee($('mpTitle')), 60);
+
+  // Fetch real ID3 metadata
+  mpLoadMeta(item);
+  mpUpdateMediaSession(item);
+
   if ($('miniPlayer').classList.contains('active')) {
     mpUpdateMiniInfo(mp.queue[mp.index]);
   }
@@ -901,15 +921,21 @@ function mpSeekFromEvent(e) {
 function mpRenderQueue() {
   const list = $('mpQueueList');
   list.innerHTML = '';
-  const count = Math.min(mp.queue.length, 6);
-  for (let i = 0; i < count; i++) {
-    const idx = mp.shuffle ? mp.shuffleOrder[i] : (mp.index + i) % mp.queue.length;
+  const total = mp.queue.length;
+  const label = $('mpQueueLabel');
+  if (label) label.textContent = `Up Next${total > 1 ? ` (${total})` : ''}`;
+
+  for (let i = 0; i < total; i++) {
+    const idx = mp.shuffle ? mp.shuffleOrder[i] : (mp.index + i) % total;
     const item = mp.queue[idx];
     if (!item) continue;
     const [c1, c2] = audioPalette(item.name);
     const isCurr = idx === mp.index;
     const el = document.createElement('div');
     el.className = 'mp-queue-item' + (isCurr ? ' active' : '');
+    const badgeHtml = isCurr
+      ? `<div class="mp-queue-playing"><span></span><span></span><span></span></div>`
+      : `<span class="mp-queue-num">${i + 1}</span>`;
     el.innerHTML = `
       <div class="mp-queue-thumb" style="background:linear-gradient(135deg,${c1},${c2})">
         <img class="mp-queue-art" alt="">
@@ -918,17 +944,13 @@ function mpRenderQueue() {
       <div class="mp-queue-info">
         <div class="mp-queue-name">${item.name.replace(/\.[^.]+$/,'')}</div>
         <div class="mp-queue-size">${item.sizeStr || ''}</div>
-      </div>`;
-    // Lazy-load album art for this queue item
+      </div>
+      ${badgeHtml}`;
     const artUrl = `/api/art?path=${encodeURIComponent(item.path)}`;
     const artImg = el.querySelector('.mp-queue-art');
     const artIcon = el.querySelector('.mp-queue-icon');
     const probe = new Image();
-    probe.onload = () => {
-      artImg.src = artUrl;
-      artImg.style.display = 'block';
-      if (artIcon) artIcon.style.opacity = '0';
-    };
+    probe.onload = () => { artImg.src = artUrl; artImg.style.display = 'block'; if (artIcon) artIcon.style.opacity = '0'; };
     probe.onerror = () => {};
     probe.src = artUrl;
     el.addEventListener('click', () => mpLoadTrack(idx));
@@ -941,15 +963,14 @@ function mpStartVisualizer() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
-  // Pre-build a single reusable gradient (updated when colors change)
   let cachedGrad = null;
-  let cachedC1 = '', cachedC2 = '', cachedH = 0;
+  let cachedC1 = '', cachedC2 = '', cachedH = 0, cachedMode = '';
 
   function draw() {
     mp.rafId = requestAnimationFrame(draw);
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap at 2x for perf
-    const cssW = canvas.offsetWidth || 340;
+    const dpr  = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = canvas.offsetWidth  || 340;
     const cssH = canvas.offsetHeight || 64;
     const targetW = Math.round(cssW * dpr);
     const targetH = Math.round(cssH * dpr);
@@ -959,7 +980,7 @@ function mpStartVisualizer() {
       canvas.height = targetH;
       canvas.style.width  = cssW + 'px';
       canvas.style.height = cssH + 'px';
-      cachedGrad = null; // invalidate cache on resize
+      cachedGrad = null;
     } else {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
     }
@@ -968,48 +989,130 @@ function mpStartVisualizer() {
     const W = cssW, H = cssH;
     ctx.clearRect(0, 0, W, H);
 
-    const c1 = mp.color1 || '#00d4c8';
-    const c2 = mp.color2 || '#0091ff';
+    const c1   = mp.color1 || '#00d4c8';
+    const c2   = mp.color2 || '#0091ff';
+    const mode = mp.vizMode || 'bars';
 
     if (!mp.analyser || !mp.isPlaying) {
-      // Idle: single thin center line
-      ctx.fillStyle = c1 + '66';
-      ctx.fillRect(W * 0.1, H / 2 - 1, W * 0.8, 2);
+      // Idle: soft center line with gradient
+      if (!cachedGrad || cachedC1 !== c1 || cachedMode !== 'idle') {
+        cachedGrad = ctx.createLinearGradient(0, 0, W, 0);
+        cachedGrad.addColorStop(0, 'transparent');
+        cachedGrad.addColorStop(0.3, c1 + '44');
+        cachedGrad.addColorStop(0.7, c1 + '44');
+        cachedGrad.addColorStop(1, 'transparent');
+        cachedC1 = c1; cachedMode = 'idle';
+      }
+      ctx.fillStyle = cachedGrad;
+      ctx.fillRect(0, H / 2 - 1, W, 2);
       return;
     }
 
-    const data = new Uint8Array(mp.analyser.frequencyBinCount);
-    mp.analyser.getByteFrequencyData(data);
+    if (mode === 'wave') {
+      // ── Smooth waveform ──────────────────────────────────────────
+      const data = new Uint8Array(mp.analyser.fftSize);
+      mp.analyser.getByteTimeDomainData(data);
 
-    // Rebuild shared gradient only when colors or height change
-    if (!cachedGrad || cachedC1 !== c1 || cachedC2 !== c2 || cachedH !== H) {
-      cachedGrad = ctx.createLinearGradient(0, 0, 0, H);
-      cachedGrad.addColorStop(0, c1);
-      cachedGrad.addColorStop(1, c2 + '33');
-      cachedC1 = c1; cachedC2 = c2; cachedH = H;
-    }
-    ctx.fillStyle = cachedGrad;
+      if (!cachedGrad || cachedC1 !== c1 || cachedC2 !== c2 || cachedMode !== 'wave') {
+        cachedGrad = ctx.createLinearGradient(0, 0, W, 0);
+        cachedGrad.addColorStop(0,    c2 + '00');
+        cachedGrad.addColorStop(0.12, c1);
+        cachedGrad.addColorStop(0.88, c2);
+        cachedGrad.addColorStop(1,    c2 + '00');
+        cachedC1 = c1; cachedC2 = c2; cachedMode = 'wave';
+      }
 
-    // Centered mirror visualization: bars grow from center outward
-    const halfBars = 20; // 20 bars per side = 40 total
-    const barW     = (W / 2) / halfBars;
-    const gap      = Math.max(1, barW * 0.2);
-    const bw       = barW - gap;
-    const cx       = W / 2;
+      ctx.lineJoin = 'round';
+      ctx.lineCap  = 'round';
 
-    for (let i = 0; i < halfBars; i++) {
-      const di = Math.floor(i * (data.length * 0.6) / halfBars);
-      const v  = data[di] / 255;
-      const bh = Math.max(3, v * H * 0.92);
-      const y  = H / 2 - bh / 2; // center vertically
+      // Glow under-pass
+      ctx.beginPath();
+      const step = W / (data.length - 1);
+      for (let i = 0; i < data.length; i++) {
+        const x = i * step;
+        const y = ((data[i] / 255) * H * 0.85) + (H * 0.075);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = c1 + '28';
+      ctx.lineWidth = 7;
+      ctx.stroke();
 
-      // Right side
-      const xR = cx + i * barW + gap * 0.5;
-      ctx.fillRect(xR, y, bw, bh);
+      // Main line
+      ctx.beginPath();
+      for (let i = 0; i < data.length; i++) {
+        const x = i * step;
+        const y = ((data[i] / 255) * H * 0.85) + (H * 0.075);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = cachedGrad;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
 
-      // Left side (mirror)
-      const xL = cx - (i + 1) * barW + gap * 0.5;
-      ctx.fillRect(xL, y, bw, bh);
+    } else if (mode === 'circle') {
+      // ── Circular spectrum ─────────────────────────────────────────
+      const data = new Uint8Array(mp.analyser.frequencyBinCount);
+      mp.analyser.getByteFrequencyData(data);
+
+      const cx    = W / 2, cy = H / 2;
+      const minD  = Math.min(W, H);
+      const baseR = minD * 0.27;
+      const numBars = 56;
+
+      // Inner ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+      ctx.strokeStyle = c1 + '35';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.lineCap = 'round';
+      for (let i = 0; i < numBars; i++) {
+        const angle = (i / numBars) * Math.PI * 2 - Math.PI / 2;
+        const di  = Math.floor(i * data.length * 0.65 / numBars);
+        const v   = data[di] / 255;
+        const barH = Math.max(2, v * minD * 0.38);
+
+        const x1 = cx + Math.cos(angle) * baseR;
+        const y1 = cy + Math.sin(angle) * baseR;
+        const x2 = cx + Math.cos(angle) * (baseR + barH);
+        const y2 = cy + Math.sin(angle) * (baseR + barH);
+
+        const alpha = Math.round(Math.max(60, v * 255)).toString(16).padStart(2,'0');
+        ctx.strokeStyle = (i % 2 === 0 ? c1 : c2) + alpha;
+        ctx.lineWidth   = Math.max(1.5, (W / numBars) * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+    } else {
+      // ── Bars — centered mirror (default) ─────────────────────────
+      const data = new Uint8Array(mp.analyser.frequencyBinCount);
+      mp.analyser.getByteFrequencyData(data);
+
+      if (!cachedGrad || cachedC1 !== c1 || cachedC2 !== c2 || cachedH !== H || cachedMode !== 'bars') {
+        cachedGrad = ctx.createLinearGradient(0, 0, 0, H);
+        cachedGrad.addColorStop(0, c1);
+        cachedGrad.addColorStop(1, c2 + '33');
+        cachedC1 = c1; cachedC2 = c2; cachedH = H; cachedMode = 'bars';
+      }
+      ctx.fillStyle = cachedGrad;
+
+      const halfBars = 20;
+      const barW = (W / 2) / halfBars;
+      const gap  = Math.max(1, barW * 0.2);
+      const bw   = barW - gap;
+      const cx   = W / 2;
+
+      for (let i = 0; i < halfBars; i++) {
+        const di = Math.floor(i * (data.length * 0.6) / halfBars);
+        const v  = data[di] / 255;
+        const bh = Math.max(3, v * H * 0.92);
+        const y  = H / 2 - bh / 2;
+        ctx.fillRect(cx + i * barW + gap * 0.5, y, bw, bh);
+        ctx.fillRect(cx - (i + 1) * barW + gap * 0.5, y, bw, bh);
+      }
     }
   }
   draw();
@@ -1017,6 +1120,210 @@ function mpStartVisualizer() {
 
 function mpStopVisualizer() {
   if (mp.rafId) { cancelAnimationFrame(mp.rafId); mp.rafId = null; }
+}
+
+// ── Volume control ─────────────────────────────────────────────────────────
+function mpSetVolume(v) {
+  mp.volume = Math.max(0, Math.min(1, v));
+  if (!mp.muted) mpGetAudio().volume = mp.volume;
+  const slider = $('mpVolSlider');
+  if (slider) slider.value = mp.volume;
+  mpUpdateVolDisplay();
+  try { localStorage.setItem('lhost_mp_vol', mp.volume); } catch(_) {}
+}
+
+function mpToggleMuteAudio() {
+  mp.muted = !mp.muted;
+  mpGetAudio().volume = mp.muted ? 0 : mp.volume;
+  mpUpdateVolDisplay();
+}
+
+function mpUpdateVolDisplay() {
+  const slider = $('mpVolSlider');
+  if (slider) {
+    const pct = (mp.muted ? 0 : mp.volume) * 100;
+    slider.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, rgba(255,255,255,0.12) ${pct}%)`;
+  }
+  const icon = $('mpVolIcon');
+  if (!icon) return;
+  const v = mp.muted ? 0 : mp.volume;
+  if (v === 0) {
+    icon.innerHTML = `<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>`;
+  } else if (v < 0.4) {
+    icon.innerHTML = `<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>`;
+  } else {
+    icon.innerHTML = `<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>`;
+  }
+}
+
+// ── Playback speed ─────────────────────────────────────────────────────────
+const MP_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+function mpCycleSpeed() {
+  const i = MP_SPEEDS.indexOf(mp.speed);
+  mp.speed = MP_SPEEDS[(i + 1) % MP_SPEEDS.length];
+  mpGetAudio().playbackRate = mp.speed;
+  const btn = $('mpSpeedBtn');
+  if (btn) {
+    btn.textContent = mp.speed === 1 ? '1×' : mp.speed + '×';
+    btn.classList.toggle('active-speed', mp.speed !== 1);
+  }
+  try { localStorage.setItem('lhost_mp_speed', mp.speed); } catch(_) {}
+}
+
+// ── Visualizer mode ────────────────────────────────────────────────────────
+function mpSetVizMode(mode) {
+  mp.vizMode = mode;
+  qsa('.mp-viz-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  try { localStorage.setItem('lhost_mp_viz', mode); } catch(_) {}
+}
+
+// ── Sleep timer ────────────────────────────────────────────────────────────
+const MP_SLEEP_OPTS = [0, 15, 30, 60, -1]; // minutes; -1 = end of track
+let _mpSleepStepIdx = 0;
+
+function mpSleepTimerCycle() {
+  _mpSleepStepIdx = (_mpSleepStepIdx + 1) % MP_SLEEP_OPTS.length;
+  const minutes = MP_SLEEP_OPTS[_mpSleepStepIdx];
+  mpClearSleepTimer();
+
+  const btn = $('mpSleepBtn');
+  const lbl = $('mpSleepLabel');
+  if (minutes === 0) {
+    btn && btn.classList.remove('active');
+    if (lbl) lbl.textContent = '';
+    toast('Sleep timer off');
+    return;
+  }
+  if (minutes === -1) {
+    mp.sleepTimer = 'eot';
+    btn && btn.classList.add('active');
+    if (lbl) lbl.textContent = '⏹';
+    toast('Sleep: end of track');
+    return;
+  }
+  mp.sleepEnd = Date.now() + minutes * 60 * 1000;
+  mp.sleepTimer = setInterval(() => mpUpdateSleepDisplay(), 1000);
+  btn && btn.classList.add('active');
+  mpUpdateSleepDisplay();
+  toast(`Sleep: ${minutes} min`);
+}
+
+function mpUpdateSleepDisplay() {
+  const lbl = $('mpSleepLabel');
+  if (!lbl || !mp.sleepEnd) return;
+  const rem = Math.max(0, mp.sleepEnd - Date.now());
+  if (rem <= 0) {
+    mpGetAudio().pause();
+    mpSetPlaying(false);
+    mpClearSleepTimer();
+    if (lbl) lbl.textContent = '';
+    return;
+  }
+  const m = Math.floor(rem / 60000);
+  const s = Math.floor((rem % 60000) / 1000);
+  lbl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function mpClearSleepTimer() {
+  if (mp.sleepTimer && mp.sleepTimer !== 'eot') clearInterval(mp.sleepTimer);
+  mp.sleepTimer = null;
+  mp.sleepEnd = 0;
+  _mpSleepStepIdx = 0;
+}
+
+// ── ID3 Metadata loading ───────────────────────────────────────────────────
+async function mpLoadMeta(item) {
+  const cached = mp.metaCache[item.path];
+  if (cached) { _mpApplyMeta(cached, item.path); return; }
+  try {
+    const data = await fetchJson(`/api/meta?path=${encodeURIComponent(item.path)}`);
+    mp.metaCache[item.path] = data;
+    if (mp.queue[mp.index] && mp.queue[mp.index].path === item.path) {
+      _mpApplyMeta(data, item.path);
+      mpUpdateMediaSession(mp.queue[mp.index]);
+    }
+  } catch (_) {}
+}
+
+function _mpApplyMeta(data, forPath) {
+  if (!data) return;
+  // Safety: don't apply if track changed since request was made
+  if (mp.queue[mp.index] && mp.queue[mp.index].path !== forPath) return;
+  const artistEl = $('mpArtist');
+  if (artistEl) {
+    const parts = [];
+    if (data.artist) parts.push(data.artist);
+    if (data.album)  parts.push(data.album);
+    if (data.year)   parts.push(String(data.year));
+    if (parts.length) artistEl.textContent = parts.join(' · ');
+  }
+  if (data.title) {
+    const titleEl = $('mpTitle');
+    if (titleEl) {
+      titleEl.textContent = data.title;
+      setTimeout(() => mpApplyMarquee(titleEl), 60);
+    }
+  }
+}
+
+// ── MediaSession API ───────────────────────────────────────────────────────
+function mpUpdateMediaSession(item) {
+  if (!item || !('mediaSession' in navigator)) return;
+  const cached = mp.metaCache[item.path];
+  const title  = cached?.title  || item.name.replace(/\.[^.]+$/, '');
+  const artist = cached?.artist || '';
+  const album  = cached?.album  || '';
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title, artist, album,
+      artwork: [{ src: `/api/art?path=${encodeURIComponent(item.path)}`, sizes: '256x256', type: 'image/jpeg' }],
+    });
+    const audio = mpGetAudio();
+    navigator.mediaSession.setActionHandler('play',  () => { audio.play().catch(()=>{}); mpSetPlaying(true); });
+    navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); mpSetPlaying(false); });
+    navigator.mediaSession.setActionHandler('previoustrack', mpPrev);
+    navigator.mediaSession.setActionHandler('nexttrack',     mpNext);
+    navigator.mediaSession.setActionHandler('seekbackward',  d => { audio.currentTime = Math.max(0, audio.currentTime - (d?.seekOffset||10)); });
+    navigator.mediaSession.setActionHandler('seekforward',   d => { audio.currentTime = Math.min(audio.duration||0, audio.currentTime + (d?.seekOffset||10)); });
+  } catch(_) {}
+}
+
+// ── Album art swipe (mobile) ───────────────────────────────────────────────
+function mpSetupArtSwipe() {
+  const art = $('mpArt');
+  if (!art) return;
+  let tx = 0, ty = 0;
+  art.addEventListener('touchstart', e => {
+    tx = e.touches[0].clientX;
+    ty = e.touches[0].clientY;
+  }, { passive: true });
+  art.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    const dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      if (dx < 0) mpNext(); else mpPrev();
+    }
+  }, { passive: true });
+}
+
+// ── Marquee for long titles ────────────────────────────────────────────────
+function mpApplyMarquee(el) {
+  if (!el) return;
+  el.style.animation = 'none';
+  el.style.paddingRight = '';
+  void el.offsetWidth;
+  const wrap = el.parentElement;
+  if (!wrap) return;
+  const overflow = el.scrollWidth - wrap.clientWidth;
+  if (overflow > 6) {
+    el.style.setProperty('--marquee-dist', `-${overflow + 14}px`);
+    el.style.paddingRight = '14px';
+    el.style.animation = `mp-marquee-scroll ${Math.max(6, overflow / 18)}s linear 1.8s infinite`;
+  }
 }
 
 // ── Mini Player ─────────────────────────────────────────────────────────────
@@ -1068,18 +1375,55 @@ function mpInitEvents() {
   $('mpShuffleBtn').addEventListener('click', mpToggleShuffle);
   $('mpRepeatBtn').addEventListener('click', mpToggleRepeat);
 
-  $('mpQueueToggle').addEventListener('click', () => {
-    const list = $('mpQueueList');
-    const toggle = $('mpQueueToggle');
-    list.classList.toggle('hidden');
-    toggle.classList.toggle('open');
+  // Volume slider
+  const volSlider = $('mpVolSlider');
+  if (volSlider) {
+    volSlider.addEventListener('input', () => mpSetVolume(parseFloat(volSlider.value)));
+  }
+  $('mpVolMute') && $('mpVolMute').addEventListener('click', mpToggleMuteAudio);
+
+  // Speed button
+  $('mpSpeedBtn') && $('mpSpeedBtn').addEventListener('click', mpCycleSpeed);
+
+  // Sleep timer
+  $('mpSleepBtn') && $('mpSleepBtn').addEventListener('click', mpSleepTimerCycle);
+
+  // Visualizer mode buttons
+  qsa('.mp-viz-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => mpSetVizMode(btn.dataset.mode));
   });
 
-  audio.addEventListener('timeupdate', mpUpdateProgress);
+  $('mpQueueToggle').addEventListener('click', () => {
+    $('mpQueueList').classList.toggle('hidden');
+    $('mpQueueToggle').classList.toggle('open');
+  });
+
+  audio.addEventListener('timeupdate', () => {
+    mpUpdateProgress();
+    if ('mediaSession' in navigator && audio.duration && navigator.mediaSession.setPositionState) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration:     audio.duration,
+          playbackRate: audio.playbackRate,
+          position:     Math.min(audio.currentTime, audio.duration),
+        });
+      } catch(_) {}
+    }
+  });
   audio.addEventListener('loadedmetadata', () => {
     $('mpDuration').textContent = fmtTime(audio.duration);
   });
   audio.addEventListener('ended', () => {
+    // Sleep: end of track
+    if (mp.sleepTimer === 'eot') {
+      mpSetPlaying(false);
+      mpClearSleepTimer();
+      $('mpSleepBtn') && $('mpSleepBtn').classList.remove('active');
+      const lbl = $('mpSleepLabel');
+      if (lbl) lbl.textContent = '';
+      mpHideMini();
+      return;
+    }
     if (mp.repeat === 'one') {
       audio.currentTime = 0;
       audio.play().catch(() => {});
@@ -1090,8 +1434,14 @@ function mpInitEvents() {
       mpHideMini();
     }
   });
-  audio.addEventListener('play',  () => mpSetPlaying(true));
-  audio.addEventListener('pause', () => mpSetPlaying(false));
+  audio.addEventListener('play',  () => {
+    mpSetPlaying(true);
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  });
+  audio.addEventListener('pause', () => {
+    mpSetPlaying(false);
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  });
 
   const bar = $('mpProgressBar');
   bar.addEventListener('mousedown', e => { mp.progressDragging = true; mpSeekFromEvent(e); });
@@ -1100,6 +1450,23 @@ function mpInitEvents() {
   document.addEventListener('touchmove', e => { if (mp.progressDragging) mpSeekFromEvent(e); }, { passive: true });
   document.addEventListener('mouseup',   () => { mp.progressDragging = false; });
   document.addEventListener('touchend',  () => { mp.progressDragging = false; });
+
+  // Restore saved preferences
+  const savedVol = parseFloat(localStorage.getItem('lhost_mp_vol') ?? '1');
+  mp.volume = isNaN(savedVol) ? 1 : Math.max(0, Math.min(1, savedVol));
+  const savedSpeed = parseFloat(localStorage.getItem('lhost_mp_speed') ?? '1');
+  mp.speed = MP_SPEEDS.includes(savedSpeed) ? savedSpeed : 1;
+  const savedViz = localStorage.getItem('lhost_mp_viz') || 'bars';
+  mpSetVizMode(savedViz);
+  mpUpdateVolDisplay();
+  if (volSlider) volSlider.value = mp.volume;
+  if ($('mpSpeedBtn')) {
+    $('mpSpeedBtn').textContent = mp.speed === 1 ? '1×' : mp.speed + '×';
+    $('mpSpeedBtn').classList.toggle('active-speed', mp.speed !== 1);
+  }
+
+  // Album art swipe gesture
+  mpSetupArtSwipe();
 }
 
 // ── Resume storage ─────────────────────────────────────────────────────────
@@ -2958,12 +3325,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Mini player controls
   $('miniPlayer').addEventListener('click', e => {
-    if (e.target.closest('#miniPlayBtn') || e.target.closest('#miniCloseBtn')) return;
+    if (e.target.closest('#miniPlayBtn') || e.target.closest('#miniNextBtn') || e.target.closest('#miniCloseBtn')) return;
     mpExpandFromMini();
   });
   $('miniPlayBtn').addEventListener('click', e => {
     e.stopPropagation();
     mpTogglePlay();
+  });
+  $('miniNextBtn') && $('miniNextBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    mpNext();
   });
   $('miniCloseBtn').addEventListener('click', e => {
     e.stopPropagation();
@@ -2972,6 +3343,7 @@ document.addEventListener('DOMContentLoaded', () => {
     audio.src = '';
     mpSetPlaying(false);
     mp.queue = [];
+    mpClearSleepTimer();
     mpHideMini();
   });
 
@@ -3031,10 +3403,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Keyboard shortcuts ──
   document.addEventListener('keydown', e => {
-    const videoOpen  = vpHasVideoOpen();
+    const videoOpen = vpHasVideoOpen();
+    const audioOpen = !$('audioModal').classList.contains('hidden');
     const typing = e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName);
     if (typing) return;
 
+    // ── Audio player shortcuts ──
+    if (audioOpen && !videoOpen) {
+      const audio = mpGetAudio();
+      if (e.code === 'Space' || e.key === ' ') { e.preventDefault(); mpTogglePlay(); return; }
+      if (e.key === 'ArrowRight' && !e.shiftKey) { e.preventDefault(); if (audio.duration) audio.currentTime = Math.min(audio.duration, audio.currentTime + 5); return; }
+      if (e.key === 'ArrowLeft'  && !e.shiftKey) { e.preventDefault(); audio.currentTime = Math.max(0, audio.currentTime - 5); return; }
+      if (e.key === 'ArrowRight' && e.shiftKey)  { e.preventDefault(); mpNext(); return; }
+      if (e.key === 'ArrowLeft'  && e.shiftKey)  { e.preventDefault(); mpPrev(); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); mpSetVolume(mp.volume + 0.05); return; }
+      if (e.key === 'ArrowDown') { e.preventDefault(); mpSetVolume(mp.volume - 0.05); return; }
+      if (e.key === 'm' || e.key === 'M') { e.preventDefault(); mpToggleMuteAudio(); return; }
+      if (e.key === 'n' || e.key === 'N') { e.preventDefault(); mpNext(); return; }
+      if (e.key === 'p' || e.key === 'P') { e.preventDefault(); mpPrev(); return; }
+      if (e.key === 's' || e.key === 'S') { e.preventDefault(); mpToggleShuffle(); return; }
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); mpToggleRepeat(); return; }
+      if (e.key === '.') { e.preventDefault(); mpCycleSpeed(); return; }
+    }
 
     if (e.key === 'Escape') {
       if (videoOpen) { closeVideo(); return; }

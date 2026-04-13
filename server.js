@@ -1522,6 +1522,34 @@ app.get('/api/art', async (req, res) => {
   }
 });
 
+// ── Audio metadata (ID3 tags) ───────────────────────────────────────────────
+app.get('/api/meta', async (req, res) => {
+  const relPath = decodeURIComponent(req.query.path || '');
+  const absPath = safePath(relPath);
+  if (!absPath) return res.status(403).end();
+  if (!canRead(absPath)) return res.status(403).end();
+  try {
+    const { parseFile } = await import('music-metadata');
+    const meta = await parseFile(absPath, { skipCovers: true, duration: true });
+    const c = meta.common, f = meta.format;
+    res.json({
+      title:      c.title        || null,
+      artist:     c.artist       || null,
+      albumartist:c.albumartist  || null,
+      album:      c.album        || null,
+      year:       c.year         || null,
+      track:      c.track?.no    || null,
+      genre:      c.genre?.[0]   || null,
+      duration:   f.duration     || null,
+      bitrate:    f.bitrate      ? Math.round(f.bitrate / 1000) : null,
+      sampleRate: f.sampleRate   || null,
+      codec:      f.codec        || null,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Index status & manual rebuild ──────────────────────────────────────────
 app.get('/api/index/status', (req, res) => {
   res.json({
