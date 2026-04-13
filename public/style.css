@@ -3242,16 +3242,16 @@ img.lazy-img:not([src]) {
   position: relative;
 }
 .mp-more-popup {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: -4px;
+  position: fixed;
+  top: auto;
+  right: auto;
   min-width: 190px;
   padding: 10px 8px 12px;
   background: rgba(22,26,38,0.97);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
   box-shadow: 0 10px 36px rgba(0,0,0,0.6);
-  z-index: 300;
+  z-index: 9999;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-6px) scale(0.96);
@@ -3306,10 +3306,10 @@ img.lazy-img:not([src]) {
   .mp-vol-popup-wrap { display: block; }
 }
 .mp-vol-popup {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: -4px;
-  width: 44px;
+  position: fixed;
+  top: auto;
+  right: auto;
+  width: 52px;
   padding: 14px 0 10px;
   background: rgba(22,26,38,0.97);
   border: 1px solid rgba(255,255,255,0.1);
@@ -3319,7 +3319,7 @@ img.lazy-img:not([src]) {
   align-items: center;
   gap: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.55);
-  z-index: 200;
+  z-index: 9999;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-6px) scale(0.94);
@@ -3330,17 +3330,45 @@ img.lazy-img:not([src]) {
   pointer-events: auto;
   transform: translateY(0) scale(1);
 }
-.mp-vol-slider {
-  -webkit-appearance: slider-vertical;
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 4px;
+.mp-vol-slider-wrap {
+  width: 24px;
   height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+.mp-vol-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 4px;
+  transform: rotate(-90deg);
   outline: none;
   cursor: pointer;
-  background: rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.18);
   border-radius: 4px;
   accent-color: var(--accent, #00d4c8);
+  touch-action: none;
+}
+.mp-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent, #00d4c8);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+.mp-vol-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent, #00d4c8);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
 .mp-vol-pct {
   font-size: 9px;
@@ -3444,9 +3472,7 @@ img.lazy-img:not([src]) {
 .mp-queue-panel {
   position: fixed;
   inset: 0;
-  background: rgba(12,15,24,0.98);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
+  background: rgba(10,12,20,0.99);
   display: flex;
   flex-direction: column;
   transform: translateY(100%);

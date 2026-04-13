@@ -973,9 +973,15 @@ function mpStartVisualizer() {
 
   let cachedGrad = null;
   let cachedC1 = '', cachedC2 = '', cachedH = 0, cachedMode = '';
+  const isMobile = window.matchMedia('(max-width: 600px)').matches;
+  let lastTs = 0;
+  const frameInterval = isMobile ? 40 : 0; // ~25fps on mobile, uncapped on PC
 
-  function draw() {
+  function draw(ts) {
     mp.rafId = requestAnimationFrame(draw);
+    if (document.hidden) return;
+    if (frameInterval && ts - lastTs < frameInterval) return;
+    lastTs = ts;
 
     const dpr  = Math.min(window.devicePixelRatio || 1, 2);
     const cssW = canvas.offsetWidth  || 340;
@@ -1123,7 +1129,7 @@ function mpStartVisualizer() {
       }
     }
   }
-  draw();
+  requestAnimationFrame(draw);
 }
 
 function mpStopVisualizer() {
@@ -1172,6 +1178,15 @@ function mpToggleVolPopup(e) {
   e && e.stopPropagation();
   const popup = $('mpVolPopup');
   if (!popup) return;
+  if (!popup.classList.contains('open')) {
+    const btn = $('mpVolMute');
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      popup.style.top  = (rect.bottom + 8) + 'px';
+      popup.style.right = (window.innerWidth - rect.right) + 'px';
+      popup.style.left  = 'auto';
+    }
+  }
   popup.classList.toggle('open');
 }
 
@@ -1309,18 +1324,43 @@ function mpUpdateMediaSession(item) {
   const title  = cached?.title  || item.name.replace(/\.[^.]+$/, '');
   const artist = cached?.artist || '';
   const album  = cached?.album  || '';
+  const artUrl = location.origin + '/api/art?path=' + encodeURIComponent(item.path);
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title, artist, album,
-      artwork: [{ src: `/api/art?path=${encodeURIComponent(item.path)}`, sizes: '256x256', type: 'image/jpeg' }],
+      artwork: [
+        { src: artUrl, sizes: '96x96',   type: 'image/jpeg' },
+        { src: artUrl, sizes: '256x256', type: 'image/jpeg' },
+        { src: artUrl, sizes: '512x512', type: 'image/jpeg' },
+      ],
     });
     const audio = mpGetAudio();
-    navigator.mediaSession.setActionHandler('play',  () => { audio.play().catch(()=>{}); mpSetPlaying(true); });
-    navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); mpSetPlaying(false); });
+    navigator.mediaSession.setActionHandler('play', () => {
+      if (mp.audioCtx && mp.audioCtx.state === 'suspended') mp.audioCtx.resume();
+      audio.play().then(() => mpSetPlaying(true)).catch(() => {});
+    });
+    navigator.mediaSession.setActionHandler('pause', () => {
+      audio.pause();
+      mpSetPlaying(false);
+    });
     navigator.mediaSession.setActionHandler('previoustrack', mpPrev);
     navigator.mediaSession.setActionHandler('nexttrack',     mpNext);
-    navigator.mediaSession.setActionHandler('seekbackward',  d => { audio.currentTime = Math.max(0, audio.currentTime - (d?.seekOffset||10)); });
-    navigator.mediaSession.setActionHandler('seekforward',   d => { audio.currentTime = Math.min(audio.duration||0, audio.currentTime + (d?.seekOffset||10)); });
+    navigator.mediaSession.setActionHandler('seekbackward', d => {
+      audio.currentTime = Math.max(0, audio.currentTime - (d?.seekOffset || 10));
+      mpUpdateProgress();
+    });
+    navigator.mediaSession.setActionHandler('seekforward', d => {
+      audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + (d?.seekOffset || 10));
+      mpUpdateProgress();
+    });
+    try {
+      navigator.mediaSession.setActionHandler('seekto', d => {
+        if (d?.seekTime !== undefined && audio.duration) {
+          audio.currentTime = Math.min(audio.duration, Math.max(0, d.seekTime));
+          mpUpdateProgress();
+        }
+      });
+    } catch(_) {}
   } catch(_) {}
 }
 
@@ -1450,7 +1490,14 @@ function mpInitEvents() {
   $('mpMoreBtn') && $('mpMoreBtn').addEventListener('click', e => {
     e.stopPropagation();
     const popup = $('mpMorePopup');
-    if (popup) popup.classList.toggle('open');
+    if (!popup) return;
+    if (!popup.classList.contains('open')) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      popup.style.top   = (rect.bottom + 8) + 'px';
+      popup.style.right = (window.innerWidth - rect.right) + 'px';
+      popup.style.left  = 'auto';
+    }
+    popup.classList.toggle('open');
   });
   $('mpMorePopup') && $('mpMorePopup').addEventListener('click', e => e.stopPropagation());
 
@@ -1467,14 +1514,20 @@ function mpInitEvents() {
   $('mpQueueToggle') && $('mpQueueToggle').addEventListener('click', mpOpenQueue);
   $('mpQueueClose') && $('mpQueueClose').addEventListener('click', mpCloseQueue);
 
-  // Close queue on swipe down within panel
+  // Close queue on swipe down — only when list is at the top or touch started in header
   const qPanel = $('mpQueuePanel');
+  const qPanelHdr = qPanel && qPanel.querySelector('.mp-queue-panel-hdr');
   if (qPanel) {
-    let qTy = 0;
-    qPanel.addEventListener('touchstart', e => { qTy = e.touches[0].clientY; }, { passive: true });
+    let qTy = 0, qTouchInHdr = false;
+    qPanel.addEventListener('touchstart', e => {
+      qTy = e.touches[0].clientY;
+      qTouchInHdr = qPanelHdr ? qPanelHdr.contains(e.target) : false;
+    }, { passive: true });
     qPanel.addEventListener('touchend', e => {
       const dy = e.changedTouches[0].clientY - qTy;
-      if (dy > 60) mpCloseQueue();
+      const list = $('mpQueueList');
+      const atTop = !list || list.scrollTop <= 2;
+      if (dy > 80 && (qTouchInHdr || atTop)) mpCloseQueue();
     }, { passive: true });
   }
 
