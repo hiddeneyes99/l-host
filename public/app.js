@@ -1467,6 +1467,17 @@ function mpUpdateMiniPlayIcon() {
 function mpInitEvents() {
   const audio = mpGetAudio();
 
+  // ── Escape parent stacking contexts ──────────────────────────────────────
+  // The popups use position:fixed + z-index:9999, but while nested inside
+  // .mp-header (z-index:1) → .mp-container (z-index:1) → .modal (z-index:200)
+  // their effective z-index is trapped and later siblings (art-section, controls)
+  // paint over them, blocking all clicks. Moving them to <body> puts their
+  // z-index in the root stacking context so nothing can cover them.
+  ['mpVolPopup', 'mpMorePopup', 'mpSleepOpts'].forEach(id => {
+    const el = $(id);
+    if (el && el.parentNode !== document.body) document.body.appendChild(el);
+  });
+
   $('mpPlayBtn').addEventListener('click', mpTogglePlay);
   $('mpPrevBtn').addEventListener('click', mpPrev);
   $('mpNextBtn').addEventListener('click', mpNext);
