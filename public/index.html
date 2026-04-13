@@ -698,10 +698,20 @@
           </button>
           <span class="mp-header-label">NOW PLAYING</span>
           <div class="mp-header-actions">
-            <button class="icon-btn mp-sleep-btn" id="mpSleepBtn" title="Sleep Timer">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              <span class="mp-sleep-label" id="mpSleepLabel"></span>
-            </button>
+            <!-- Volume: desktop only, popup slider -->
+            <div class="mp-vol-popup-wrap" id="mpVolWrap">
+              <button class="icon-btn" id="mpVolMute" title="Volume">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="mpVolIcon">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                </svg>
+              </button>
+              <div class="mp-vol-popup" id="mpVolPopup">
+                <input type="range" class="mp-vol-slider" id="mpVolSlider" min="0" max="1" step="0.02" value="1" orient="vertical">
+                <span class="mp-vol-pct" id="mpVolPct">100%</span>
+              </div>
+            </div>
             <a class="icon-btn" id="audioDl" title="Download">
               <svg viewBox="0 0 24 24">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -793,28 +803,42 @@
           </button>
         </div>
 
-        <!-- Secondary Controls: Speed + Volume -->
-        <div class="mp-secondary-row">
-          <button class="mp-speed-btn" id="mpSpeedBtn" title="Playback Speed">1×</button>
-          <div class="mp-vol-wrap">
-            <button class="mp-vol-mute" id="mpVolMute" title="Mute/Unmute">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="mpVolIcon">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" id="mpVolPath1"/>
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" id="mpVolPath2"/>
-              </svg>
-            </button>
-            <input type="range" class="mp-vol-slider" id="mpVolSlider" min="0" max="1" step="0.02" value="1">
+        <!-- Sleep Timer row -->
+        <div class="mp-sleep-row">
+          <button class="mp-sleep-trigger" id="mpSleepBtn" title="Sleep Timer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <span id="mpSleepLabel">Sleep</span>
+          </button>
+          <!-- Sleep options popup -->
+          <div class="mp-sleep-opts" id="mpSleepOpts">
+            <button class="mp-sleep-opt" data-min="0">Off</button>
+            <button class="mp-sleep-opt" data-min="15">15 min</button>
+            <button class="mp-sleep-opt" data-min="30">30 min</button>
+            <button class="mp-sleep-opt" data-min="45">45 min</button>
+            <button class="mp-sleep-opt" data-min="60">60 min</button>
+            <button class="mp-sleep-opt" data-min="-1">End of track</button>
           </div>
         </div>
 
-        <!-- Up Next Queue -->
+        <!-- Up Next toggle (bottom bar) -->
         <div class="mp-queue-section" id="mpQueueSection">
           <button class="mp-queue-toggle" id="mpQueueToggle">
+            <svg viewBox="0 0 24 24" width="16" height="16"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
             <span id="mpQueueLabel">Up Next</span>
-            <svg viewBox="0 0 24 24" id="mpQueueArrow"><path d="M6 9l6 6 6-6"/></svg>
+            <svg class="mp-queue-chevron" viewBox="0 0 24 24" width="16" height="16"><path d="M6 15l6-6 6 6"/></svg>
           </button>
-          <div class="mp-queue-list hidden" id="mpQueueList"></div>
+        </div>
+
+        <!-- Queue panel — slides up over the player -->
+        <div class="mp-queue-panel" id="mpQueuePanel">
+          <div class="mp-queue-panel-hdr">
+            <button class="icon-btn mp-queue-panel-close" id="mpQueueClose" title="Close">
+              <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <span class="mp-queue-panel-title" id="mpQueuePanelLabel">Up Next</span>
+            <div style="width:36px"></div>
+          </div>
+          <div class="mp-queue-list" id="mpQueueList"></div>
         </div>
 
         <audio id="audioPlayer" preload="metadata"></audio>

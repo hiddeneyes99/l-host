@@ -922,8 +922,12 @@ function mpRenderQueue() {
   const list = $('mpQueueList');
   list.innerHTML = '';
   const total = mp.queue.length;
-  const label = $('mpQueueLabel');
-  if (label) label.textContent = `Up Next${total > 1 ? ` (${total})` : ''}`;
+
+  // Update both the toggle bar label and the panel header label
+  const panelLabel = $('mpQueuePanelLabel');
+  if (panelLabel) panelLabel.textContent = `Up Next (${total})`;
+  const toggleLabel = $('mpQueueLabel');
+  if (toggleLabel) toggleLabel.textContent = `Up Next${total > 1 ? ` (${total})` : ''}`;
 
   for (let i = 0; i < total; i++) {
     const idx = mp.shuffle ? mp.shuffleOrder[i] : (mp.index + i) % total;
@@ -953,7 +957,11 @@ function mpRenderQueue() {
     probe.onload = () => { artImg.src = artUrl; artImg.style.display = 'block'; if (artIcon) artIcon.style.opacity = '0'; };
     probe.onerror = () => {};
     probe.src = artUrl;
-    el.addEventListener('click', () => mpLoadTrack(idx));
+    el.addEventListener('click', () => {
+      mpLoadTrack(idx);
+      // Close queue panel after a short delay so user sees the selection
+      setTimeout(mpCloseQueue, 280);
+    });
     list.appendChild(el);
   }
 }
@@ -1139,14 +1147,14 @@ function mpToggleMuteAudio() {
 }
 
 function mpUpdateVolDisplay() {
+  const v = mp.muted ? 0 : mp.volume;
+  const pct = Math.round(v * 100);
+  const pctEl = $('mpVolPct');
+  if (pctEl) pctEl.textContent = pct + '%';
   const slider = $('mpVolSlider');
-  if (slider) {
-    const pct = (mp.muted ? 0 : mp.volume) * 100;
-    slider.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, rgba(255,255,255,0.12) ${pct}%)`;
-  }
+  if (slider) slider.value = v;
   const icon = $('mpVolIcon');
   if (!icon) return;
-  const v = mp.muted ? 0 : mp.volume;
   if (v === 0) {
     icon.innerHTML = `<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
       <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>`;
@@ -1158,6 +1166,17 @@ function mpUpdateVolDisplay() {
       <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
       <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>`;
   }
+}
+
+function mpToggleVolPopup(e) {
+  e && e.stopPropagation();
+  const popup = $('mpVolPopup');
+  if (!popup) return;
+  popup.classList.toggle('open');
+}
+
+function mpCloseVolPopup() {
+  $('mpVolPopup') && $('mpVolPopup').classList.remove('open');
 }
 
 // ── Playback speed ─────────────────────────────────────────────────────────
@@ -1182,26 +1201,37 @@ function mpSetVizMode(mode) {
 }
 
 // ── Sleep timer ────────────────────────────────────────────────────────────
-const MP_SLEEP_OPTS = [0, 15, 30, 60, -1]; // minutes; -1 = end of track
-let _mpSleepStepIdx = 0;
+function mpToggleSleepOpts(e) {
+  e && e.stopPropagation();
+  const opts = $('mpSleepOpts');
+  if (!opts) return;
+  opts.classList.toggle('open');
+}
 
-function mpSleepTimerCycle() {
-  _mpSleepStepIdx = (_mpSleepStepIdx + 1) % MP_SLEEP_OPTS.length;
-  const minutes = MP_SLEEP_OPTS[_mpSleepStepIdx];
+function mpCloseSleepOpts() {
+  $('mpSleepOpts') && $('mpSleepOpts').classList.remove('open');
+}
+
+function mpSelectSleepOpt(minutes) {
   mpClearSleepTimer();
+  mpCloseSleepOpts();
 
   const btn = $('mpSleepBtn');
   const lbl = $('mpSleepLabel');
+
+  // Reset active state on all opts
+  qsa('.mp-sleep-opt').forEach(o => o.classList.toggle('active', parseInt(o.dataset.min) === minutes));
+
   if (minutes === 0) {
     btn && btn.classList.remove('active');
-    if (lbl) lbl.textContent = '';
+    if (lbl) lbl.textContent = 'Sleep';
     toast('Sleep timer off');
     return;
   }
   if (minutes === -1) {
     mp.sleepTimer = 'eot';
     btn && btn.classList.add('active');
-    if (lbl) lbl.textContent = '⏹';
+    if (lbl) lbl.textContent = 'End of track';
     toast('Sleep: end of track');
     return;
   }
@@ -1209,7 +1239,7 @@ function mpSleepTimerCycle() {
   mp.sleepTimer = setInterval(() => mpUpdateSleepDisplay(), 1000);
   btn && btn.classList.add('active');
   mpUpdateSleepDisplay();
-  toast(`Sleep: ${minutes} min`);
+  toast(`Sleep timer: ${minutes} min`);
 }
 
 function mpUpdateSleepDisplay() {
@@ -1220,7 +1250,10 @@ function mpUpdateSleepDisplay() {
     mpGetAudio().pause();
     mpSetPlaying(false);
     mpClearSleepTimer();
-    if (lbl) lbl.textContent = '';
+    const btn = $('mpSleepBtn');
+    btn && btn.classList.remove('active');
+    if (lbl) lbl.textContent = 'Sleep';
+    qsa('.mp-sleep-opt').forEach(o => o.classList.remove('active'));
     return;
   }
   const m = Math.floor(rem / 60000);
@@ -1232,7 +1265,6 @@ function mpClearSleepTimer() {
   if (mp.sleepTimer && mp.sleepTimer !== 'eot') clearInterval(mp.sleepTimer);
   mp.sleepTimer = null;
   mp.sleepEnd = 0;
-  _mpSleepStepIdx = 0;
 }
 
 // ── ID3 Metadata loading ───────────────────────────────────────────────────
@@ -1326,6 +1358,28 @@ function mpApplyMarquee(el) {
   }
 }
 
+// ── Queue panel ────────────────────────────────────────────────────────────
+function mpOpenQueue() {
+  const panel = $('mpQueuePanel');
+  if (!panel) return;
+  panel.classList.add('open');
+  const chevron = document.querySelector('.mp-queue-chevron');
+  if (chevron) chevron.style.transform = 'rotate(180deg)';
+  // Scroll the active item into view
+  setTimeout(() => {
+    const active = panel.querySelector('.mp-queue-item.active');
+    if (active) active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, 360);
+}
+
+function mpCloseQueue() {
+  const panel = $('mpQueuePanel');
+  if (!panel) return;
+  panel.classList.remove('open');
+  const chevron = document.querySelector('.mp-queue-chevron');
+  if (chevron) chevron.style.transform = '';
+}
+
 // ── Mini Player ─────────────────────────────────────────────────────────────
 function mpShowMini() {
   const item = mp.queue[mp.index];
@@ -1375,28 +1429,42 @@ function mpInitEvents() {
   $('mpShuffleBtn').addEventListener('click', mpToggleShuffle);
   $('mpRepeatBtn').addEventListener('click', mpToggleRepeat);
 
-  // Volume slider
+  // Volume popup (desktop) - click icon to open/close
+  $('mpVolMute') && $('mpVolMute').addEventListener('click', mpToggleVolPopup);
   const volSlider = $('mpVolSlider');
   if (volSlider) {
     volSlider.addEventListener('input', () => mpSetVolume(parseFloat(volSlider.value)));
+    // Prevent popup closing when interacting with slider
+    volSlider.addEventListener('click', e => e.stopPropagation());
   }
-  $('mpVolMute') && $('mpVolMute').addEventListener('click', mpToggleMuteAudio);
+  $('mpVolPopup') && $('mpVolPopup').addEventListener('click', e => e.stopPropagation());
 
-  // Speed button
-  $('mpSpeedBtn') && $('mpSpeedBtn').addEventListener('click', mpCycleSpeed);
-
-  // Sleep timer
-  $('mpSleepBtn') && $('mpSleepBtn').addEventListener('click', mpSleepTimerCycle);
+  // Sleep timer popup
+  $('mpSleepBtn') && $('mpSleepBtn').addEventListener('click', mpToggleSleepOpts);
+  qsa('.mp-sleep-opt').forEach(btn => {
+    btn.addEventListener('click', () => mpSelectSleepOpt(parseInt(btn.dataset.min)));
+  });
+  $('mpSleepOpts') && $('mpSleepOpts').addEventListener('click', e => e.stopPropagation());
 
   // Visualizer mode buttons
   qsa('.mp-viz-mode-btn').forEach(btn => {
     btn.addEventListener('click', () => mpSetVizMode(btn.dataset.mode));
   });
 
-  $('mpQueueToggle').addEventListener('click', () => {
-    $('mpQueueList').classList.toggle('hidden');
-    $('mpQueueToggle').classList.toggle('open');
-  });
+  // Queue panel: open on toggle, close on X or down-swipe
+  $('mpQueueToggle') && $('mpQueueToggle').addEventListener('click', mpOpenQueue);
+  $('mpQueueClose') && $('mpQueueClose').addEventListener('click', mpCloseQueue);
+
+  // Close queue on swipe down within panel
+  const qPanel = $('mpQueuePanel');
+  if (qPanel) {
+    let qTy = 0;
+    qPanel.addEventListener('touchstart', e => { qTy = e.touches[0].clientY; }, { passive: true });
+    qPanel.addEventListener('touchend', e => {
+      const dy = e.changedTouches[0].clientY - qTy;
+      if (dy > 60) mpCloseQueue();
+    }, { passive: true });
+  }
 
   audio.addEventListener('timeupdate', () => {
     mpUpdateProgress();
@@ -1418,9 +1486,11 @@ function mpInitEvents() {
     if (mp.sleepTimer === 'eot') {
       mpSetPlaying(false);
       mpClearSleepTimer();
-      $('mpSleepBtn') && $('mpSleepBtn').classList.remove('active');
+      const btn = $('mpSleepBtn');
+      btn && btn.classList.remove('active');
       const lbl = $('mpSleepLabel');
-      if (lbl) lbl.textContent = '';
+      if (lbl) lbl.textContent = 'Sleep';
+      qsa('.mp-sleep-opt').forEach(o => o.classList.remove('active'));
       mpHideMini();
       return;
     }
@@ -1459,11 +1529,12 @@ function mpInitEvents() {
   const savedViz = localStorage.getItem('lhost_mp_viz') || 'bars';
   mpSetVizMode(savedViz);
   mpUpdateVolDisplay();
-  if (volSlider) volSlider.value = mp.volume;
-  if ($('mpSpeedBtn')) {
-    $('mpSpeedBtn').textContent = mp.speed === 1 ? '1×' : mp.speed + '×';
-    $('mpSpeedBtn').classList.toggle('active-speed', mp.speed !== 1);
-  }
+
+  // Global click → close all floating popups
+  document.addEventListener('click', () => {
+    mpCloseVolPopup();
+    mpCloseSleepOpts();
+  });
 
   // Album art swipe gesture
   mpSetupArtSwipe();

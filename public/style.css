@@ -1268,26 +1268,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 }
 .mp-ctrl-play.pulse { animation: mp-pulse 0.45s ease; }
 
-/* Queue */
-.mp-queue-section { border-top: 1px solid rgba(255,255,255,0.06); }
-.mp-queue-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 13px 24px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--text2);
-  transition: color 0.2s;
-}
-.mp-queue-toggle:hover { color: var(--text); }
-.mp-queue-toggle svg { width: 15px; height: 15px; transition: transform 0.22s; flex-shrink: 0; }
-.mp-queue-toggle.open svg { transform: rotate(180deg); }
-.mp-queue-list { max-height: 280px; overflow-y: auto; padding-bottom: 8px; }
-.mp-queue-list::-webkit-scrollbar { width: 0; }
+/* Queue items */
 .mp-queue-item {
   display: flex;
   align-items: center;
@@ -3229,27 +3210,6 @@ img.lazy-img:not([src]) {
   gap: 2px;
 }
 
-/* Sleep timer button */
-.mp-sleep-btn {
-  position: relative;
-  display: flex !important;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  width: 36px;
-  height: 36px;
-}
-.mp-sleep-btn svg { width: 18px; height: 18px; transition: stroke 0.25s; }
-.mp-sleep-btn.active svg { stroke: var(--accent); }
-.mp-sleep-label {
-  font-size: 9px;
-  font-weight: 800;
-  color: var(--accent);
-  line-height: 1;
-  letter-spacing: -0.3px;
-  min-height: 10px;
-}
 
 /* Track title marquee wrap */
 .mp-track-title-wrap {
@@ -3294,84 +3254,192 @@ img.lazy-img:not([src]) {
 .mp-viz-mode-btn:hover  { color: var(--text); }
 .mp-viz-mode-btn.active { color: var(--accent); background: rgba(0,212,200,0.13); }
 
-/* Secondary controls: Speed + Volume */
-.mp-secondary-row {
+/* ── Volume popup (desktop only) ─────────────────────────────────────── */
+.mp-vol-popup-wrap {
+  position: relative;
+  display: none; /* hidden on mobile */
+}
+@media (min-width: 600px) {
+  .mp-vol-popup-wrap { display: block; }
+}
+.mp-vol-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -4px;
+  width: 44px;
+  padding: 14px 0 10px;
+  background: rgba(22,26,38,0.97);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px) scale(0.94);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.mp-vol-popup.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.mp-vol-slider {
+  -webkit-appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 4px;
+  height: 90px;
+  outline: none;
+  cursor: pointer;
+  background: rgba(255,255,255,0.12);
+  border-radius: 4px;
+  accent-color: var(--accent, #00d4c8);
+}
+.mp-vol-pct {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text3);
+  letter-spacing: 0.3px;
+}
+
+/* ── Sleep timer row ─────────────────────────────────────────────────── */
+.mp-sleep-row {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 24px 20px;
-  position: relative;
-  z-index: 1;
+  justify-content: center;
+  padding: 2px 24px 16px;
 }
-.mp-speed-btn {
-  flex-shrink: 0;
-  min-width: 40px;
-  height: 30px;
-  padding: 0 9px;
-  border-radius: 9px;
-  background: rgba(255,255,255,0.08);
-  color: var(--text2);
+.mp-sleep-trigger {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text3);
   font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  transition: color 0.2s, background 0.2s, transform 0.12s;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  transition: background 0.2s, color 0.2s, transform 0.12s;
   -webkit-tap-highlight-color: transparent;
 }
-.mp-speed-btn:hover  { color: var(--text); background: rgba(255,255,255,0.13); }
-.mp-speed-btn:active { transform: scale(0.92); }
-.mp-speed-btn.active-speed { color: var(--accent); background: rgba(0,212,200,0.13); }
+.mp-sleep-trigger:hover  { background: rgba(255,255,255,0.1); color: var(--text); }
+.mp-sleep-trigger:active { transform: scale(0.95); }
+.mp-sleep-trigger.active { color: var(--accent); background: rgba(0,212,200,0.12); }
+.mp-sleep-trigger svg { opacity: 0.7; flex-shrink: 0; }
 
-.mp-vol-wrap {
-  flex: 1;
+/* Sleep options popup */
+.mp-sleep-opts {
+  position: absolute;
+  bottom: calc(100% - 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(8px) scale(0.95);
+  background: rgba(22,26,38,0.97);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.mp-sleep-opts.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+.mp-sleep-opt {
+  width: 100%;
+  text-align: left;
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mp-sleep-opt:hover  { background: rgba(255,255,255,0.07); color: var(--text); }
+.mp-sleep-opt.active { color: var(--accent); background: rgba(0,212,200,0.1); font-weight: 700; }
+
+/* ── Up Next bar ─────────────────────────────────────────────────────── */
+.mp-queue-section {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+}
+.mp-queue-toggle {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 0;
-}
-.mp-vol-mute {
-  flex-shrink: 0;
-  color: var(--text3);
-  transition: color 0.2s, transform 0.12s;
-  display: flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px;
-  border-radius: 50%;
+  padding: 14px 24px;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 600;
+  transition: color 0.18s, background 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
-.mp-vol-mute:hover  { color: var(--text); }
-.mp-vol-mute:active { transform: scale(0.88); }
-.mp-vol-mute svg { width: 18px; height: 18px; }
+.mp-queue-toggle:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.mp-queue-toggle svg { color: var(--text3); flex-shrink: 0; }
+#mpQueueLabel { flex: 1; text-align: left; }
+.mp-queue-chevron { transition: transform 0.28s cubic-bezier(.4,0,.2,1); }
 
-.mp-vol-slider {
-  -webkit-appearance: none;
-  appearance: none;
+/* ── Queue slide-up panel ────────────────────────────────────────────── */
+.mp-queue-panel {
+  position: fixed;
+  inset: 0;
+  background: rgba(12,15,24,0.98);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.34s cubic-bezier(.4,0,.2,1);
+  z-index: 1100;
+  overflow: hidden;
+}
+.mp-queue-panel.open { transform: translateY(0); }
+
+.mp-queue-panel-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.mp-queue-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.82;
+}
+.mp-queue-panel-close svg { width: 22px; height: 22px; }
+
+.mp-queue-list {
   flex: 1;
-  height: 3px;
-  background: rgba(255,255,255,0.12);
-  border-radius: 3px;
-  outline: none;
-  cursor: pointer;
-  min-width: 0;
+  overflow-y: auto;
+  padding-bottom: 24px;
+  overscroll-behavior: contain;
 }
-.mp-vol-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  cursor: pointer;
-  box-shadow: 0 0 8px rgba(0,212,200,0.55), 0 1px 4px rgba(0,0,0,0.4);
-  transition: transform 0.12s;
-}
-.mp-vol-slider:active::-webkit-slider-thumb { transform: scale(1.25); }
-.mp-vol-slider::-moz-range-thumb {
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 0 8px rgba(0,212,200,0.55), 0 1px 4px rgba(0,0,0,0.4);
-}
+.mp-queue-list::-webkit-scrollbar { width: 0; }
 
-/* Album art pop-in animation on track change */
+/* ── Album art pop-in ────────────────────────────────────────────────── */
 @keyframes mp-art-pop {
   0%   { transform: scale(0.86); opacity: 0.55; }
   65%  { transform: scale(1.04); opacity: 1; }
@@ -3379,8 +3447,7 @@ img.lazy-img:not([src]) {
 }
 .mp-art.mp-art-pop { animation: mp-art-pop 0.42s cubic-bezier(.34,1.56,.64,1) both; }
 
-/* Queue enhancements */
-#mpQueueLabel { flex: 1; text-align: left; }
+/* ── EQ playing indicator ────────────────────────────────────────────── */
 .mp-queue-playing {
   display: flex;
   align-items: flex-end;
@@ -3418,7 +3485,9 @@ img.lazy-img:not([src]) {
   .mp-art { width: 260px; height: 260px; }
   .mp-art-glow { width: 260px; height: 260px; }
   .mp-controls { gap: 20px; padding: 10px 32px 28px; }
-  .mp-secondary-row { padding: 0 32px 22px; }
   .mp-progress-wrap { padding: 0 32px 10px; }
   .mp-track-info { padding: 0 32px 16px; }
+  .mp-sleep-row { padding: 2px 32px 16px; }
+  .mp-queue-toggle { padding: 14px 32px; }
+  .mp-queue-panel-hdr { padding: 16px 32px 10px; }
 }
