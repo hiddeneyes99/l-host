@@ -409,6 +409,7 @@ const pg = {
   loading:  false,
   imageSet: [],    // grows as pages load
   audioSet: [],
+  videoSet: [],
   grid:     null,
 };
 
@@ -418,7 +419,7 @@ function pgReset(view, param, grid) {
   if (_sentinelObserver) { _sentinelObserver.disconnect(); _sentinelObserver = null; }
   pg.view = view; pg.param = param; pg.grid = grid;
   pg.page = 0; pg.total = 0; pg.loading = false;
-  pg.imageSet = []; pg.audioSet = [];
+  pg.imageSet = []; pg.audioSet = []; pg.videoSet = [];
 }
 
 function pgSentinelSetup() {
@@ -477,12 +478,13 @@ async function pgNext() {
 
     pg.imageSet.push(...newItems.filter(i => i.category === 'image'));
     pg.audioSet.push(...newItems.filter(i => i.category === 'audio'));
+    pg.videoSet.push(...newItems.filter(i => i.category === 'video'));
     pg.total = data.total;
     pg.page++;
 
     skEls.forEach(s => s.remove());
     for (const item of newItems) {
-      pg.grid.appendChild(createItemEl(item, pg.imageSet, pg.audioSet));
+      pg.grid.appendChild(createItemEl(item, pg.imageSet, pg.audioSet, pg.videoSet));
     }
   } catch (e) {
     skEls.forEach(s => s.remove());
@@ -504,6 +506,8 @@ const ASPECT_LABELS = { fit:'Fit', fill:'Fill', stretch:'Stretch' };
 const vp = {
   item: null,
   url: '',
+  videoSet: [],    // all videos in current context (for prev/next)
+  videoIdx: -1,    // index of current video in videoSet
   // Restored from cookies on every session
   speed:      vpPrefs.speed,
   aspectIdx:  vpPrefs.aspectIdx,
@@ -1061,7 +1065,40 @@ function clearResume(path) {
 }
 
 // ── Open / Close ───────────────────────────────────────────────────────────
-function openVideo(item) {
+function vpUpdateNavButtons() {
+  const hasPrev = vp.videoIdx > 0;
+  const hasNext = vp.videoIdx >= 0 && vp.videoIdx < vp.videoSet.length - 1;
+  const prevBtn = $('vpPrevBtn');
+  const nextBtn = $('vpNextBtn');
+  if (prevBtn) prevBtn.style.opacity = hasPrev ? '1' : '0.3';
+  if (prevBtn) prevBtn.disabled = !hasPrev;
+  if (nextBtn) nextBtn.style.opacity = hasNext ? '1' : '0.3';
+  if (nextBtn) nextBtn.disabled = !hasNext;
+}
+
+function vpPrev() {
+  if (vp.videoIdx <= 0 || !vp.videoSet.length) return;
+  vp.videoIdx--;
+  openVideo(vp.videoSet[vp.videoIdx], vp.videoSet, vp.videoIdx);
+}
+
+function vpNext() {
+  if (vp.videoIdx < 0 || vp.videoIdx >= vp.videoSet.length - 1) return;
+  vp.videoIdx++;
+  openVideo(vp.videoSet[vp.videoIdx], vp.videoSet, vp.videoIdx);
+}
+
+function openVideo(item, videoSet, videoIdx) {
+  if (videoSet && Array.isArray(videoSet)) {
+    vp.videoSet = videoSet;
+    vp.videoIdx = (videoIdx !== undefined) ? videoIdx : videoSet.findIndex(v => v.path === item.path);
+    if (vp.videoIdx === -1) { vp.videoSet = [item]; vp.videoIdx = 0; }
+  } else if (!videoSet) {
+    vp.videoSet = [item];
+    vp.videoIdx = 0;
+  }
+  vpUpdateNavButtons();
+
   const newUrl = `/file?path=${encodeURIComponent(item.path)}`;
   const vid    = $('videoPlayer');
 
@@ -1726,6 +1763,8 @@ function vpInit() {
 
   // Controls
   $('vpClose').addEventListener('click', closeVideo);
+  $('vpPrevBtn').addEventListener('click', e => { e.stopPropagation(); vpPrev(); vpShowControls(); });
+  $('vpNextBtn').addEventListener('click', e => { e.stopPropagation(); vpNext(); vpShowControls(); });
   $('vpPlayBtn').addEventListener('click', e => { e.stopPropagation(); vpTogglePlay(); vpShowControls(); });
   $('vpMuteBtn').addEventListener('click', e => { e.stopPropagation(); vpToggleMute(); vpShowControls(); });
   $('vpVolRange').addEventListener('input', e => { vpSetVolume(parseFloat(e.target.value)); });
@@ -1919,6 +1958,7 @@ async function navigate(relPath = '') {
     pg.page  = 1;
     pg.imageSet = data.items.filter(i => i.category === 'image');
     pg.audioSet = data.items.filter(i => i.category === 'audio');
+    pg.videoSet = data.items.filter(i => i.category === 'video');
 
     // Show total count badge if large
     if (data.total > PG_LIMIT) {
@@ -1929,20 +1969,20 @@ async function navigate(relPath = '') {
     }
 
     for (const item of data.items) {
-      grid.appendChild(createItemEl(item, pg.imageSet, pg.audioSet));
+      grid.appendChild(createItemEl(item, pg.imageSet, pg.audioSet, pg.videoSet));
     }
     pgSentinelSetup();
   } catch (e) { grid.innerHTML = `<div class="empty-state"><p>Error: ${e.message}</p></div>`; }
 }
 
-function renderItems(container, items, imageSet, audioSet) {
+function renderItems(container, items, imageSet, audioSet, videoSet = []) {
   container.innerHTML = '';
   // Also update pg sets so click handlers always have fresh refs
-  pg.imageSet = imageSet; pg.audioSet = audioSet;
-  for (const item of items) { container.appendChild(createItemEl(item, imageSet, audioSet)); }
+  pg.imageSet = imageSet; pg.audioSet = audioSet; pg.videoSet = videoSet;
+  for (const item of items) { container.appendChild(createItemEl(item, imageSet, audioSet, videoSet)); }
 }
 
-function createItemEl(item, imageSet = [], audioSet = []) {
+function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
   const el = document.createElement('div');
   const isImg   = item.category === 'image';
   const isVid   = item.category === 'video';
@@ -2015,9 +2055,10 @@ function createItemEl(item, imageSet = [], audioSet = []) {
     if (isDir) navigate(item.path);
     else {
       // Use live pg sets so items loaded later are included in swipe/queue nav
-      const imgs = pg.imageSet.length ? pg.imageSet : imageSet;
-      const auds = pg.audioSet.length ? pg.audioSet : audioSet;
-      openFile(item, imgs, auds);
+      const imgs  = pg.imageSet.length ? pg.imageSet : imageSet;
+      const auds  = pg.audioSet.length ? pg.audioSet : audioSet;
+      const vids  = pg.videoSet.length ? pg.videoSet : videoSet;
+      openFile(item, imgs, auds, vids);
     }
   });
   el.addEventListener('contextmenu', e => { e.preventDefault(); showCtxMenu(e, item); });
@@ -2044,6 +2085,7 @@ async function loadCategory(cat) {
     pg.page  = 1;
     pg.imageSet = data.results.filter(i => i.category === 'image');
     pg.audioSet = data.results.filter(i => i.category === 'audio');
+    pg.videoSet = data.results.filter(i => i.category === 'video');
 
     if (data.total > PG_LIMIT) {
       const badge = document.createElement('div');
@@ -2053,7 +2095,7 @@ async function loadCategory(cat) {
     }
 
     for (const item of data.results) {
-      grid.appendChild(createItemEl(item, pg.imageSet, pg.audioSet));
+      grid.appendChild(createItemEl(item, pg.imageSet, pg.audioSet, pg.videoSet));
     }
     pgSentinelSetup();
   } catch (e) { grid.innerHTML = `<div class="empty-state"><p>Error: ${e.message}</p></div>`; }
@@ -2082,8 +2124,10 @@ async function loadRecentAll() {
 
     const imageSet = items.filter(i => i.category === 'image');
     const audioSet = items.filter(i => i.category === 'audio');
+    const videoSet = items.filter(i => i.category === 'video');
+    pg.videoSet = videoSet;
     for (const item of items) {
-      grid.appendChild(createItemEl(item, imageSet, audioSet));
+      grid.appendChild(createItemEl(item, imageSet, audioSet, videoSet));
     }
   } catch (e) { grid.innerHTML = `<div class="empty-state"><p>Error: ${e.message}</p></div>`; }
 }
@@ -2111,16 +2155,17 @@ async function doSearch(q) {
     pg.page  = 1;
     pg.imageSet = data.results.filter(i => i.category === 'image');
     pg.audioSet = data.results.filter(i => i.category === 'audio');
+    pg.videoSet = data.results.filter(i => i.category === 'video');
 
     for (const item of data.results) {
-      grid.appendChild(createItemEl(item, pg.imageSet, pg.audioSet));
+      grid.appendChild(createItemEl(item, pg.imageSet, pg.audioSet, pg.videoSet));
     }
     pgSentinelSetup();
   } catch (e) { grid.innerHTML = `<div class="empty-state"><p>Error: ${e.message}</p></div>`; }
 }
 
 // ── Open file ──────────────────────────────────────────────────────────────
-function openFile(item, imageSet = [], audioSet = []) {
+function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
   // Persist to recent.json via dedicated endpoint
   fetch('/api/recent', {
     method: 'POST',
@@ -2131,7 +2176,8 @@ function openFile(item, imageSet = [], audioSet = []) {
   const cat = item.category;
   const url = `/file?path=${encodeURIComponent(item.path)}`;
   if (cat === 'video') {
-    openVideo(item);
+    const vids = videoSet.length ? videoSet : [item];
+    openVideo(item, vids);
   } else if (cat === 'image') {
     openImage(item, imageSet, url);
   } else if (cat === 'audio') {
@@ -2706,8 +2752,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (videoOpen) {
       const vid = $('videoPlayer');
       if (e.key === ' ' || e.code === 'Space' || e.key === 'k' || e.key === 'K') { e.preventDefault(); vpTogglePlay(); vpShowControls(); }
-      if (e.key === 'ArrowLeft' || e.key === 'j' || e.key === 'J')  { e.preventDefault(); vpSeek(-10); }
-      if (e.key === 'ArrowRight' || e.key === 'l' || e.key === 'L') { e.preventDefault(); vpSeek(10); }
+      if ((e.key === 'ArrowLeft'  || e.key === 'j' || e.key === 'J') && !e.shiftKey) { e.preventDefault(); vpSeek(-10); }
+      if ((e.key === 'ArrowRight' || e.key === 'l' || e.key === 'L') && !e.shiftKey) { e.preventDefault(); vpSeek(10); }
+      if (e.key === 'ArrowLeft'  && e.shiftKey) { e.preventDefault(); vpPrev(); vpShowControls(); }
+      if (e.key === 'ArrowRight' && e.shiftKey) { e.preventDefault(); vpNext(); vpShowControls(); }
       if (e.key === 'ArrowUp')    { e.preventDefault(); vpSetVolume(vp.volume + 0.1); vpShowHud('vol', vp.volume); vpShowControls(); }
       if (e.key === 'ArrowDown')  { e.preventDefault(); vpSetVolume(vp.volume - 0.1); vpShowHud('vol', vp.volume); vpShowControls(); }
       if (e.key === 'm' || e.key === 'M') { e.preventDefault(); vpToggleMute(); vpShowHud('vol', vp.muted ? 0 : vp.volume); vpShowControls(); }
