@@ -1183,8 +1183,19 @@ function mpStartVisualizer() {
     // Defer first resize to next paint so modal is fully laid out
     requestAnimationFrame(() => { vcResize(); });
 
-    const NUM_BARS = 128;  // total bars around the full circle
-    const HALF     = NUM_BARS / 2;
+    const NUM_BARS    = 128;  // total bars around the full circle
+    const QUARTER     = NUM_BARS / 4; // 32 — 4-fold symmetry
+    const HALF        = NUM_BARS / 2;
+    const ACTIVE_BINS = 29;  // use bins 0-29 (~0-10kHz) so every quadrant maps to musical range
+
+    // Parse hex → [r,g,b] — called once outside drawCircle, re-called when colors change
+    function _hx(h) {
+      h = (h || '#00d4c8').replace('#','');
+      if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+      return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
+    }
+    let _cachedC1 = '', _cachedC2 = '';
+    let _rgb1 = [0,212,200], _rgb2 = [0,145,255];
 
     function drawCircle(ts) {
       if (mp.vizMode !== 'circle') { mp.rafId = null; if (_ro) _ro.disconnect(); return; }
@@ -1200,11 +1211,19 @@ function mpStartVisualizer() {
       const c1 = mp.color1 || '#00d4c8';
       const c2 = mp.color2 || '#0091ff';
 
+      // Re-parse only when colors actually change (album switches)
+      if (c1 !== _cachedC1 || c2 !== _cachedC2) {
+        _rgb1 = _hx(c1); _rgb2 = _hx(c2);
+        _cachedC1 = c1; _cachedC2 = c2;
+      }
+      const [r1,g1,b1] = _rgb1;
+      const [r2,g2,b2] = _rgb2;
+
       if (!mp.analyser || !mp.isPlaying) {
         // Idle: single clean glowing ring — no movement
         ctx.beginPath();
         ctx.arc(CX, CY, INNER_R, 0, Math.PI * 2);
-        ctx.strokeStyle = c1 + '55';
+        ctx.strokeStyle = `rgba(${r1},${g1},${b1},0.35)`;
         ctx.lineWidth = 1.5;
         ctx.shadowBlur = 14; ctx.shadowColor = c1;
         ctx.stroke();
@@ -1216,7 +1235,7 @@ function mpStartVisualizer() {
       mp.analyser.getByteFrequencyData(freqData);
       const bins = freqData.length; // 64 for fftSize=128
 
-      // Average energy
+      // Average energy for glow breathing
       let avg = 0;
       for (let i = 0; i < bins; i++) avg += freqData[i];
       avg /= (bins * 255);
@@ -1224,7 +1243,8 @@ function mpStartVisualizer() {
       // Breathing outer aura
       if (avg > 0.04) {
         const aura = ctx.createRadialGradient(CX, CY, INNER_R, CX, CY, INNER_R + MAX_EXT + 14);
-        aura.addColorStop(0, c1 + Math.round(avg * 55).toString(16).padStart(2, '0'));
+        aura.addColorStop(0, `rgba(${r1},${g1},${b1},${(avg * 0.22).toFixed(2)})`);
+        aura.addColorStop(0.5, `rgba(${r2},${g2},${b2},${(avg * 0.10).toFixed(2)})`);
         aura.addColorStop(1, 'transparent');
         ctx.fillStyle = aura;
         ctx.beginPath();
@@ -1234,44 +1254,51 @@ function mpStartVisualizer() {
 
       ctx.lineCap = 'round';
 
+      // 4-fold symmetry: bass at top, right, bottom, left — full circle reacts to rhythm
       for (let i = 0; i < NUM_BARS; i++) {
-        // Mirrored: first half low→high, second half high→low → symmetric waveform
-        const fi = i < HALF
-          ? Math.floor(i * bins / HALF)
-          : Math.floor((NUM_BARS - 1 - i) * bins / HALF);
-        const v = freqData[Math.min(fi, bins - 1)] / 255;
+        // Position within the current quarter (0-31)
+        const posInQ = i % QUARTER;
+        // Map to frequency bin: bass at start, high-mid at end of each quarter
+        const fi = Math.round(posInQ * ACTIVE_BINS / (QUARTER - 1));
+        const v  = freqData[Math.min(fi, bins - 1)] / 255;
         const barLen = Math.max(2.5, v * MAX_EXT);
 
-        // Start at top (−π/2) and go clockwise — matches reference design
+        // Angle: start at top (−π/2), clockwise
         const angle = (i / NUM_BARS) * Math.PI * 2 - Math.PI / 2;
-        const cosA = Math.cos(angle), sinA = Math.sin(angle);
+        const cosA  = Math.cos(angle), sinA = Math.sin(angle);
 
         const x1 = CX + cosA * INNER_R;
         const y1 = CY + sinA * INNER_R;
         const x2 = CX + cosA * (INNER_R + barLen);
         const y2 = CY + sinA * (INNER_R + barLen);
 
-        // Color: c1 on left half, c2 on right half for a dual-tone gradient feel
-        const color = i < HALF ? c1 : c2;
-        const alpha = Math.round((0.55 + v * 0.45) * 255).toString(16).padStart(2, '0');
+        // Smooth gradient: c1 ↔ c2 oscillates smoothly around the circle (2 cycles)
+        const t  = (Math.sin((i / NUM_BARS) * Math.PI * 4 - Math.PI / 2) + 1) / 2;
+        const cr = Math.round(r1 + (r2 - r1) * t);
+        const cg = Math.round(g1 + (g2 - g1) * t);
+        const cb = Math.round(b1 + (b2 - b1) * t);
+        const alpha = (0.55 + v * 0.45).toFixed(2);
 
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
-        ctx.strokeStyle = color + alpha;
-        ctx.lineWidth   = Math.max(1.5, 1.8 + v * 1.6);
-        ctx.shadowBlur  = avg > 0.08 ? (2 + v * 10) : 0;
-        ctx.shadowColor = color;
+        ctx.strokeStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+        ctx.lineWidth   = Math.max(1.5, 1.8 + v * 2.2);
+        ctx.shadowBlur  = 3 + v * 14;
+        ctx.shadowColor = `rgb(${cr},${cg},${cb})`;
         ctx.stroke();
       }
       ctx.shadowBlur = 0;
 
-      // Inner border ring
+      // Inner border ring — blends c1 with energy brightness
       ctx.beginPath();
       ctx.arc(CX, CY, INNER_R, 0, Math.PI * 2);
-      ctx.strokeStyle = c1 + Math.round(22 + avg * 65).toString(16).padStart(2, '0');
-      ctx.lineWidth   = 1;
+      ctx.strokeStyle = `rgba(${r1},${g1},${b1},${(0.18 + avg * 0.55).toFixed(2)})`;
+      ctx.lineWidth   = 1.2;
+      ctx.shadowBlur  = avg > 0.1 ? avg * 10 : 0;
+      ctx.shadowColor = c1;
       ctx.stroke();
+      ctx.shadowBlur  = 0;
     }
 
     mp.rafId = requestAnimationFrame(drawCircle);
