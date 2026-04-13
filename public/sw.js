@@ -8,8 +8,8 @@
 //   • Everything else            → Network-first
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_SHELL   = 'lhost-shell-v4';
-const CACHE_THUMBS  = 'lhost-thumbs-v4';
+const CACHE_SHELL   = 'lhost-shell-v6';
+const CACHE_THUMBS  = 'lhost-thumbs-v6';
 
 const SHELL_ASSETS = [
   '/',
@@ -60,9 +60,9 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // 4. App shell assets → cache-first with network fallback
+// 4. App shell assets → network-first so UI updates appear immediately
   if (SHELL_ASSETS.includes(path) || path === '/') {
-    e.respondWith(cacheFirst(CACHE_SHELL, request));
+    e.respondWith(networkFirst(request));
     return;
   }
 
