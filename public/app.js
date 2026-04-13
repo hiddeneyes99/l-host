@@ -189,7 +189,18 @@ const audioArtObserver = typeof IntersectionObserver !== 'undefined'
         probe.onerror = () => {};
         probe.src = artUrl;
       });
-    }, { rootMargin: '500px' })
+    }, { rootMargin: '150px' })
+  : null;
+
+// ── EQ animation observer — pauses CSS animation when card is off-screen ───
+// Keeps GPU compositor free during fast scrolling (200+ animated elements).
+const eqObserver = typeof IntersectionObserver !== 'undefined'
+  ? new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        const eq = e.target.querySelector('.audio-eq');
+        if (eq) eq.classList.toggle('eq-paused', !e.isIntersecting);
+      });
+    }, { rootMargin: '200px 0px' })
   : null;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1092,23 +1103,38 @@ function mpSetupQueueDrag(list) {
 function mpStartVisualizer() {
   const canvas = $('mpVisualizer');
   if (!canvas) return;
+  if (mp.vizMode === 'off') return;
   const ctx = canvas.getContext('2d');
 
   let cachedGrad = null;
   let cachedC1 = '', cachedC2 = '', cachedH = 0, cachedMode = '';
   const isMobile = window.matchMedia('(max-width: 600px)').matches;
   let lastTs = 0;
-  const frameInterval = isMobile ? 40 : 0; // ~25fps on mobile, uncapped on PC
+  const frameInterval = isMobile ? 40 : 0;
+
+  // Cache canvas CSS dimensions — avoid forced layout reflow every rAF frame
+  let cachedCssW = canvas.offsetWidth  || 340;
+  let cachedCssH = canvas.offsetHeight || 64;
+  let sizeDirty = false;
+  const _ro = typeof ResizeObserver !== 'undefined'
+    ? new ResizeObserver(() => { sizeDirty = true; }) : null;
+  if (_ro) _ro.observe(canvas);
 
   function draw(ts) {
+    if (mp.vizMode === 'off') { mp.rafId = null; if (_ro) _ro.disconnect(); return; }
     mp.rafId = requestAnimationFrame(draw);
     if (document.hidden) return;
     if (frameInterval && ts - lastTs < frameInterval) return;
     lastTs = ts;
 
     const dpr  = Math.min(window.devicePixelRatio || 1, 2);
-    const cssW = canvas.offsetWidth  || 340;
-    const cssH = canvas.offsetHeight || 64;
+    if (sizeDirty) {
+      cachedCssW = canvas.offsetWidth  || 340;
+      cachedCssH = canvas.offsetHeight || 64;
+      sizeDirty = false;
+    }
+    const cssW = cachedCssW;
+    const cssH = cachedCssH;
     const targetW = Math.round(cssW * dpr);
     const targetH = Math.round(cssH * dpr);
 
@@ -1336,9 +1362,17 @@ function mpCycleSpeed() {
 
 // ── Visualizer mode ────────────────────────────────────────────────────────
 function mpSetVizMode(mode) {
+  const wasOff = mp.vizMode === 'off';
   mp.vizMode = mode;
   qsa('.mp-viz-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   try { localStorage.setItem('lhost_mp_viz', mode); } catch(_) {}
+  if (mode === 'off') {
+    if (mp.rafId) { cancelAnimationFrame(mp.rafId); mp.rafId = null; }
+    const canvas = $('mpVisualizer');
+    if (canvas) { const c = canvas.getContext('2d'); c.clearRect(0, 0, canvas.width, canvas.height); }
+  } else if (wasOff && !mp.rafId) {
+    mpStartVisualizer();
+  }
 }
 
 // ── Sleep timer ────────────────────────────────────────────────────────────
@@ -1444,6 +1478,7 @@ function _mpApplyMeta(data, forPath) {
 }
 
 // ── MediaSession API ───────────────────────────────────────────────────────
+// Only updates metadata — action handlers are registered once in mpInitEvents.
 function mpUpdateMediaSession(item) {
   if (!item || !('mediaSession' in navigator)) return;
   const cached = mp.metaCache[item.path];
@@ -1460,7 +1495,16 @@ function mpUpdateMediaSession(item) {
         { src: artUrl, sizes: '512x512', type: 'image/jpeg' },
       ],
     });
-    const audio = mpGetAudio();
+  } catch(_) {}
+}
+
+// ── Register MediaSession action handlers once at startup ──────────────────
+// Registering on every track change creates a window where handlers are unset,
+// causing the OS notification to briefly disappear (≈2 s flicker).
+function mpInitMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  const audio = mpGetAudio();
+  try {
     navigator.mediaSession.setActionHandler('play', () => {
       if (mp.audioCtx && mp.audioCtx.state === 'suspended') mp.audioCtx.resume();
       audio.play().then(() => mpSetPlaying(true)).catch(() => {});
@@ -1766,6 +1810,9 @@ function mpInitEvents() {
 
   // Album art swipe gesture
   mpSetupArtSwipe();
+
+  // Register MediaSession action handlers once — prevents notification flicker
+  mpInitMediaSession();
 }
 
 // ── Resume storage ─────────────────────────────────────────────────────────
@@ -2811,6 +2858,8 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
     const artEl = el.querySelector('.audio-thumb-art');
     if (artEl) audioArtObserver.observe(artEl);
   }
+
+  if (isAudio && eqObserver) eqObserver.observe(el);
 
   if (isVid && isNativeVideo(item) && thumbObserver) {
     const vtThumb = el.querySelector('.vt-thumb');

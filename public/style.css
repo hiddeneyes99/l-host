@@ -1027,7 +1027,6 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   pointer-events: none;
   z-index: 0;
   transition: background 1s ease;
-  will-change: background;
 }
 
 .mp-header,
@@ -1389,6 +1388,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .audio-eq-bar:nth-child(3) { animation-delay: 0.32s; }
 .audio-eq-bar:nth-child(4) { animation-delay: 0.08s; }
 @keyframes eqAnim { from { height: 3px; } to { height: 14px; } }
+.eq-paused .audio-eq-bar { animation-play-state: paused; }
 
 /* PLAYER HEADER (shared) */
 .player-header {
@@ -3592,4 +3592,20 @@ img.lazy-img:not([src]) {
   .mp-sleep-row { padding: 2px 32px 16px; }
   .mp-queue-toggle { padding: 14px 32px; }
   .mp-queue-panel-hdr { padding: 16px 32px 10px; }
+}
+
+/* ── Mobile performance: remove expensive backdrop-filter blurs ─────────── */
+/* backdrop-filter triggers a full-screen GPU texture read + blur pass       */
+/* on every repaint — on mid-range Android this causes 200–400 ms jank.     */
+@media (max-width: 768px) {
+  .modal-backdrop           { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .mp-more-popup,
+  .mp-vol-popup,
+  .mp-sleep-opts            { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .ctx-menu                 { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .iv-unsupported-card      { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .vp-vol-popup             { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .vp-info-panel            { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .vp-speed-popup           { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .iv-more-menu             { backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
