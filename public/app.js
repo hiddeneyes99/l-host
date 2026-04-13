@@ -697,7 +697,7 @@ const mp = {
   muted: false,
   sleepTimer: null,
   sleepEnd: 0,
-  vizMode: 'bars',
+  vizMode: 'circle',
   metaCache: {},
   trackChanging: false,
 };
@@ -720,12 +720,23 @@ function openAudio(item, url, queue = []) {
   if (mp.shuffle) mp.shuffleOrder = mpFisherYates(mp.queue.length);
   mpHideMini();
   openModal('audioModal');
+  // Apply circle mode class immediately so CSS transitions and vinyl overlay are ready
+  if (mp.vizMode === 'circle') {
+    $('mpArtSection')?.classList.add('circle-mode');
+    const vizWrap = document.querySelector('.mp-viz-wrap');
+    if (vizWrap) vizWrap.style.visibility = 'hidden';
+  }
   mpLoadTrack(mp.index);
 }
 
 function mpExpandFromMini() {
   mpHideMini();
   openModal('audioModal');
+  if (mp.vizMode === 'circle') {
+    $('mpArtSection')?.classList.add('circle-mode');
+    const vizWrap = document.querySelector('.mp-viz-wrap');
+    if (vizWrap) vizWrap.style.visibility = 'hidden';
+  }
   // Restart visualizer since it was stopped when mini was shown
   if (!mp.rafId) mpStartVisualizer();
 }
@@ -840,6 +851,24 @@ function mpSetPlaying(playing) {
     ? '<rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none"/>'
     : '<polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/>';
   mpUpdateMiniPlayIcon();
+
+  // ── Vinyl spin: play → spin, pause/stop → slow-down then stop ───────────
+  const artEl = $('mpArt');
+  if (artEl && mp.vizMode === 'circle') {
+    if (playing) {
+      // Remove pop animation to avoid conflict with vinyl spin transform
+      artEl.classList.remove('vinyl-slowing', 'mp-art-pop');
+      void artEl.offsetWidth;
+      artEl.classList.add('vinyl-playing');
+    } else {
+      artEl.classList.remove('vinyl-playing');
+      artEl.classList.add('vinyl-slowing');
+      artEl.addEventListener('animationend', function _end() {
+        artEl.classList.remove('vinyl-slowing');
+        artEl.removeEventListener('animationend', _end);
+      }, { once: true });
+    }
+  }
 }
 
 function mpTogglePlay() {
@@ -1118,8 +1147,9 @@ function mpStartVisualizer() {
     const ctx = canvas.getContext('2d');
 
     const CX = SIZE_W / 2, CY = SIZE_H / 2;
-    const ART_R   = 110;                                          // album art radius (220px / 2)
-    const INNER_R = ART_R + 8;                                   // gap before dots start
+    const artElR   = $('mpArt');
+    const ART_R   = artElR ? Math.round(artElR.offsetWidth / 2) : 110; // read live from DOM
+    const INNER_R = ART_R + 8;                                         // gap before bars start
     const MAX_EXT = Math.min(55, Math.min(CX, CY) - INNER_R - 4); // fit within canvas
     const NUM_DOTS = 180;
     const isMobile = window.matchMedia('(max-width: 600px)').matches;
@@ -1171,28 +1201,34 @@ function mpStartVisualizer() {
       ctx.arc(CX, CY, INNER_R + MAX_EXT + 20, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw glowing dots around the circle
-      for (let i = 0; i < NUM_DOTS; i++) {
-        const angle = (i / NUM_DOTS) * Math.PI * 2 + rotation;
-        const di  = Math.floor(i * data.length * 0.72 / NUM_DOTS);
-        const v   = data[di] / 255;
-        const r   = INNER_R + v * MAX_EXT;
-        const dotR = 1.2 + v * 3;
+      // Draw radiating frequency bars around the circle
+      const NUM_BARS = NUM_DOTS;
+      for (let i = 0; i < NUM_BARS; i++) {
+        const angle = (i / NUM_BARS) * Math.PI * 2 + rotation;
+        const di    = Math.floor(i * data.length * 0.72 / NUM_BARS);
+        const v     = data[di] / 255;
+        const barLen = Math.max(2, v * MAX_EXT);
 
-        const x = CX + Math.cos(angle) * r;
-        const y = CY + Math.sin(angle) * r;
+        // Bar radiates outward from the disc edge
+        const x1 = CX + Math.cos(angle) * INNER_R;
+        const y1 = CY + Math.sin(angle) * INNER_R;
+        const x2 = CX + Math.cos(angle) * (INNER_R + barLen);
+        const y2 = CY + Math.sin(angle) * (INNER_R + barLen);
 
-        // Color: blend c1/c2 based on position
-        const t    = (Math.sin(i / NUM_DOTS * Math.PI * 4 + rotation * 2) + 1) / 2;
+        // Color: blend c1/c2 with a breathing wave based on position + time
+        const t     = (Math.sin(i / NUM_BARS * Math.PI * 4 + rotation * 2) + 1) / 2;
         const color = t > 0.5 ? c1 : c2;
-        const alpha = Math.round((0.35 + v * 0.65) * 255).toString(16).padStart(2,'0');
+        const alpha = Math.round((0.4 + v * 0.6) * 255).toString(16).padStart(2, '0');
 
         ctx.beginPath();
-        ctx.arc(x, y, dotR, 0, Math.PI * 2);
-        ctx.shadowBlur  = 6 + v * 18;
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = color + alpha;
+        ctx.lineWidth   = Math.max(1.2, 1.6 + v * 2.2);
+        ctx.lineCap     = 'round';
+        ctx.shadowBlur  = 4 + v * 16;
         ctx.shadowColor = color;
-        ctx.fillStyle   = color + alpha;
-        ctx.fill();
+        ctx.stroke();
       }
       ctx.shadowBlur = 0;
 
@@ -1434,13 +1470,22 @@ function mpSetVizMode(mode) {
   const vizWrap    = document.querySelector('.mp-viz-wrap');
   const circleCanvas = $('mpCircleCanvas');
 
+  const artEl = $('mpArt');
+
   if (mode === 'circle') {
     artSection?.classList.add('circle-mode');
     if (vizWrap) vizWrap.style.visibility = 'hidden';
+    // Activate vinyl spin if already playing
+    if (artEl && mp.isPlaying) {
+      artEl.classList.remove('vinyl-slowing');
+      artEl.classList.add('vinyl-playing');
+    }
   } else {
     artSection?.classList.remove('circle-mode');
     if (vizWrap) vizWrap.style.visibility = '';
     if (circleCanvas) { const c = circleCanvas.getContext('2d'); c.clearRect(0, 0, circleCanvas.width, circleCanvas.height); }
+    // Remove vinyl spin when leaving circle mode
+    if (artEl) { artEl.classList.remove('vinyl-playing', 'vinyl-slowing'); }
   }
 
   if (mp.rafId) { cancelAnimationFrame(mp.rafId); mp.rafId = null; }
