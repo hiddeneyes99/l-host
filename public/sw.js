@@ -1,6 +1,6 @@
 // ── l-host Service Worker ─────────────────────────────────────────────────
 //  Strategy:
-//   • App shell (HTML, CSS, JS)  → Cache-first with network fallback
+//   • App shell (HTML, CSS, JS)  → Network-first (always fresh)
 //   • /api/thumb + /api/preview  → Cache-first (image thumbnails)
 //   • /file (video/audio)        → BYPASS SW entirely — browser handles range
 //                                  requests natively; SW interception breaks
@@ -8,8 +8,8 @@
 //   • Everything else            → Network-first
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_SHELL   = 'lhost-shell-v6';
-const CACHE_THUMBS  = 'lhost-thumbs-v6';
+const CACHE_SHELL   = 'lhost-shell-v8';
+const CACHE_THUMBS  = 'lhost-thumbs-v8';
 
 const SHELL_ASSETS = [
   '/',
@@ -18,21 +18,20 @@ const SHELL_ASSETS = [
   '/index.html',
 ];
 
-// ── Install: pre-cache app shell ─────────────────────────────────────────────
+// ── Install: skip waiting so new SW activates immediately ────────────────────
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE_SHELL)
-      .then(c => c.addAll(SHELL_ASSETS))
-      .then(() => self.skipWaiting())
-  );
+  e.waitUntil(self.skipWaiting());
 });
 
-// ── Activate: delete old caches ──────────────────────────────────────────────
+// ── Activate: delete ALL old caches, claim clients immediately ───────────────
 self.addEventListener('activate', e => {
-  const keep = [CACHE_SHELL, CACHE_THUMBS];
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => !keep.includes(k)).map(k => caches.delete(k))))
+      .then(keys => Promise.all(
+        keys
+          .filter(k => k !== CACHE_SHELL && k !== CACHE_THUMBS)
+          .map(k => caches.delete(k))
+      ))
       .then(() => self.clients.claim())
   );
 });
@@ -42,31 +41,20 @@ self.addEventListener('fetch', e => {
   const { request } = e;
   const url = new URL(request.url);
 
-  // 1. Non-GET — never intercept (uploads, API mutations)
+  // 1. Non-GET — never intercept
   if (request.method !== 'GET') return;
 
-  // 2. Video/audio streams — let browser handle range requests natively
-  const path = url.pathname;
-  if (path === '/file') {
-    // Only intercept downloads with dl=1 might be fine, but video ranges MUST bypass.
-    // Simplest: pass everything at /file straight through.
-    return;
-  }
+  // 2. Video/audio streams — bypass completely
+  if (url.pathname === '/file') return;
 
-  // 3. Thumbnails → cache-first (images only change if file changes)
-  if (path.startsWith('/api/thumb') ||
-      path.startsWith('/api/preview')) {
+  // 3. Thumbnails → cache-first (only change when file changes)
+  if (url.pathname.startsWith('/api/thumb') ||
+      url.pathname.startsWith('/api/preview')) {
     e.respondWith(cacheFirst(CACHE_THUMBS, request));
     return;
   }
 
-// 4. App shell assets → network-first so UI updates appear immediately
-  if (SHELL_ASSETS.includes(path) || path === '/') {
-    e.respondWith(networkFirst(request));
-    return;
-  }
-
-  // 5. Everything else (directory listings, search, etc.) → network-first
+  // 4. App shell + everything else → network-first (always get fresh updates)
   e.respondWith(networkFirst(request));
 });
 
