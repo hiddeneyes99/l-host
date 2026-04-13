@@ -177,7 +177,7 @@ const MIME_MAP = {
   '.ts':'video/mp2t','.wmv':'video/x-ms-wmv','.rmvb':'video/x-pn-realvideo',
   '.vob':'video/dvd','.ogg':'video/ogg','.ogv':'video/ogg',
   '.mp3':'audio/mpeg','.wav':'audio/wav','.flac':'audio/flac',
-  '.aac':'audio/aac','.m4a':'audio/mp4','.wma':'audio/x-ms-wma',
+  '.aac':'audio/aac','.m4a':'audio/mp4','.wma':'audio/x-ms-wma','.opus':'audio/opus',
   '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif',
   '.webp':'image/webp','.bmp':'image/bmp','.svg':'image/svg+xml',
   '.ico':'image/x-icon','.avif':'image/avif','.apng':'image/apng',
@@ -194,6 +194,8 @@ const MIME_MAP = {
   '.zip':'application/zip','.tar':'application/x-tar','.gz':'application/gzip',
   '.tgz':'application/x-tar','.tar.gz':'application/gzip',
   '.rar':'application/x-rar-compressed','.7z':'application/x-7z-compressed',
+  '.z7':'application/octet-stream','.bz2':'application/x-bzip2','.xz':'application/x-xz',
+  '.lz':'application/x-lzip','.lzma':'application/x-lzma','.zst':'application/zstd',
   '.apk':'application/vnd.android.package-archive',
 };
 
@@ -213,8 +215,8 @@ function getCategory(ext) {
   if (['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp',
        '.ts','.wmv','.rmvb','.vob','.ogg','.ogv'].includes(e)) return 'video';
   if (IMAGE_EXTS.has(e)) return 'image';
-  if (['.mp3','.wav','.flac','.aac','.m4a','.wma'].includes(e)) return 'audio';
-  if (['.zip','.tar','.gz','.tgz','.rar','.7z'].includes(e)) return 'archive';
+  if (['.mp3','.wav','.flac','.aac','.m4a','.wma','.opus'].includes(e)) return 'audio';
+  if (['.zip','.tar','.gz','.tgz','.rar','.7z','.z7','.bz2','.xz','.lz','.lzma','.zst'].includes(e)) return 'archive';
   if (['.apk'].includes(e)) return 'apk';
   return 'file';
 }
@@ -1364,9 +1366,9 @@ app.get('/api/archive-list', async (req, res) => {
       return res.json({ type: '7z', entries, total: entries.length });
     }
 
-    return res.status(400).json({ error: 'Unsupported archive type' });
+    return res.status(400).json({ error: 'Preview not supported for this compressed file. Download it and extract it with a file extractor.' });
   } catch (e) {
-    return res.status(500).json({ error: 'Could not read archive: ' + e.message });
+    return res.status(500).json({ error: 'Could not read archive. Download it and extract it with a file extractor. Details: ' + e.message });
   }
 });
 

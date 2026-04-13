@@ -71,17 +71,47 @@ const qs = (sel, root = document) => root.querySelector(sel);
 const qsa = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 function fileIcon(item) {
-  if (item.type === 'dir') return '📁';
-  const { category: cat, ext } = item;
-  if (cat === 'video') return '🎬';
-  if (cat === 'image') return '🖼️';
-  if (cat === 'audio') return '🎵';
-  if (cat === 'archive') return '🗜️';
-  if (cat === 'apk') return '📱';
-  if (ext === '.pdf') return '📄';
-  if (['.txt','.md','.log'].includes(ext)) return '📝';
-  if (['.json','.xml','.html','.css','.js'].includes(ext)) return '🔧';
-  return '📂';
+  return fileVisual(item).icon;
+}
+
+function fileVisual(item) {
+  const ext = (item.ext || '').toLowerCase();
+  const cat = item.category;
+  if (item.type === 'dir') return { icon: '📁', label: '', className: 'file-type-folder' };
+  if (cat === 'video') return { icon: '🎬', label: 'VID', className: 'file-type-video' };
+  if (cat === 'image') return { icon: '🖼️', label: 'IMG', className: 'file-type-image' };
+  if (cat === 'audio') {
+    if (ext === '.opus') return { icon: '🎙️', label: 'OPUS', className: 'file-type-voice' };
+    return { icon: '🎵', label: 'AUD', className: 'file-type-audio' };
+  }
+  if (cat === 'apk') return { icon: '📱', label: 'APK', className: 'file-type-apk' };
+  if (ext === '.pdf') return { icon: '', image: '/pdf-file-icon.png', label: 'PDF', className: 'file-type-pdf' };
+  if (['.ttf','.otf','.woff','.woff2','.eot'].includes(ext)) return { icon: '🔤', label: ext.replace('.', '').toUpperCase(), className: 'file-type-font' };
+  if (['.tmp','.temp','.cache','.bak','.old'].includes(ext)) return { icon: '⏱️', label: ext.replace('.', '').toUpperCase(), className: 'file-type-temp' };
+  if (['.zip','.jar'].includes(ext)) return { icon: '📦', label: ext === '.jar' ? 'JAR' : 'ZIP', className: 'file-type-zip' };
+  if (ext === '.rar') return { icon: '🧰', label: 'RAR', className: 'file-type-rar' };
+  if (ext === '.7z' || ext === '.z7') return { icon: '🧊', label: ext.replace('.', '').toUpperCase(), className: 'file-type-7z' };
+  if (['.tar','.gz','.tgz','.bz2','.xz','.lz','.lzma','.zst'].includes(ext) || cat === 'archive') return { icon: '🗜️', label: ext.replace('.', '').toUpperCase() || 'ARC', className: 'file-type-archive' };
+  if (['.ppt','.pptx','.pps','.ppsx'].includes(ext)) return { icon: '📊', label: ext.replace('.', '').toUpperCase(), className: 'file-type-ppt' };
+  if (['.doc','.docx','.rtf'].includes(ext)) return { icon: '📘', label: ext.replace('.', '').toUpperCase(), className: 'file-type-doc' };
+  if (['.xls','.xlsx','.ods'].includes(ext)) return { icon: '📗', label: ext.replace('.', '').toUpperCase(), className: 'file-type-sheet' };
+  if (['.txt','.md','.log'].includes(ext)) return { icon: '📝', label: ext.replace('.', '').toUpperCase(), className: 'file-type-text' };
+  if (ext === '.py') return { icon: '🐍', label: 'PY', className: 'file-type-python' };
+  if (ext === '.sh') return { icon: '⌨️', label: 'SH', className: 'file-type-shell' };
+  if (ext === '.java') return { icon: '☕', label: 'JAVA', className: 'file-type-java' };
+  if (ext === '.css') return { icon: '🎨', label: 'CSS', className: 'file-type-css' };
+  if (ext === '.html' || ext === '.htm') return { icon: '🌐', label: 'HTML', className: 'file-type-html' };
+  if (['.js','.ts','.jsx','.tsx','.json','.xml','.yaml','.yml','.ini','.conf','.csv','.sql','.bat','.ps1','.rb','.go','.rs','.c','.cpp','.h'].includes(ext)) return { icon: '🔧', label: ext.replace('.', '').toUpperCase(), className: 'file-type-code' };
+  return { icon: '📄', label: ext ? ext.replace('.', '').toUpperCase() : 'FILE', className: 'file-type-default' };
+}
+
+function fileThumbHtml(item) {
+  const visual = fileVisual(item);
+  const label = visual.label ? `<span class="file-type-badge">${visual.label}</span>` : '';
+  const mark = visual.image
+    ? `<img class="file-type-img" src="${visual.image}" alt="${visual.label || item.name}">`
+    : `<span class="file-icon-big">${visual.icon}</span>`;
+  return `<div class="thumb file-type-thumb ${visual.className}">${mark}${label}</div>`;
 }
 
 function fmtTime(s) {
@@ -1927,14 +1957,15 @@ function renderRecentCards(grid, items) {
     } else if (item.category === 'audio') {
       const [c1, c2] = audioPalette(item.name);
       const artUrl = `/api/art?path=${encodeURIComponent(item.path)}`;
+      const audioIcon = item.ext === '.opus' ? '🎙️' : '🎵';
       card.innerHTML = `<div style="width:100%;height:100%;position:relative;overflow:hidden;background:linear-gradient(135deg,${c1},${c2});">
           <img src="${artUrl}" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block;"
             onerror="this.style.display='none';">
-          <div class="music-fallback" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:42px;pointer-events:none;opacity:0.4;">🎵</div>
+          <div class="music-fallback" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:42px;pointer-events:none;opacity:0.4;">${audioIcon}</div>
         </div>
         <div class="card-overlay"><span class="card-name">${item.name}</span></div>`;
     } else {
-      card.innerHTML = `<div style="width:100%;height:100%;background:linear-gradient(135deg,#1a2040,#2a3060);display:flex;align-items:center;justify-content:center;font-size:42px;">${fileIcon(item)}</div>
+      card.innerHTML = `<div class="recent-file-thumb">${fileThumbHtml(item)}</div>
         <div class="card-overlay"><span class="card-name">${item.name}</span></div>`;
     }
     card.addEventListener('click', () => openFile(item));
@@ -2072,10 +2103,14 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
   } else if (isAudio) {
     const [c1, c2] = audioPalette(item.name);
     const artUrl = `/api/art?path=${encodeURIComponent(item.path)}`;
+    const isVoice = item.ext === '.opus';
+    const audioMark = isVoice
+      ? '<span class="at-icon at-voice-icon">🎙️</span>'
+      : '<svg viewBox="0 0 24 24" class="at-icon"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
     thumbHtml = `<div class="thumb">
       <div class="audio-thumb-art" style="background:linear-gradient(135deg,${c1},${c2})" data-audio-art="${artUrl}">
         <img class="audio-art-img" alt="">
-        <svg viewBox="0 0 24 24" class="at-icon"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        ${audioMark}
         <div class="audio-eq">
           <div class="audio-eq-bar" style="height:5px"></div>
           <div class="audio-eq-bar" style="height:11px"></div>
@@ -2087,7 +2122,7 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
   } else if (isDir) {
     thumbHtml = `<div class="thumb"><span class="dir-icon">📁</span></div>`;
   } else {
-    thumbHtml = `<div class="thumb"><span class="file-icon-big">${fileIcon(item)}</span></div>`;
+    thumbHtml = fileThumbHtml(item);
   }
 
   el.innerHTML = `${thumbHtml}
@@ -2255,7 +2290,7 @@ function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
     openAudio(item, url, audioSet);
   } else if (item.ext === '.pdf') {
     openPdf(item, url);
-  } else if (cat === 'archive' || cat === 'apk' || ['.zip','.tar','.gz','.tgz','.rar','.7z','.apk','.jar'].includes(item.ext)) {
+  } else if (cat === 'archive' || cat === 'apk' || ['.zip','.tar','.gz','.tgz','.rar','.7z','.z7','.bz2','.xz','.lz','.lzma','.zst','.apk','.jar'].includes(item.ext)) {
     openArchive(item, url);
   } else if (['.txt','.md','.log','.json','.xml','.html','.css','.js','.ts','.py','.sh','.c','.cpp','.h','.java','.yaml','.yml','.ini','.conf','.csv','.sql','.bat','.ps1','.rb','.go','.rs'].includes(item.ext)) {
     openText(item, url);
@@ -2370,7 +2405,16 @@ async function openArchive(item, url) {
     _archiveAllEntries = data.entries || [];
     renderArchiveEntries(_archiveAllEntries, data.total);
   } catch (e) {
-    $('archiveBody').innerHTML = `<div class="archive-error">Could not read archive<br><small>${e.message}</small></div>`;
+    $('archiveBody').innerHTML = `<div class="archive-error"><div class="archive-error-icon">🗜️</div><strong>Preview not available</strong><br><span>${archiveErrorMessage(e)}</span><br><small>Is file ko download karke ZIP/RAR/7z extractor se extract karein.</small><br><a class="vp-fallback-dl-btn" href="${url}&dl=1" download="${item.name}">Download archive</a></div>`;
+  }
+}
+
+function archiveErrorMessage(e) {
+  try {
+    const parsed = JSON.parse(e.message);
+    return parsed.error || e.message;
+  } catch (_) {
+    return e.message || 'Could not read this compressed file.';
   }
 }
 
@@ -2382,10 +2426,22 @@ function archiveIcon(entry) {
   if (['.mp4','.mkv','.avi','.mov','.webm'].includes(e)) return '🎬';
   if (['.jpg','.jpeg','.png','.gif','.webp','.heic'].includes(e)) return '🖼️';
   if (['.mp3','.wav','.flac','.aac','.ogg'].includes(e)) return '🎵';
-  if (['.pdf'].includes(e)) return '📄';
-  if (['.zip','.rar','.7z','.tar','.gz'].includes(e)) return '🗜️';
+  if (e === '.opus') return '🎙️';
+  if (['.pdf'].includes(e)) return 'PDF';
+  if (e === '.zip') return '📦';
+  if (e === '.rar') return '🧰';
+  if (e === '.7z' || e === '.z7') return '🧊';
+  if (['.tar','.gz','.tgz','.bz2','.xz','.lz','.lzma','.zst'].includes(e)) return '🗜️';
+  if (['.ttf','.otf','.woff','.woff2','.eot'].includes(e)) return '🔤';
+  if (['.tmp','.temp','.cache','.bak','.old'].includes(e)) return '⏱️';
+  if (['.ppt','.pptx','.pps','.ppsx'].includes(e)) return '📊';
   if (['.txt','.md','.log'].includes(e)) return '📝';
-  if (['.js','.ts','.py','.c','.cpp','.java','.json','.xml'].includes(e)) return '🔧';
+  if (['.html','.htm'].includes(e)) return '🌐';
+  if (e === '.css') return '🎨';
+  if (e === '.py') return '🐍';
+  if (e === '.sh') return '⌨️';
+  if (e === '.java') return '☕';
+  if (['.js','.ts','.c','.cpp','.json','.xml'].includes(e)) return '🔧';
   return '📄';
 }
 

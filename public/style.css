@@ -374,6 +374,62 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .file-item .thumb .file-icon-big {
   font-size: 36px;
 }
+.file-type-thumb {
+  background: radial-gradient(circle at 30% 22%, rgba(255,255,255,0.16), transparent 34%),
+              linear-gradient(135deg, #1a2040, #2a3060);
+  flex-direction: column;
+  gap: 8px;
+}
+.file-type-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  max-width: calc(100% - 16px);
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-type-img {
+  width: 62%;
+  height: 72%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 18px rgba(0,0,0,0.32));
+}
+.file-type-font { background: radial-gradient(circle at 28% 18%, rgba(255,255,255,0.2), transparent 34%), linear-gradient(135deg, #1c2e45, #3d7ba6); }
+.file-type-temp { background: radial-gradient(circle at 28% 18%, rgba(255,255,255,0.18), transparent 34%), linear-gradient(135deg, #363a43, #727985); }
+.file-type-pdf { background: linear-gradient(135deg, #2c1010, #5b1616); }
+.file-type-zip { background: radial-gradient(circle at 28% 18%, rgba(255,220,120,0.24), transparent 34%), linear-gradient(135deg, #3b2d10, #b57917); }
+.file-type-rar { background: radial-gradient(circle at 28% 18%, rgba(220,170,255,0.24), transparent 34%), linear-gradient(135deg, #2a143f, #7135a8); }
+.file-type-7z { background: radial-gradient(circle at 28% 18%, rgba(130,230,255,0.24), transparent 34%), linear-gradient(135deg, #102c3b, #157092); }
+.file-type-archive { background: radial-gradient(circle at 28% 18%, rgba(133,255,173,0.22), transparent 34%), linear-gradient(135deg, #0f3320, #20834b); }
+.file-type-ppt { background: radial-gradient(circle at 28% 18%, rgba(255,164,98,0.24), transparent 34%), linear-gradient(135deg, #3e1d0f, #b44d18); }
+.file-type-doc { background: radial-gradient(circle at 28% 18%, rgba(126,178,255,0.24), transparent 34%), linear-gradient(135deg, #13274d, #1c63b6); }
+.file-type-sheet { background: radial-gradient(circle at 28% 18%, rgba(96,255,160,0.22), transparent 34%), linear-gradient(135deg, #0e3724, #18894c); }
+.file-type-text { background: radial-gradient(circle at 28% 18%, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #253044, #4e5c78); }
+.file-type-python { background: radial-gradient(circle at 28% 18%, rgba(255,232,106,0.24), transparent 34%), linear-gradient(135deg, #173252, #2e6da3); }
+.file-type-shell { background: radial-gradient(circle at 28% 18%, rgba(0,255,176,0.2), transparent 34%), linear-gradient(135deg, #0f271f, #104f43); }
+.file-type-java { background: radial-gradient(circle at 28% 18%, rgba(255,196,114,0.24), transparent 34%), linear-gradient(135deg, #3a1d12, #9b3e1f); }
+.file-type-css { background: radial-gradient(circle at 28% 18%, rgba(126,210,255,0.24), transparent 34%), linear-gradient(135deg, #10284d, #1661c2); }
+.file-type-html { background: radial-gradient(circle at 28% 18%, rgba(255,150,100,0.24), transparent 34%), linear-gradient(135deg, #421d10, #c14d1d); }
+.file-type-code { background: radial-gradient(circle at 28% 18%, rgba(0,212,200,0.2), transparent 34%), linear-gradient(135deg, #123136, #15636f); }
+.file-type-voice { background: radial-gradient(circle at 28% 18%, rgba(255,255,255,0.18), transparent 34%), linear-gradient(135deg, #431346, #bd228f); }
+.recent-file-thumb {
+  width: 100%;
+  height: 100%;
+}
+.recent-file-thumb .thumb {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: unset;
+}
 .file-item .thumb .video-badge {
   position: absolute;
   bottom: 5px; right: 5px;
@@ -476,6 +532,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   flex-shrink: 0;
 }
 .file-grid.list-view .file-item .thumb .file-icon-big { font-size: 22px; }
+.file-grid.list-view .file-type-img { width: 66%; height: 74%; }
 .file-grid.list-view .file-item .item-info { padding: 0; }
 .file-grid.list-view .file-item .item-name { -webkit-line-clamp: 1; }
 .file-grid.list-view .file-item .item-more { opacity: 1; position: static; background: none; }
@@ -488,6 +545,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   font-size: 11px;
 }
 .file-grid.list-view .format-thumb-badge { display: none; }
+.file-grid.list-view .file-type-badge { display: none; }
 
 /* ── DIR ITEM ── */
 .dir-item .thumb { background: transparent; }
@@ -1212,6 +1270,13 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   position: relative; z-index: 1;
   filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
   transition: opacity 0.2s;
+}
+.audio-thumb-art .at-voice-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  line-height: 1;
 }
 .audio-eq {
   position: absolute; bottom: 8px;
@@ -3005,7 +3070,13 @@ img.lazy-img:not([src]) {
   color: var(--text2);
   text-align: center;
   font-size: 14px;
+  line-height: 1.7;
 }
+.archive-error strong { color: var(--text); font-size: 17px; }
+.archive-error span { display: inline-block; margin-top: 6px; }
+.archive-error small { display: inline-block; margin-top: 8px; color: var(--text3); }
+.archive-error .vp-fallback-dl-btn { margin-top: 14px; }
+.archive-error-icon { font-size: 44px; margin-bottom: 10px; }
 .archive-empty {
   padding: 40px 16px;
   color: var(--text3);

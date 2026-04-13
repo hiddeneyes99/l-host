@@ -69,6 +69,8 @@ ROOT_DIR=/ node server.js
 - Native image formats use standard previews; HEIC/HEIF uses on-demand viewer conversion; RAW/Pro image formats show static fallback cards with download support
 - Music player with queue, artwork extraction, and visualizer
 - Text/code viewer
+- Extension-specific file icons for PDF, fonts, temporary files, code files, office documents, archives, and OPUS voice audio
+- Archive preview fallback explains when a compressed file cannot be viewed and suggests downloading/extracting it
 - File upload
 - New folder creation
 - File/folder deletion, with root deletion blocked
