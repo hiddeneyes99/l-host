@@ -3309,15 +3309,15 @@ img.lazy-img:not([src]) {
   position: fixed;
   top: auto;
   right: auto;
-  width: 200px;
-  padding: 10px 14px;
+  width: 48px;
+  padding: 12px 10px 14px;
   background: rgba(22,26,38,0.97);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 14px;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.55);
   z-index: 9999;
   opacity: 0;
@@ -3336,14 +3336,14 @@ img.lazy-img:not([src]) {
   opacity: 0.7;
 }
 .mp-vol-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  flex: 1;
-  height: 4px;
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 4px;
+  height: 90px;
   outline: none;
   cursor: pointer;
-  background: rgba(255,255,255,0.18);
-  border-radius: 4px;
   accent-color: var(--accent, #00d4c8);
 }
 .mp-vol-slider::-webkit-slider-thumb {
@@ -3369,8 +3369,7 @@ img.lazy-img:not([src]) {
   font-size: 11px;
   font-weight: 700;
   color: var(--text3);
-  min-width: 34px;
-  text-align: right;
+  text-align: center;
   letter-spacing: 0.3px;
 }
 
