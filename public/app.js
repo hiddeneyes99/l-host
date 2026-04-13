@@ -3796,22 +3796,8 @@ function setListMode(mode) {
   $('vmList')?.classList.toggle('active', mode === 'list');
 }
 
-// ── View menu ──────────────────────────────────────────────────────────────
-function syncViewMenu() {
-  $('vmGrid').classList.toggle('active', prefs.viewMode === 'grid');
-  $('vmList').classList.toggle('active', prefs.viewMode === 'list');
-
-  // Sort field buttons (no direction embedded)
-  qsa('.vm-opt').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.sort === prefs.sortBy);
-  });
-
-  // Direction buttons
-  $('vmAsc')?.classList.toggle('active',  prefs.sortDir === 'asc');
-  $('vmDesc')?.classList.toggle('active', prefs.sortDir === 'desc');
-
-  $('vmHiddenToggle').checked = prefs.showHidden;
-}
+// ── View menu (no-op — view menu removed, sort/hidden prefs still stored) ──
+function syncViewMenu() {}
 
 function refreshCurrentView() {
   if (state.currentView === 'browser') navigate(state.currentPath);
@@ -3877,53 +3863,36 @@ document.addEventListener('DOMContentLoaded', () => {
   $('recentAllBackBtn').addEventListener('click', () => loadHome());
   $('uploadCatBtn').addEventListener('click', openUploadModal);
 
-  // ── View menu button ────────────────────────────────────────────────────
-  $('viewMenuBtn').addEventListener('click', e => {
-    e.stopPropagation();
-    const menu = $('viewMenu');
-    const isOpen = !menu.classList.contains('hidden');
-    menu.classList.toggle('hidden', isOpen);
-    $('viewMenuBtn').classList.toggle('active', !isOpen);
-  });
+  // ── Sidebar drawer ──────────────────────────────────────────────────────
+  function openSidebar() {
+    $('sidebarDrawer').classList.add('open');
+    $('sidebarOverlay').classList.add('open');
+  }
+  function closeSidebar() {
+    $('sidebarDrawer').classList.remove('open');
+    $('sidebarOverlay').classList.remove('open');
+  }
 
-  // View mode toggles inside menu
-  $('vmGrid').addEventListener('click', () => { setListMode('grid'); });
-  $('vmList').addEventListener('click', () => { setListMode('list'); });
+  $('menuBtn').addEventListener('click', openSidebar);
+  $('sidebarClose').addEventListener('click', closeSidebar);
+  $('sidebarOverlay').addEventListener('click', closeSidebar);
 
-  // Sort field buttons (direction stays as-is)
-  qsa('.vm-opt').forEach(btn => {
-    btn.addEventListener('click', () => {
-      prefs.sortBy = btn.dataset.sort;
-      savePrefs();
-      syncViewMenu();
-      refreshCurrentView();
-    });
+  // Sidebar navigation items
+  $('sbHome').addEventListener('click', () => { closeSidebar(); loadHome(); });
+  $('sbBrowse').addEventListener('click', () => { closeSidebar(); navigate(''); });
+  qsa('[data-sidebar-cat]').forEach(el => {
+    el.addEventListener('click', () => { closeSidebar(); loadCategory(el.dataset.sidebarCat); });
   });
+  $('sbInfo').addEventListener('click', () => { closeSidebar(); showInfo(); });
 
-  // Ascending / Descending
-  $('vmAsc').addEventListener('click', () => {
-    prefs.sortDir = 'asc';
-    savePrefs(); syncViewMenu(); refreshCurrentView();
-  });
-  $('vmDesc').addEventListener('click', () => {
-    prefs.sortDir = 'desc';
-    savePrefs(); syncViewMenu(); refreshCurrentView();
-  });
-
-  // Hidden files toggle
-  $('vmHiddenToggle').addEventListener('change', () => {
-    prefs.showHidden = $('vmHiddenToggle').checked;
-    savePrefs();
-    refreshCurrentView();
-  });
-
-  // Close view menu on outside click
-  document.addEventListener('click', e => {
-    if (!e.target.closest('#viewMenu') && !e.target.closest('#viewMenuBtn')) {
-      $('viewMenu').classList.add('hidden');
-      $('viewMenuBtn').classList.remove('active');
-    }
-  });
+  // Swipe-right to open sidebar from left edge
+  let _sbTx = 0;
+  document.addEventListener('touchstart', e => { _sbTx = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - _sbTx;
+    if (_sbTx < 24 && dx > 60) openSidebar();
+    if ($('sidebarDrawer').classList.contains('open') && dx < -60) closeSidebar();
+  }, { passive: true });
 
   // Search bar
   $('searchToggleBtn').addEventListener('click', () => {
