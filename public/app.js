@@ -724,7 +724,7 @@ function openAudio(item, url, queue = []) {
   if (mp.vizMode === 'circle') {
     $('mpArtSection')?.classList.add('circle-mode');
     const vizWrap = document.querySelector('.mp-viz-wrap');
-    if (vizWrap) vizWrap.style.visibility = 'hidden';
+    if (vizWrap) vizWrap.style.display = 'none';
   }
   mpLoadTrack(mp.index);
 }
@@ -735,7 +735,7 @@ function mpExpandFromMini() {
   if (mp.vizMode === 'circle') {
     $('mpArtSection')?.classList.add('circle-mode');
     const vizWrap = document.querySelector('.mp-viz-wrap');
-    if (vizWrap) vizWrap.style.visibility = 'hidden';
+    if (vizWrap) vizWrap.style.display = 'none';
   }
   // Restart visualizer since it was stopped when mini was shown
   if (!mp.rafId) mpStartVisualizer();
@@ -1535,7 +1535,7 @@ function mpSetVizMode(mode) {
 
   if (mode === 'circle') {
     artSection?.classList.add('circle-mode');
-    if (vizWrap) vizWrap.style.visibility = 'hidden';
+    if (vizWrap) vizWrap.style.display = 'none';
     // Activate vinyl spin if already playing
     if (artEl && mp.isPlaying) {
       artEl.classList.remove('vinyl-slowing');
@@ -1543,7 +1543,7 @@ function mpSetVizMode(mode) {
     }
   } else {
     artSection?.classList.remove('circle-mode');
-    if (vizWrap) vizWrap.style.visibility = '';
+    if (vizWrap) vizWrap.style.display = '';
     if (circleCanvas) { const c = circleCanvas.getContext('2d'); c.clearRect(0, 0, circleCanvas.width, circleCanvas.height); }
     // Remove vinyl spin when leaving circle mode
     if (artEl) { artEl.classList.remove('vinyl-playing', 'vinyl-slowing'); }
