@@ -84,7 +84,7 @@ function fileVisual(item) {
     if (ext === '.opus') return { icon: '🎙️', label: 'OPUS', className: 'file-type-voice' };
     return { icon: '🎵', label: 'AUD', className: 'file-type-audio' };
   }
-  if (cat === 'apk') return { icon: '📱', label: 'APK', className: 'file-type-apk' };
+  if (cat === 'apk') return { icon: '📱', label: 'APK', className: 'file-type-apk', image: `/api/apk-icon?path=${encodeURIComponent(item.path)}` };
   if (ext === '.pdf') return { icon: '', label: '', className: 'file-type-pdf', fa: 'fa-file-pdf-o' };
   if (['.ttf','.otf','.woff','.woff2','.eot'].includes(ext)) return { icon: '🔤', label: ext.replace('.', '').toUpperCase(), className: 'file-type-font' };
   if (['.tmp','.temp','.cache','.bak','.old'].includes(ext)) return { icon: '⏱️', label: ext.replace('.', '').toUpperCase(), className: 'file-type-temp' };
@@ -111,7 +111,7 @@ function fileThumbHtml(item) {
   const mark = visual.fa
     ? '<span class="pdf-mega-icon"><span class="pdf-mega-fold"></span><span class="pdf-mega-mark">PDF</span><span class="pdf-mega-line pdf-mega-line-1"></span><span class="pdf-mega-line pdf-mega-line-2"></span><span class="pdf-mega-line pdf-mega-line-3"></span></span>'
     : visual.image
-    ? `<img class="file-type-img" src="${visual.image}" alt="${visual.label || item.name}">`
+    ? `<img class="file-type-img" src="${visual.image}" alt="${visual.label || item.name}" onerror="this.style.display='none';this.nextElementSibling&&(this.nextElementSibling.style.display='')"><span class="file-icon-big" style="display:none">${visual.icon}</span>`
     : `<span class="file-icon-big">${visual.icon}</span>`;
   return `<div class="thumb file-type-thumb ${visual.className}">${mark}${label}</div>`;
 }

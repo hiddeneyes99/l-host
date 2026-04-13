@@ -1522,6 +1522,88 @@ app.get('/api/art', async (req, res) => {
   }
 });
 
+// ── APK Icon Extraction ─────────────────────────────────────────────────────
+app.get('/api/apk-icon', (req, res) => {
+  const relPath = decodeURIComponent(req.query.path || '');
+  const absPath = safePath(relPath);
+  if (!absPath) return res.status(403).end();
+  if (!canRead(absPath)) return res.status(403).end();
+
+  const stat = safeStatSync(absPath);
+  if (!stat) return res.status(404).end();
+
+  const etag = `"apkicon-${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
+  if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
+
+  const cacheDir = path.join(APP_DATA_DIR, 'apk-icons');
+  try { fs.mkdirSync(cacheDir, { recursive: true }); } catch (_) {}
+  const diskPath = path.join(cacheDir, crypto.createHash('md5').update(absPath + etag).digest('hex') + '.png');
+  if (fs.existsSync(diskPath)) {
+    const buf = fs.readFileSync(diskPath);
+    res.writeHead(200, {
+      'Content-Type': 'image/png',
+      'Content-Length': buf.length,
+      'Cache-Control': 'public, max-age=604800',
+      'ETag': etag,
+    });
+    return res.end(buf);
+  }
+
+  try {
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(absPath);
+    const entries = zip.getEntries();
+
+    const DPI_ORDER = ['xxxhdpi', 'xxhdpi', 'xhdpi', 'hdpi', 'mdpi', 'ldpi'];
+    const ICON_NAMES = ['ic_launcher_round', 'ic_launcher', 'ic_launcher_foreground', 'icon', 'app_icon'];
+    let best = null;
+    let bestScore = -1;
+
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      const ep = entry.entryName.replace(/\\/g, '/').toLowerCase();
+      if (!ep.endsWith('.png') && !ep.endsWith('.webp')) continue;
+
+      const parts = ep.split('/');
+      if (parts.length < 2) continue;
+      const dir  = parts[parts.length - 2];
+      const file = parts[parts.length - 1].replace(/\.(png|webp)$/, '');
+
+      const isMipmap  = dir.startsWith('mipmap');
+      const isDrawable = dir.startsWith('drawable');
+      if (!isMipmap && !isDrawable) continue;
+
+      const iconIdx = ICON_NAMES.indexOf(file);
+      if (iconIdx === -1) continue;
+
+      const dpiIdx   = DPI_ORDER.findIndex(d => dir.includes(d));
+      const dpiScore  = dpiIdx === -1 ? 0 : DPI_ORDER.length - dpiIdx;
+      const typeScore = isMipmap ? 100 : 0;
+      const nameScore = (ICON_NAMES.length - iconIdx) * 10;
+      const score = typeScore + dpiScore + nameScore;
+
+      if (score > bestScore) { bestScore = score; best = entry; }
+    }
+
+    if (!best) return res.status(404).end();
+    const buf = best.getData();
+    if (!buf || buf.length === 0) return res.status(404).end();
+
+    try { fs.writeFileSync(diskPath, buf); } catch (_) {}
+
+    const mime = best.entryName.toLowerCase().endsWith('.webp') ? 'image/webp' : 'image/png';
+    res.writeHead(200, {
+      'Content-Type': mime,
+      'Content-Length': buf.length,
+      'Cache-Control': 'public, max-age=604800',
+      'ETag': etag,
+    });
+    res.end(buf);
+  } catch (_) {
+    res.status(404).end();
+  }
+});
+
 // ── Audio metadata (ID3 tags) ───────────────────────────────────────────────
 app.get('/api/meta', async (req, res) => {
   const relPath = decodeURIComponent(req.query.path || '');
