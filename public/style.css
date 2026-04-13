@@ -1109,6 +1109,26 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   filter: drop-shadow(0 2px 10px rgba(0,0,0,0.5));
 }
 
+/* Circle visualizer canvas */
+.mp-circle-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  display: none;
+}
+.mp-art-section.circle-mode .mp-circle-canvas { display: block; }
+.mp-art-section.circle-mode .mp-art {
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.1), 0 12px 48px rgba(0,0,0,0.65) !important;
+}
+.mp-art-section.circle-mode .mp-art-glow {
+  border-radius: 50% !important;
+  width: 240px; height: 240px;
+  opacity: 0.4;
+}
+
 /* Track Info */
 .mp-track-info {
   text-align: center;

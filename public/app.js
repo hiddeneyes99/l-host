@@ -1101,9 +1101,116 @@ function mpSetupQueueDrag(list) {
 }
 
 function mpStartVisualizer() {
+  if (mp.vizMode === 'off') return;
+
+  // ── Circle mode: draws on the overlay canvas around album art ──────────────
+  if (mp.vizMode === 'circle') {
+    const canvas = $('mpCircleCanvas');
+    if (!canvas) return;
+
+    const dpr    = Math.min(window.devicePixelRatio || 1, 2);
+    const SIZE_W = (canvas.parentElement?.offsetWidth  || 320);
+    const SIZE_H = (canvas.parentElement?.offsetHeight || 300);
+    canvas.width  = SIZE_W * dpr;
+    canvas.height = SIZE_H * dpr;
+    canvas.style.width  = SIZE_W + 'px';
+    canvas.style.height = SIZE_H + 'px';
+    const ctx = canvas.getContext('2d');
+
+    const CX = SIZE_W / 2, CY = SIZE_H / 2;
+    const ART_R   = 110;                                          // album art radius (220px / 2)
+    const INNER_R = ART_R + 8;                                   // gap before dots start
+    const MAX_EXT = Math.min(55, Math.min(CX, CY) - INNER_R - 4); // fit within canvas
+    const NUM_DOTS = 180;
+    const isMobile = window.matchMedia('(max-width: 600px)').matches;
+    let rotation = 0;
+    let lastTs = 0;
+    const frameInterval = isMobile ? 40 : 0;
+
+    function drawCircle(ts) {
+      if (mp.vizMode !== 'circle') { mp.rafId = null; return; }
+      mp.rafId = requestAnimationFrame(drawCircle);
+      if (document.hidden) return;
+      if (frameInterval && ts - lastTs < frameInterval) return;
+      lastTs = ts;
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, SIZE_W, SIZE_H);
+
+      const c1 = mp.color1 || '#00d4c8';
+      const c2 = mp.color2 || '#0091ff';
+      rotation += 0.004;
+
+      if (!mp.analyser || !mp.isPlaying) {
+        // Idle: subtle pulsing ring
+        ctx.beginPath();
+        ctx.arc(CX, CY, INNER_R + 2, 0, Math.PI * 2);
+        ctx.strokeStyle = c1 + '50';
+        ctx.lineWidth = 1.5;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = c1;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        return;
+      }
+
+      const data = new Uint8Array(mp.analyser.frequencyBinCount);
+      mp.analyser.getByteFrequencyData(data);
+
+      // Compute average energy for glow intensity
+      let avg = 0;
+      for (let i = 0; i < data.length; i++) avg += data[i];
+      avg = avg / data.length / 255;
+
+      // Draw outer glow aura
+      const aura = ctx.createRadialGradient(CX, CY, INNER_R, CX, CY, INNER_R + MAX_EXT + 20);
+      aura.addColorStop(0, c1 + Math.round(avg * 60).toString(16).padStart(2,'0'));
+      aura.addColorStop(1, 'transparent');
+      ctx.fillStyle = aura;
+      ctx.beginPath();
+      ctx.arc(CX, CY, INNER_R + MAX_EXT + 20, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw glowing dots around the circle
+      for (let i = 0; i < NUM_DOTS; i++) {
+        const angle = (i / NUM_DOTS) * Math.PI * 2 + rotation;
+        const di  = Math.floor(i * data.length * 0.72 / NUM_DOTS);
+        const v   = data[di] / 255;
+        const r   = INNER_R + v * MAX_EXT;
+        const dotR = 1.2 + v * 3;
+
+        const x = CX + Math.cos(angle) * r;
+        const y = CY + Math.sin(angle) * r;
+
+        // Color: blend c1/c2 based on position
+        const t    = (Math.sin(i / NUM_DOTS * Math.PI * 4 + rotation * 2) + 1) / 2;
+        const color = t > 0.5 ? c1 : c2;
+        const alpha = Math.round((0.35 + v * 0.65) * 255).toString(16).padStart(2,'0');
+
+        ctx.beginPath();
+        ctx.arc(x, y, dotR, 0, Math.PI * 2);
+        ctx.shadowBlur  = 6 + v * 18;
+        ctx.shadowColor = color;
+        ctx.fillStyle   = color + alpha;
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+
+      // Draw inner ring connecting art edge to dots
+      ctx.beginPath();
+      ctx.arc(CX, CY, INNER_R, 0, Math.PI * 2);
+      ctx.strokeStyle = c1 + Math.round(30 + avg * 50).toString(16).padStart(2,'0');
+      ctx.lineWidth   = 1;
+      ctx.stroke();
+    }
+
+    mp.rafId = requestAnimationFrame(drawCircle);
+    return;
+  }
+
+  // ── Regular (bars / wave) — draws on mpVisualizer ─────────────────────────
   const canvas = $('mpVisualizer');
   if (!canvas) return;
-  if (mp.vizMode === 'off') return;
   const ctx = canvas.getContext('2d');
 
   let cachedGrad = null;
@@ -1112,7 +1219,6 @@ function mpStartVisualizer() {
   let lastTs = 0;
   const frameInterval = isMobile ? 40 : 0;
 
-  // Cache canvas CSS dimensions — avoid forced layout reflow every rAF frame
   let cachedCssW = canvas.offsetWidth  || 340;
   let cachedCssH = canvas.offsetHeight || 64;
   let sizeDirty = false;
@@ -1121,7 +1227,7 @@ function mpStartVisualizer() {
   if (_ro) _ro.observe(canvas);
 
   function draw(ts) {
-    if (mp.vizMode === 'off') { mp.rafId = null; if (_ro) _ro.disconnect(); return; }
+    if (mp.vizMode === 'off' || mp.vizMode === 'circle') { mp.rafId = null; if (_ro) _ro.disconnect(); return; }
     mp.rafId = requestAnimationFrame(draw);
     if (document.hidden) return;
     if (frameInterval && ts - lastTs < frameInterval) return;
@@ -1157,7 +1263,6 @@ function mpStartVisualizer() {
     const mode = mp.vizMode || 'bars';
 
     if (!mp.analyser || !mp.isPlaying) {
-      // Idle: soft center line with gradient
       if (!cachedGrad || cachedC1 !== c1 || cachedMode !== 'idle') {
         cachedGrad = ctx.createLinearGradient(0, 0, W, 0);
         cachedGrad.addColorStop(0, 'transparent');
@@ -1172,7 +1277,6 @@ function mpStartVisualizer() {
     }
 
     if (mode === 'wave') {
-      // ── Smooth waveform ──────────────────────────────────────────
       const data = new Uint8Array(mp.analyser.fftSize);
       mp.analyser.getByteTimeDomainData(data);
 
@@ -1188,7 +1292,6 @@ function mpStartVisualizer() {
       ctx.lineJoin = 'round';
       ctx.lineCap  = 'round';
 
-      // Glow under-pass
       ctx.beginPath();
       const step = W / (data.length - 1);
       for (let i = 0; i < data.length; i++) {
@@ -1200,7 +1303,6 @@ function mpStartVisualizer() {
       ctx.lineWidth = 7;
       ctx.stroke();
 
-      // Main line
       ctx.beginPath();
       for (let i = 0; i < data.length; i++) {
         const x = i * step;
@@ -1210,44 +1312,6 @@ function mpStartVisualizer() {
       ctx.strokeStyle = cachedGrad;
       ctx.lineWidth = 2.5;
       ctx.stroke();
-
-    } else if (mode === 'circle') {
-      // ── Circular spectrum ─────────────────────────────────────────
-      const data = new Uint8Array(mp.analyser.frequencyBinCount);
-      mp.analyser.getByteFrequencyData(data);
-
-      const cx    = W / 2, cy = H / 2;
-      const minD  = Math.min(W, H);
-      const baseR = minD * 0.27;
-      const numBars = 56;
-
-      // Inner ring
-      ctx.beginPath();
-      ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
-      ctx.strokeStyle = c1 + '35';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      ctx.lineCap = 'round';
-      for (let i = 0; i < numBars; i++) {
-        const angle = (i / numBars) * Math.PI * 2 - Math.PI / 2;
-        const di  = Math.floor(i * data.length * 0.65 / numBars);
-        const v   = data[di] / 255;
-        const barH = Math.max(2, v * minD * 0.38);
-
-        const x1 = cx + Math.cos(angle) * baseR;
-        const y1 = cy + Math.sin(angle) * baseR;
-        const x2 = cx + Math.cos(angle) * (baseR + barH);
-        const y2 = cy + Math.sin(angle) * (baseR + barH);
-
-        const alpha = Math.round(Math.max(60, v * 255)).toString(16).padStart(2,'0');
-        ctx.strokeStyle = (i % 2 === 0 ? c1 : c2) + alpha;
-        ctx.lineWidth   = Math.max(1.5, (W / numBars) * 0.5);
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-      }
 
     } else {
       // ── Bars — centered mirror (default) ─────────────────────────
@@ -1362,15 +1426,29 @@ function mpCycleSpeed() {
 
 // ── Visualizer mode ────────────────────────────────────────────────────────
 function mpSetVizMode(mode) {
-  const wasOff = mp.vizMode === 'off';
   mp.vizMode = mode;
   qsa('.mp-viz-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   try { localStorage.setItem('lhost_mp_viz', mode); } catch(_) {}
+
+  const artSection = $('mpArtSection');
+  const vizWrap    = document.querySelector('.mp-viz-wrap');
+  const circleCanvas = $('mpCircleCanvas');
+
+  if (mode === 'circle') {
+    artSection?.classList.add('circle-mode');
+    if (vizWrap) vizWrap.style.visibility = 'hidden';
+  } else {
+    artSection?.classList.remove('circle-mode');
+    if (vizWrap) vizWrap.style.visibility = '';
+    if (circleCanvas) { const c = circleCanvas.getContext('2d'); c.clearRect(0, 0, circleCanvas.width, circleCanvas.height); }
+  }
+
+  if (mp.rafId) { cancelAnimationFrame(mp.rafId); mp.rafId = null; }
+
   if (mode === 'off') {
-    if (mp.rafId) { cancelAnimationFrame(mp.rafId); mp.rafId = null; }
     const canvas = $('mpVisualizer');
     if (canvas) { const c = canvas.getContext('2d'); c.clearRect(0, 0, canvas.width, canvas.height); }
-  } else if (wasOff && !mp.rafId) {
+  } else {
     mpStartVisualizer();
   }
 }
