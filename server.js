@@ -1471,6 +1471,71 @@ app.delete('/api/delete', express.json(), (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Rename ─────────────────────────────────────────────────────────────────
+app.post('/api/rename', express.json(), (req, res) => {
+  const relPath = decodeURIComponent(req.body?.path || req.query.path || '');
+  const newName = (req.body?.name || '').replace(/[/\\<>:"|?*\x00-\x1f]/g, '').trim();
+  if (!newName) return res.status(400).json({ error: 'Invalid name' });
+  const absPath = safePath(relPath);
+  if (!absPath) return res.status(403).json({ error: 'Access denied' });
+  const stat = safeStatSync(absPath);
+  if (!stat) return res.status(404).json({ error: 'Not found' });
+  const destAbs = path.join(path.dirname(absPath), newName);
+  if (fs.existsSync(destAbs)) return res.status(409).json({ error: 'A file with that name already exists' });
+  try {
+    fs.renameSync(absPath, destAbs);
+    indexRemovePath(relPath);
+    incrementalUpdateDir(path.dirname(absPath)).catch(() => {});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Copy ────────────────────────────────────────────────────────────────────
+app.post('/api/copy', express.json(), (req, res) => {
+  const src  = decodeURIComponent(req.body?.src  || '');
+  const dest = decodeURIComponent(req.body?.dest || '');
+  if (!src || !dest) return res.status(400).json({ error: 'src and dest required' });
+  const absSrc  = safePath(src);
+  const absDest = safePath(dest);
+  if (!absSrc || !absDest) return res.status(403).json({ error: 'Access denied' });
+  if (!fs.existsSync(absSrc))  return res.status(404).json({ error: 'Source not found' });
+  if (fs.existsSync(absDest))  return res.status(409).json({ error: 'Destination already exists' });
+  try {
+    const srcStat = safeStatSync(absSrc);
+    if (srcStat && srcStat.isDirectory()) fs.cpSync(absSrc, absDest, { recursive: true });
+    else { fs.mkdirSync(path.dirname(absDest), { recursive: true }); fs.copyFileSync(absSrc, absDest); }
+    incrementalUpdateDir(path.dirname(absDest)).catch(() => {});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Move ─────────────────────────────────────────────────────────────────
+app.post('/api/move', express.json(), (req, res) => {
+  const src  = decodeURIComponent(req.body?.src  || '');
+  const dest = decodeURIComponent(req.body?.dest || '');
+  if (!src || !dest) return res.status(400).json({ error: 'src and dest required' });
+  const absSrc  = safePath(src);
+  const absDest = safePath(dest);
+  if (!absSrc || !absDest) return res.status(403).json({ error: 'Access denied' });
+  if (!fs.existsSync(absSrc))  return res.status(404).json({ error: 'Source not found' });
+  if (fs.existsSync(absDest))  return res.status(409).json({ error: 'Destination already exists' });
+  try {
+    fs.mkdirSync(path.dirname(absDest), { recursive: true });
+    try {
+      fs.renameSync(absSrc, absDest);
+    } catch (_) {
+      // Cross-device: copy then delete
+      const srcStat = safeStatSync(absSrc);
+      if (srcStat && srcStat.isDirectory()) { fs.cpSync(absSrc, absDest, { recursive: true }); fs.rmSync(absSrc, { recursive: true, force: true }); }
+      else { fs.copyFileSync(absSrc, absDest); fs.unlinkSync(absSrc); }
+    }
+    indexRemovePath(src);
+    incrementalUpdateDir(path.dirname(absSrc)).catch(() => {});
+    incrementalUpdateDir(path.dirname(absDest)).catch(() => {});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Album Art ──────────────────────────────────────────────────────────────
 app.get('/api/art', async (req, res) => {
   const relPath = decodeURIComponent(req.query.path || '');

@@ -1007,6 +1007,38 @@
         <span class="ctx-fav-label">Favorite</span>
       </button>
       <div class="ctx-divider"></div>
+      <button class="ctx-item" id="ctxRename">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        Rename
+      </button>
+      <button class="ctx-item" id="ctxCopy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        Copy
+      </button>
+      <button class="ctx-item" id="ctxMove">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="5 9 2 12 5 15"/>
+          <polyline points="9 5 12 2 15 5"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <line x1="12" y1="2" x2="12" y2="22"/>
+        </svg>
+        Move
+      </button>
+      <button class="ctx-item" id="ctxInfo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="8"/>
+          <line x1="12" y1="12" x2="12" y2="16"/>
+        </svg>
+        Info
+      </button>
+      <div class="ctx-divider"></div>
       <button class="ctx-item ctx-danger" id="ctxDelete">
         <svg viewBox="0 0 24 24">
           <polyline points="3 6 5 6 21 6" />
@@ -1020,6 +1052,45 @@
 
     <!-- ── TOAST ── -->
     <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ── RENAME DIALOG ── -->
+    <div class="modal hidden" id="renameModal">
+      <div class="modal-backdrop" id="renameBackdrop"></div>
+      <div class="folder-dialog">
+        <h3>Rename</h3>
+        <input type="text" id="renameInput" placeholder="New name" autocomplete="off" />
+        <div class="dialog-actions">
+          <button class="btn-ghost" id="renameCancelBtn">Cancel</button>
+          <button class="btn-primary" id="renameConfirmBtn">Rename</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── COPY / MOVE DIALOG ── -->
+    <div class="modal hidden" id="copyMoveModal">
+      <div class="modal-backdrop" id="copyMoveBackdrop"></div>
+      <div class="folder-dialog">
+        <h3 id="copyMoveTitle">Copy to</h3>
+        <p style="font-size:12px;color:var(--text2);margin:0 0 8px">Enter destination folder path (relative to root)</p>
+        <input type="text" id="copyMoveInput" placeholder="e.g. Documents/backup" autocomplete="off" />
+        <div class="dialog-actions">
+          <button class="btn-ghost" id="copyMoveCancelBtn">Cancel</button>
+          <button class="btn-primary" id="copyMoveConfirmBtn">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FILE INFO DIALOG ── -->
+    <div class="modal hidden" id="fileInfoModal">
+      <div class="modal-backdrop" id="fileInfoBackdrop"></div>
+      <div class="folder-dialog" style="min-width:280px;max-width:360px">
+        <h3 id="fileInfoTitle" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">File Info</h3>
+        <div id="fileInfoBody" style="font-size:13px;line-height:1.8;color:var(--text1)"></div>
+        <div class="dialog-actions" style="margin-top:14px">
+          <button class="btn-primary" id="fileInfoCloseBtn">Close</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ── NEW FOLDER DIALOG ── -->
     <div class="modal hidden" id="folderModal">

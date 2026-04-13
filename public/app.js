@@ -3482,6 +3482,65 @@ async function deleteItem(item) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+// ── Rename ─────────────────────────────────────────────────────────────────
+function renameItem(item) {
+  $('renameInput').value = item.name;
+  openModal('renameModal');
+  setTimeout(() => { $('renameInput').focus(); $('renameInput').select(); }, 80);
+  $('renameConfirmBtn')._handler = async () => {
+    const newName = $('renameInput').value.trim();
+    if (!newName || newName === item.name) { closeModal('renameModal'); return; }
+    closeModal('renameModal');
+    try {
+      const r = await fetch('/api/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: item.path, name: newName }) });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      toast('Renamed!', 'success');
+      if (state.currentView === 'browser') navigate(state.currentPath);
+      else if (state.currentView === 'cat') loadCategory(item.category);
+      else loadHome();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+}
+
+// ── Copy / Move ─────────────────────────────────────────────────────────────
+let _copyMoveMode = 'copy';
+function copyItem(item) {
+  _copyMoveMode = 'copy';
+  $('copyMoveTitle').textContent = 'Copy to folder';
+  $('copyMoveInput').value = state.currentPath || '';
+  openModal('copyMoveModal');
+  setTimeout(() => $('copyMoveInput').focus(), 80);
+  $('copyMoveConfirmBtn')._cmItem = item;
+}
+function moveItem(item) {
+  _copyMoveMode = 'move';
+  $('copyMoveTitle').textContent = 'Move to folder';
+  $('copyMoveInput').value = state.currentPath || '';
+  openModal('copyMoveModal');
+  setTimeout(() => $('copyMoveInput').focus(), 80);
+  $('copyMoveConfirmBtn')._cmItem = item;
+}
+
+// ── File Info ───────────────────────────────────────────────────────────────
+function showFileInfo(item) {
+  $('fileInfoTitle').textContent = item.name;
+  const rows = [];
+  const typeLabel = item.type === 'dir' ? 'Folder' : (item.ext ? item.ext.replace('.', '').toUpperCase() : 'File');
+  rows.push(['Type', typeLabel]);
+  rows.push(['Path', '/' + (item.path || '')]);
+  if (item.sizeStr && item.type !== 'dir') rows.push(['Size', item.sizeStr]);
+  if (item.mtime) rows.push(['Modified', new Date(item.mtime).toLocaleString()]);
+  if (item.category && item.category !== 'file') rows.push(['Category', item.category.charAt(0).toUpperCase() + item.category.slice(1)]);
+  $('fileInfoBody').innerHTML = rows.map(([k, v]) =>
+    `<div style="display:flex;gap:8px;border-bottom:1px solid var(--border);padding:4px 0">
+      <span style="color:var(--text2);min-width:80px;flex-shrink:0">${k}</span>
+      <span style="word-break:break-all">${v}</span>
+    </div>`
+  ).join('');
+  openModal('fileInfoModal');
+}
+
 // ── View toggle ────────────────────────────────────────────────────────────
 function setListMode(mode) {
   state.listMode = mode;
@@ -3743,8 +3802,45 @@ document.addEventListener('DOMContentLoaded', () => {
   $('ctxOpen').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (!i) return; if (i.type === 'dir') navigate(i.path); else openFile(i); });
   $('ctxDownload').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (!i) return; const a = document.createElement('a'); a.href = `/file?path=${encodeURIComponent(i.path)}&dl=1`; a.download = i.name; a.click(); });
   $('ctxFavorite').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) toggleFavorite(i); });
+  $('ctxRename').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) renameItem(i); });
+  $('ctxCopy').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) copyItem(i); });
+  $('ctxMove').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) moveItem(i); });
+  $('ctxInfo').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) showFileInfo(i); });
   $('ctxDelete').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) deleteItem(i); });
   document.addEventListener('click', e => { if (!e.target.closest('#ctxMenu') && !e.target.closest('[data-more]')) hideCtxMenu(); });
+
+  // Rename modal
+  $('renameCancelBtn').addEventListener('click', () => closeModal('renameModal'));
+  $('renameBackdrop').addEventListener('click', () => closeModal('renameModal'));
+  $('renameConfirmBtn').addEventListener('click', () => { if ($('renameConfirmBtn')._handler) $('renameConfirmBtn')._handler(); });
+  $('renameInput').addEventListener('keydown', e => { if (e.key === 'Enter') { if ($('renameConfirmBtn')._handler) $('renameConfirmBtn')._handler(); } });
+
+  // Copy/Move modal
+  $('copyMoveCancelBtn').addEventListener('click', () => closeModal('copyMoveModal'));
+  $('copyMoveBackdrop').addEventListener('click', () => closeModal('copyMoveModal'));
+  $('copyMoveConfirmBtn').addEventListener('click', async () => {
+    const item = $('copyMoveConfirmBtn')._cmItem;
+    const destFolder = $('copyMoveInput').value.trim();
+    if (!item || !destFolder && destFolder !== '') { closeModal('copyMoveModal'); return; }
+    const destPath = (destFolder ? destFolder + '/' : '') + item.name;
+    closeModal('copyMoveModal');
+    try {
+      const endpoint = _copyMoveMode === 'copy' ? '/api/copy' : '/api/move';
+      const body = _copyMoveMode === 'copy' ? { src: item.path, dest: destPath } : { src: item.path, dest: destPath };
+      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      toast(_copyMoveMode === 'copy' ? 'Copied!' : 'Moved!', 'success');
+      if (state.currentView === 'browser') navigate(state.currentPath);
+      else if (state.currentView === 'cat') loadCategory(item.category);
+      else loadHome();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+  $('copyMoveInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('copyMoveConfirmBtn').click(); });
+
+  // File Info modal
+  $('fileInfoCloseBtn').addEventListener('click', () => closeModal('fileInfoModal'));
+  $('fileInfoBackdrop').addEventListener('click', () => closeModal('fileInfoModal'));
 
   // Pre-load favorites cache
   fetchJson('/api/userstate').then(st => { _cachedFavorites = st.favorites || []; }).catch(() => {});
