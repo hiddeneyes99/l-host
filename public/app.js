@@ -3503,23 +3503,50 @@ function renameItem(item) {
   };
 }
 
-// ── Copy / Move ─────────────────────────────────────────────────────────────
-let _copyMoveMode = 'copy';
-function copyItem(item) {
-  _copyMoveMode = 'copy';
-  $('copyMoveTitle').textContent = 'Copy to folder';
-  $('copyMoveInput').value = state.currentPath || '';
-  openModal('copyMoveModal');
-  setTimeout(() => $('copyMoveInput').focus(), 80);
-  $('copyMoveConfirmBtn')._cmItem = item;
+// ── Folder Picker (for Copy / Move) ─────────────────────────────────────────
+const _fp = { mode: 'copy', item: null, path: '' };
+
+function copyItem(item) { _openFolderPicker(item, 'copy'); }
+function moveItem(item) { _openFolderPicker(item, 'move'); }
+
+function _openFolderPicker(item, mode) {
+  _fp.mode = mode;
+  _fp.item = item;
+  _fp.path = '';
+  $('fpTitle').textContent = mode === 'copy' ? 'Copy to…' : 'Move to…';
+  $('fpSelectBtn').textContent = mode === 'copy' ? '📋 Copy here' : '✂️ Move here';
+  openModal('folderPickerModal');
+  _fpNavigate('');
 }
-function moveItem(item) {
-  _copyMoveMode = 'move';
-  $('copyMoveTitle').textContent = 'Move to folder';
-  $('copyMoveInput').value = state.currentPath || '';
-  openModal('copyMoveModal');
-  setTimeout(() => $('copyMoveInput').focus(), 80);
-  $('copyMoveConfirmBtn')._cmItem = item;
+
+async function _fpNavigate(relPath) {
+  _fp.path = relPath;
+  const breadcrumb = relPath ? '/ ' + relPath.replace(/\//g, ' / ') : '/ root';
+  $('fpBreadcrumb').textContent = breadcrumb;
+  $('fpBack').classList.toggle('active', !!relPath);
+  const list = $('fpList');
+  list.innerHTML = '<div class="loader-wrap"><div class="loader"></div></div>';
+  try {
+    const data = await fetchJson(`/api/ls?path=${encodeURIComponent(relPath)}&page=0&limit=200&sort=name&dir=asc&hidden=0`);
+    const dirs = (data.items || []).filter(i => i.type === 'dir');
+    if (!dirs.length) {
+      list.innerHTML = '<div class="fp-empty">No folders here</div>';
+      return;
+    }
+    list.innerHTML = '';
+    dirs.forEach(dir => {
+      const el = document.createElement('div');
+      el.className = 'fp-item';
+      el.innerHTML = `
+        <span class="fp-item-icon">📁</span>
+        <span class="fp-item-name">${dir.name}</span>
+        <span class="fp-item-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></span>`;
+      el.addEventListener('click', () => _fpNavigate(dir.path));
+      list.appendChild(el);
+    });
+  } catch (e) {
+    list.innerHTML = `<div class="fp-empty">Failed to load folders</div>`;
+  }
 }
 
 // ── File Info ───────────────────────────────────────────────────────────────
@@ -3815,28 +3842,32 @@ document.addEventListener('DOMContentLoaded', () => {
   $('renameConfirmBtn').addEventListener('click', () => { if ($('renameConfirmBtn')._handler) $('renameConfirmBtn')._handler(); });
   $('renameInput').addEventListener('keydown', e => { if (e.key === 'Enter') { if ($('renameConfirmBtn')._handler) $('renameConfirmBtn')._handler(); } });
 
-  // Copy/Move modal
-  $('copyMoveCancelBtn').addEventListener('click', () => closeModal('copyMoveModal'));
-  $('copyMoveBackdrop').addEventListener('click', () => closeModal('copyMoveModal'));
-  $('copyMoveConfirmBtn').addEventListener('click', async () => {
-    const item = $('copyMoveConfirmBtn')._cmItem;
-    const destFolder = $('copyMoveInput').value.trim();
-    if (!item || !destFolder && destFolder !== '') { closeModal('copyMoveModal'); return; }
-    const destPath = (destFolder ? destFolder + '/' : '') + item.name;
-    closeModal('copyMoveModal');
+  // Folder Picker (copy/move)
+  const _fpClose = () => closeModal('folderPickerModal');
+  $('fpCancelBtn').addEventListener('click', _fpClose);
+  $('fpClose').addEventListener('click', _fpClose);
+  $('folderPickerBackdrop').addEventListener('click', _fpClose);
+  $('fpBack').addEventListener('click', () => {
+    if (!_fp.path) return;
+    const parent = _fp.path.includes('/') ? _fp.path.substring(0, _fp.path.lastIndexOf('/')) : '';
+    _fpNavigate(parent);
+  });
+  $('fpSelectBtn').addEventListener('click', async () => {
+    const item = _fp.item;
+    if (!item) return;
+    const destPath = (_fp.path ? _fp.path + '/' : '') + item.name;
+    closeModal('folderPickerModal');
     try {
-      const endpoint = _copyMoveMode === 'copy' ? '/api/copy' : '/api/move';
-      const body = _copyMoveMode === 'copy' ? { src: item.path, dest: destPath } : { src: item.path, dest: destPath };
-      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const endpoint = _fp.mode === 'copy' ? '/api/copy' : '/api/move';
+      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ src: item.path, dest: destPath }) });
       const d = await r.json();
       if (d.error) throw new Error(d.error);
-      toast(_copyMoveMode === 'copy' ? 'Copied!' : 'Moved!', 'success');
+      toast(_fp.mode === 'copy' ? 'Copied!' : 'Moved!', 'success');
       if (state.currentView === 'browser') navigate(state.currentPath);
       else if (state.currentView === 'cat') loadCategory(item.category);
       else loadHome();
     } catch (e) { toast(e.message, 'error'); }
   });
-  $('copyMoveInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('copyMoveConfirmBtn').click(); });
 
   // File Info modal
   $('fileInfoCloseBtn').addEventListener('click', () => closeModal('fileInfoModal'));

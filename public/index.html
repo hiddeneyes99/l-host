@@ -1066,16 +1066,26 @@
       </div>
     </div>
 
-    <!-- ── COPY / MOVE DIALOG ── -->
-    <div class="modal hidden" id="copyMoveModal">
-      <div class="modal-backdrop" id="copyMoveBackdrop"></div>
-      <div class="folder-dialog">
-        <h3 id="copyMoveTitle">Copy to</h3>
-        <p style="font-size:12px;color:var(--text2);margin:0 0 8px">Enter destination folder path (relative to root)</p>
-        <input type="text" id="copyMoveInput" placeholder="e.g. Documents/backup" autocomplete="off" />
-        <div class="dialog-actions">
-          <button class="btn-ghost" id="copyMoveCancelBtn">Cancel</button>
-          <button class="btn-primary" id="copyMoveConfirmBtn">OK</button>
+    <!-- ── FOLDER PICKER MODAL (copy / move) ── -->
+    <div class="modal hidden" id="folderPickerModal">
+      <div class="modal-backdrop" id="folderPickerBackdrop"></div>
+      <div class="fp-dialog">
+        <div class="fp-header">
+          <button class="icon-btn fp-back-btn" id="fpBack" title="Go up">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+          </button>
+          <span class="fp-title" id="fpTitle">Select destination</span>
+          <button class="icon-btn" id="fpClose">
+            <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="fp-breadcrumb" id="fpBreadcrumb">/ root</div>
+        <div class="fp-list" id="fpList">
+          <div class="loader-wrap"><div class="loader"></div></div>
+        </div>
+        <div class="fp-actions">
+          <button class="btn-ghost" id="fpCancelBtn">Cancel</button>
+          <button class="btn-primary" id="fpSelectBtn" style="flex:1">📋 Paste here</button>
         </div>
       </div>
     </div>
