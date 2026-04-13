@@ -1,1 +1,1 @@
-{"version":5,"builtAt":1776041739524,"rootDir":"/home/runner/workspace/files","all":[]}
+{"version":5,"builtAt":1776042407274,"rootDir":"/home/runner/workspace/files","all":[{"name":"test.txt","type":"file","size":17,"sizeStr":"17 B","ext":".txt","category":"file","mtime":1776041753915,"mtimeStr":"4/13/2026","readable":true,"path":"test.txt"},{"name":"test.zip","type":"file","size":406,"sizeStr":"406 B","ext":".zip","category":"archive","mtime":1776041765195,"mtimeStr":"4/13/2026","readable":true,"path":"test.zip"}]}

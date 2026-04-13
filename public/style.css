@@ -2834,3 +2834,60 @@ img.lazy-img:not([src]) {
   justify-content: stretch;
   display: block;
 }
+
+/* ── Video format-not-supported fallback panel ─────────────────────────── */
+.vp-format-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #0d0d14;
+  z-index: 5;
+  padding: 32px 24px;
+  text-align: center;
+}
+.vp-fallback-icon { font-size: 48px; line-height: 1; }
+.vp-fallback-title {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.vp-fallback-msg {
+  color: rgba(255,255,255,0.55);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 380px;
+}
+.vp-fallback-msg strong { color: rgba(255,255,255,0.75); }
+.vp-fallback-dl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 12px 28px;
+  background: var(--accent, #7c4dff);
+  color: #fff;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.12s;
+}
+.vp-fallback-dl-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+.vp-fallback-dl-btn:active { transform: scale(0.97); }
+
+/* Static play-button card for non-native video formats */
+.vt-static-thumb {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1a0030, #3a1070);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}

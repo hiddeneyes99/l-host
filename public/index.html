@@ -399,6 +399,21 @@
           <video id="videoPlayer" preload="metadata" playsinline></video>
 
           <!-- Simulated brightness overlay -->
+          <!-- Format-not-supported fallback panel -->
+          <div class="vp-format-fallback hidden" id="vpFormatFallback">
+            <div class="vp-fallback-icon">⚠️</div>
+            <div class="vp-fallback-title">Format may not be fully supported</div>
+            <div class="vp-fallback-msg">Your browser cannot natively play this format.<br>Open in <strong>VLC</strong> or another media player, or download below.</div>
+            <a class="vp-fallback-dl-btn" id="vpFallbackDlBtn">
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download File
+            </a>
+          </div>
+
           <div class="vp-brightness" id="vpBrightness"></div>
 
           <!-- Invisible gesture capture layer -->

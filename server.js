@@ -23,7 +23,7 @@ const app  = express();
 const HOST = '0.0.0.0';
 
 // ── Gzip responses — skip video (already compressed; gzip wastes CPU for 0 gain)
-const VIDEO_EXTS = new Set(['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp']);
+const VIDEO_EXTS = new Set(['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp','.ts','.wmv','.rmvb','.vob','.ogg','.ogv']);
 app.use(compression({
   filter: (req, res) => {
     if (req.path === '/file' && req.query && req.query.path) {
@@ -174,8 +174,10 @@ const MIME_MAP = {
   '.mp4':'video/mp4','.mkv':'video/x-matroska','.avi':'video/x-msvideo',
   '.mov':'video/quicktime','.webm':'video/webm','.flv':'video/x-flv',
   '.m4v':'video/mp4','.3gp':'video/3gpp',
+  '.ts':'video/mp2t','.wmv':'video/x-ms-wmv','.rmvb':'video/x-pn-realvideo',
+  '.vob':'video/dvd','.ogg':'video/ogg','.ogv':'video/ogg',
   '.mp3':'audio/mpeg','.wav':'audio/wav','.flac':'audio/flac',
-  '.aac':'audio/aac','.ogg':'audio/ogg','.m4a':'audio/mp4','.wma':'audio/x-ms-wma',
+  '.aac':'audio/aac','.m4a':'audio/mp4','.wma':'audio/x-ms-wma',
   '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif',
   '.webp':'image/webp','.bmp':'image/bmp','.svg':'image/svg+xml',
   '.ico':'image/x-icon','.tiff':'image/tiff',
@@ -183,7 +185,7 @@ const MIME_MAP = {
   '.pdf':'application/pdf','.txt':'text/plain','.md':'text/markdown',
   '.log':'text/plain','.json':'application/json','.xml':'application/xml',
   '.html':'text/html','.css':'text/css','.js':'application/javascript',
-  '.ts':'text/plain','.py':'text/plain','.sh':'text/plain',
+  '.py':'text/plain','.sh':'text/plain',
   '.c':'text/plain','.cpp':'text/plain','.h':'text/plain','.java':'text/plain',
   '.zip':'application/zip','.tar':'application/x-tar','.gz':'application/gzip',
   '.tgz':'application/x-tar','.tar.gz':'application/gzip',
@@ -195,9 +197,10 @@ const getMime = p => MIME_MAP[path.extname(p).toLowerCase()] || 'application/oct
 
 function getCategory(ext) {
   const e = ext.toLowerCase();
-  if (['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp'].includes(e)) return 'video';
+  if (['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp',
+       '.ts','.wmv','.rmvb','.vob','.ogg','.ogv'].includes(e)) return 'video';
   if (['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg','.ico','.tiff','.heic','.heif'].includes(e)) return 'image';
-  if (['.mp3','.wav','.flac','.aac','.ogg','.m4a','.wma'].includes(e)) return 'audio';
+  if (['.mp3','.wav','.flac','.aac','.m4a','.wma'].includes(e)) return 'audio';
   if (['.zip','.tar','.gz','.tgz','.rar','.7z'].includes(e)) return 'archive';
   if (['.apk'].includes(e)) return 'apk';
   return 'file';

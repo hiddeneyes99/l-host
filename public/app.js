@@ -503,6 +503,10 @@ const VP_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const ASPECTS   = ['fit','fill','stretch'];
 const ASPECT_LABELS = { fit:'Fit', fill:'Fill', stretch:'Stretch' };
 
+// Extensions that the HTML5 <video> element can reliably play in modern browsers
+const NATIVE_VIDEO_EXTS = new Set(['.mp4', '.webm', '.ogg', '.ogv', '.m4v']);
+function isNativeVideo(item) { return NATIVE_VIDEO_EXTS.has((item.ext || '').toLowerCase()); }
+
 const vp = {
   item: null,
   url: '',
@@ -1099,18 +1103,41 @@ function openVideo(item, videoSet, videoIdx) {
   }
   vpUpdateNavButtons();
 
-  const newUrl = `/file?path=${encodeURIComponent(item.path)}`;
-  const vid    = $('videoPlayer');
+  const newUrl  = `/file?path=${encodeURIComponent(item.path)}`;
+  const vid     = $('videoPlayer');
+  const native  = isNativeVideo(item);
+  const fallback = $('vpFormatFallback');
 
-  $('vpTitle').textContent  = item.name;
-  $('vpDownloadBtn').href   = newUrl + '&dl=1';
+  $('vpTitle').textContent    = item.name;
+  $('vpDownloadBtn').href     = newUrl + '&dl=1';
   $('vpDownloadBtn').download = item.name;
   $('videoModal').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
   history.pushState({ lhost: true }, '');
-  vid.preload = 'auto'; // restore buffering (was set to 'none' on close)
   vpShowControls();
   vpBuildSpeedMenu();
+
+  if (!native) {
+    // ── Unsupported / legacy format — show fallback panel ───────────────
+    vp.item = item;
+    vp.url  = '';
+    vid.pause();
+    vid.removeAttribute('src');
+    vid.load();
+    vid.style.display = 'none';
+    $('vpControls').style.visibility = 'hidden';
+    $('vpGestureLayer').style.pointerEvents = 'none';
+    fallback.classList.remove('hidden');
+    const dlBtn = $('vpFallbackDlBtn');
+    if (dlBtn) { dlBtn.href = newUrl + '&dl=1'; dlBtn.download = item.name; }
+    return;
+  }
+
+  // ── Native format — restore player, hide fallback ───────────────────
+  vid.style.display = '';
+  $('vpControls').style.visibility = '';
+  $('vpGestureLayer').style.pointerEvents = '';
+  fallback.classList.add('hidden');
 
   if (vp.url === newUrl && vid.readyState >= 1) {
     // ── Same video already loaded — no re-download ──────────────────────
@@ -1127,11 +1154,11 @@ function openVideo(item, videoSet, videoIdx) {
     // ── Different (or first) video — load it ────────────────────────────
     vp.item = item;
     vp.url  = newUrl;
-    // Restore saved prefs to the new element
     vid.volume      = vp.volume;
     vid.muted       = vp.muted;
     vpSetAspect(vp.aspectIdx);
     $('vpBrightness').style.opacity = 1 - vp.brightness;
+    vid.preload      = 'auto';
     vid.src          = newUrl;
     vid.playbackRate = vp.speed;
 
@@ -1151,6 +1178,11 @@ function closeVideo() {
   const vid = $('videoPlayer');
   if (vp.item) saveResume(vp.item.path, vid.currentTime);
   vid.pause();
+  // Reset fallback state
+  $('vpFormatFallback').classList.add('hidden');
+  vid.style.display = '';
+  $('vpControls').style.visibility = '';
+  $('vpGestureLayer').style.pointerEvents = '';
   // Keep vid.src — so re-opening the same video is instant (no re-download).
   // Just reduce buffering by setting preload to none while hidden.
   vid.preload = 'none';
@@ -1865,12 +1897,19 @@ function renderRecentCards(grid, items) {
         <div class="card-overlay"><span class="card-name">${item.name}</span></div>`;
     } else if (item.category === 'video') {
       const videoUrl = `/file?path=${encodeURIComponent(item.path)}`;
-      card.innerHTML = `<div class="vt-thumb" data-thumb-url="${videoUrl}" style="width:100%;height:100%;position:relative;overflow:hidden;">
-          <img class="vt-canvas" style="display:none;width:100%;height:100%;object-fit:cover;" alt="${item.name}">
-          <div class="vt-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a0030,#3a1070);font-size:42px;">🎬</div>
-        </div>
-        <div class="card-overlay"><span class="card-name">${item.name}</span></div>
-        <div class="play-btn"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/></svg></div>`;
+      if (isNativeVideo(item)) {
+        card.innerHTML = `<div class="vt-thumb" data-thumb-url="${videoUrl}" style="width:100%;height:100%;position:relative;overflow:hidden;">
+            <img class="vt-canvas" style="display:none;width:100%;height:100%;object-fit:cover;" alt="${item.name}">
+            <div class="vt-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a0030,#3a1070);font-size:42px;">🎬</div>
+          </div>
+          <div class="card-overlay"><span class="card-name">${item.name}</span></div>
+          <div class="play-btn"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/></svg></div>`;
+      } else {
+        card.innerHTML = `<div class="vt-static-thumb">
+            <div class="play-btn"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/></svg></div>
+          </div>
+          <div class="card-overlay"><span class="card-name">${item.name}</span></div>`;
+      }
     } else if (item.category === 'audio') {
       const [c1, c2] = audioPalette(item.name);
       const artUrl = `/api/art?path=${encodeURIComponent(item.path)}`;
@@ -1889,7 +1928,7 @@ function renderRecentCards(grid, items) {
       const li = card.querySelector('.lazy-img');
       if (li) imgObserver.observe(li);
     }
-    if (item.category === 'video' && thumbObserver) {
+    if (item.category === 'video' && isNativeVideo(item) && thumbObserver) {
       const vtThumb = card.querySelector('.vt-thumb');
       if (vtThumb) thumbObserver.observe(vtThumb);
     }
@@ -1997,11 +2036,17 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
     thumbHtml = `<div class="thumb"><img class="lazy-img" data-src="/api/thumb?path=${encodeURIComponent(item.path)}&w=300&h=225" decoding="async" alt="${item.name}"></div>`;
   } else if (isVid) {
     const videoUrl = `/file?path=${encodeURIComponent(item.path)}`;
-    thumbHtml = `<div class="thumb vt-thumb" data-thumb-url="${videoUrl}">
-      <img class="vt-canvas" style="display:none;width:100%;height:100%;object-fit:cover;" alt="${item.name}">
-      <div class="vt-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a0030,#3a1070);"><span style="font-size:28px;opacity:0.5;">🎬</span></div>
-      <div class="video-play-overlay" style="opacity:0;transition:opacity 0.3s;"><div class="play-circle"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
-    </div>`;
+    if (isNativeVideo(item)) {
+      thumbHtml = `<div class="thumb vt-thumb" data-thumb-url="${videoUrl}">
+        <img class="vt-canvas" style="display:none;width:100%;height:100%;object-fit:cover;" alt="${item.name}">
+        <div class="vt-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a0030,#3a1070);"><span style="font-size:28px;opacity:0.5;">🎬</span></div>
+        <div class="video-play-overlay" style="opacity:0;transition:opacity 0.3s;"><div class="play-circle"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
+      </div>`;
+    } else {
+      thumbHtml = `<div class="thumb vt-static-thumb">
+        <div class="play-circle"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+      </div>`;
+    }
   } else if (isAudio) {
     const [c1, c2] = audioPalette(item.name);
     const artUrl = `/api/art?path=${encodeURIComponent(item.path)}`;
@@ -2042,7 +2087,7 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
     if (artEl) audioArtObserver.observe(artEl);
   }
 
-  if (isVid && thumbObserver) {
+  if (isVid && isNativeVideo(item) && thumbObserver) {
     const vtThumb = el.querySelector('.vt-thumb');
     if (vtThumb) thumbObserver.observe(vtThumb);
   }
