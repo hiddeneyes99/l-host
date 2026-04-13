@@ -507,6 +507,20 @@ const ASPECT_LABELS = { fit:'Fit', fill:'Fill', stretch:'Stretch' };
 const NATIVE_VIDEO_EXTS = new Set(['.mp4', '.webm', '.ogg', '.ogv', '.m4v']);
 function isNativeVideo(item) { return NATIVE_VIDEO_EXTS.has((item.ext || '').toLowerCase()); }
 
+const NATIVE_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico', '.avif', '.apng']);
+const HEIC_IMAGE_EXTS = new Set(['.heic', '.heif']);
+const PRO_IMAGE_EXTS = new Set(['.raw', '.cr2', '.nef', '.arw', '.dng', '.psd', '.ai', '.tiff', '.tif']);
+function imageFormatInfo(item) {
+  const ext = (item.ext || '').toLowerCase();
+  if (NATIVE_IMAGE_EXTS.has(ext)) return { native: true, badge: '', className: '' };
+  if (HEIC_IMAGE_EXTS.has(ext)) return { native: false, badge: 'HEIC', className: 'format-thumb-heic' };
+  if (PRO_IMAGE_EXTS.has(ext)) {
+    const raw = ['.raw', '.cr2', '.nef', '.arw', '.dng'].includes(ext);
+    return { native: false, badge: raw ? 'RAW' : ext.replace('.', '').toUpperCase(), className: raw ? 'format-thumb-raw' : 'format-thumb-pro' };
+  }
+  return { native: false, badge: (ext || '.IMG').replace('.', '').toUpperCase(), className: 'format-thumb-pro' };
+}
+
 const vp = {
   item: null,
   url: '',
@@ -2033,7 +2047,15 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
 
   let thumbHtml;
   if (isImg) {
-    thumbHtml = `<div class="thumb"><img class="lazy-img" data-src="/api/thumb?path=${encodeURIComponent(item.path)}&w=300&h=225" decoding="async" alt="${item.name}"></div>`;
+    const fmt = imageFormatInfo(item);
+    if (fmt.native) {
+      thumbHtml = `<div class="thumb"><img class="lazy-img" data-src="/api/thumb?path=${encodeURIComponent(item.path)}&w=300&h=225" decoding="async" alt="${item.name}"></div>`;
+    } else {
+      thumbHtml = `<div class="thumb format-thumb ${fmt.className}">
+        <div class="format-thumb-mark">${fmt.badge.slice(0, 1)}</div>
+        <span class="format-thumb-badge">${fmt.badge}</span>
+      </div>`;
+    }
   } else if (isVid) {
     const videoUrl = `/file?path=${encodeURIComponent(item.path)}`;
     if (isNativeVideo(item)) {
@@ -2077,7 +2099,7 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
       <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
     </button>`;
 
-  if (isImg && imgObserver) {
+  if (isImg && imgObserver && imageFormatInfo(item).native) {
     const lazyImg = el.querySelector('.lazy-img');
     if (lazyImg) imgObserver.observe(lazyImg);
   }

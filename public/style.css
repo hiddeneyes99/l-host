@@ -384,6 +384,50 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   color: #fff;
   font-weight: 600;
 }
+.file-item .format-thumb {
+  background: radial-gradient(circle at 25% 20%, rgba(255,255,255,0.16), transparent 34%),
+              linear-gradient(135deg, #1b2334, #0b0f18);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.file-item .format-thumb-heic {
+  background: radial-gradient(circle at 28% 18%, rgba(121,223,255,0.22), transparent 34%),
+              linear-gradient(135deg, #102033, #0d3d4d);
+}
+.file-item .format-thumb-raw {
+  background: radial-gradient(circle at 28% 18%, rgba(255,181,93,0.24), transparent 34%),
+              linear-gradient(135deg, #2c1d0c, #4b2f12);
+}
+.file-item .format-thumb-pro {
+  background: radial-gradient(circle at 28% 18%, rgba(188,141,255,0.24), transparent 34%),
+              linear-gradient(135deg, #201635, #3d225f);
+}
+.format-thumb-mark {
+  width: 44px;
+  height: 54px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.88);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+.format-thumb-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.48);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
 .file-item .item-info {
   padding: 8px;
   flex: 1;
@@ -437,6 +481,13 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .file-grid.list-view .file-item .item-more { opacity: 1; position: static; background: none; }
 .file-grid.list-view .file-item .item-more svg { color: var(--text3); }
 .file-grid.list-view .file-item .thumb .video-badge { display: none; }
+.file-grid.list-view .format-thumb-mark {
+  width: 22px;
+  height: 27px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.file-grid.list-view .format-thumb-badge { display: none; }
 
 /* ── DIR ITEM ── */
 .dir-item .thumb { background: transparent; }
@@ -721,6 +772,82 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   object-fit: contain;
   user-select: none;
   transition: opacity 0.2s;
+}
+.iv-unsupported-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+.iv-unsupported-card {
+  width: min(420px, calc(100vw - 56px));
+  padding: 28px;
+  border-radius: 26px;
+  text-align: center;
+  background: rgba(10, 13, 21, 0.78);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 24px 90px rgba(0,0,0,0.42);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.iv-unsupported-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 70px;
+  height: 42px;
+  padding: 0 14px;
+  margin-bottom: 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(0,212,200,0.22), rgba(188,141,255,0.18));
+  border: 1px solid rgba(255,255,255,0.16);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+.iv-unsupported-title {
+  color: #fff;
+  font-size: 19px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.iv-unsupported-msg {
+  color: rgba(255,255,255,0.68);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.iv-heic-preview-btn {
+  margin-top: 20px;
+  height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #00d4c8, #4f8cff);
+  color: #051015;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 12px 32px rgba(0,212,200,0.18);
+}
+.iv-heic-preview-btn:disabled {
+  cursor: wait;
+  opacity: 0.8;
+}
+.iv-heic-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(5,16,21,0.25);
+  border-top-color: #051015;
+  animation: iv-spin 0.75s linear infinite;
+}
+.iv-unsupported-error .iv-unsupported-msg {
+  color: #ffb7b7;
 }
 .nav-arrow {
   position: absolute;

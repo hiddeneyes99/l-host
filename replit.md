@@ -31,6 +31,7 @@ package.json     - npm manifest
 - `compression` for gzip response compression
 - `exifr` for image metadata extraction
 - `music-metadata` for audio artwork and tag metadata
+- `heic2any` for browser-side HEIC/HEIF conversion when the user requests a preview
 
 ## Replit Compatibility
 
@@ -65,6 +66,7 @@ ROOT_DIR=/ node server.js
 - Category filtering for videos, images, audio, files, archives, and APKs
 - Video player with range streaming, capped chunks, seeking gestures, resume support, and preview thumbnails
 - Advanced image viewer with zoom, pan, metadata, and filters
+- Native image formats use standard previews; HEIC/HEIF uses on-demand viewer conversion; RAW/Pro image formats show static fallback cards with download support
 - Music player with queue, artwork extraction, and visualizer
 - Text/code viewer
 - File upload
@@ -80,6 +82,7 @@ ROOT_DIR=/ node server.js
 - Persistent file index stored in `data/index.json`
 - Background index refresh and filesystem watcher when available
 - Image thumbnail caches for media previews
+- HEIC/HEIF, RAW, DNG, PSD, AI, and TIFF-style formats are excluded from automatic server-side thumbnail and preview generation
 - Video thumbnails and timeline previews are generated in the browser with canvas instead of server-side FFmpeg work
 - 4 MB video chunk cap for safer streaming in constrained environments
 

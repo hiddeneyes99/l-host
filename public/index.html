@@ -585,6 +585,17 @@
             <div class="iv-slot" id="ivSlotCur">
               <div class="iv-img-wrap" id="ivImgWrap">
                 <img id="imagePlayer" alt="" draggable="false" decoding="async" />
+                <div class="iv-unsupported-panel hidden" id="ivUnsupportedPanel">
+                  <div class="iv-unsupported-card">
+                    <div class="iv-unsupported-badge" id="ivUnsupportedBadge">IMG</div>
+                    <div class="iv-unsupported-title" id="ivUnsupportedTitle">Preview not supported</div>
+                    <div class="iv-unsupported-msg" id="ivUnsupportedMsg">Please download to view original quality.</div>
+                    <button class="iv-heic-preview-btn hidden" id="ivHeicPreviewBtn" type="button">
+                      <span class="iv-heic-spinner hidden" id="ivHeicSpinner"></span>
+                      <span id="ivHeicBtnText">Generate High-Quality Preview</span>
+                    </button>
+                  </div>
+                </div>
                 <div class="iv-load-ring" id="ivLoadRing"></div>
               </div>
             </div>

@@ -180,8 +180,12 @@ const MIME_MAP = {
   '.aac':'audio/aac','.m4a':'audio/mp4','.wma':'audio/x-ms-wma',
   '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif',
   '.webp':'image/webp','.bmp':'image/bmp','.svg':'image/svg+xml',
-  '.ico':'image/x-icon','.tiff':'image/tiff',
+  '.ico':'image/x-icon','.avif':'image/avif','.apng':'image/apng',
+  '.tiff':'image/tiff','.tif':'image/tiff',
   '.heic':'image/heic','.heif':'image/heif',
+  '.raw':'image/x-raw','.cr2':'image/x-canon-cr2','.nef':'image/x-nikon-nef',
+  '.arw':'image/x-sony-arw','.dng':'image/x-adobe-dng',
+  '.psd':'image/vnd.adobe.photoshop','.ai':'image/vnd.adobe.illustrator',
   '.pdf':'application/pdf','.txt':'text/plain','.md':'text/markdown',
   '.log':'text/plain','.json':'application/json','.xml':'application/xml',
   '.html':'text/html','.css':'text/css','.js':'application/javascript',
@@ -194,12 +198,21 @@ const MIME_MAP = {
 };
 
 const getMime = p => MIME_MAP[path.extname(p).toLowerCase()] || 'application/octet-stream';
+const IMAGE_EXTS = new Set([
+  '.jpg','.jpeg','.png','.gif','.webp','.svg','.bmp','.ico','.avif','.apng',
+  '.heic','.heif',
+  '.raw','.cr2','.nef','.arw','.dng','.psd','.ai','.tiff','.tif',
+]);
+const THUMBNAIL_IMAGE_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.svg','.bmp','.ico','.avif','.apng']);
+function canGenerateServerImagePreview(filePath) {
+  return THUMBNAIL_IMAGE_EXTS.has(path.extname(filePath || '').toLowerCase());
+}
 
 function getCategory(ext) {
   const e = ext.toLowerCase();
   if (['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp',
        '.ts','.wmv','.rmvb','.vob','.ogg','.ogv'].includes(e)) return 'video';
-  if (['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg','.ico','.tiff','.heic','.heif'].includes(e)) return 'image';
+  if (IMAGE_EXTS.has(e)) return 'image';
   if (['.mp3','.wav','.flac','.aac','.m4a','.wma'].includes(e)) return 'audio';
   if (['.zip','.tar','.gz','.tgz','.rar','.7z'].includes(e)) return 'archive';
   if (['.apk'].includes(e)) return 'apk';
@@ -520,6 +533,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
     }
   },
 }));
+app.use('/vendor/heic2any', express.static(path.dirname(require.resolve('heic2any'))));
 
 // ── Category-organised data directories ────────────────────────────────────
 //  data/image/  → image index.json + thumbs/
@@ -695,6 +709,7 @@ async function generateThumbnail(absPath, w, h) {
   const isImage = mime.startsWith('image/');
   const isVideo = mime.startsWith('video/');
   if (!isImage && !isVideo) return null;
+  if (isImage && !canGenerateServerImagePreview(absPath)) return null;
 
   return thumbThrottle(async () => {
     if (isVideo) return generateVideoThumbnail(absPath, w, h);
@@ -723,6 +738,7 @@ async function thumbWorkerLoop() {
       const mime = getMime(absPath);
       const isMedia = mime.startsWith('image/');
       if (!isMedia) continue;
+      if (!canGenerateServerImagePreview(absPath)) continue;
       const cat      = 'image';
       const typeTag  = 'i';
       const etag = `"th4-${typeTag}-${THUMB_W}x${THUMB_H}-${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
@@ -761,6 +777,7 @@ function enqueueThumbOnDemand(relPath) {
   if (!item || item.type === 'dir') return;
   const mime = getMime(item.name);
   if (!mime.startsWith('image/')) return;
+  if (!canGenerateServerImagePreview(item.name)) return;
   // Push to front of queue so on-demand items are processed first
   thumbQueue.jobs.unshift(item);
   if (thumbQueue.running < thumbQueue.WORKERS) {
@@ -833,6 +850,9 @@ app.get('/api/thumb', async (req, res) => {
 
   if (isVideo) {
     return res.status(404).json({ clientSide: true });
+  }
+  if (!canGenerateServerImagePreview(absPath)) {
+    return res.status(404).json({ unsupportedPreview: true });
   }
 
   const w       = Math.min(600, Math.max(50, parseInt(req.query.w || String(THUMB_W), 10)));
@@ -931,6 +951,7 @@ app.get('/api/preview', async (req, res) => {
 
   const mime = getMime(absPath);
   if (!mime.startsWith('image/')) return res.status(404).end();
+  if (!canGenerateServerImagePreview(absPath)) return res.status(415).end();
 
   // Small images → full original is fine, redirect directly
   if (stat.size < PREVIEW_MIN) {

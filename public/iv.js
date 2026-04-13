@@ -57,10 +57,16 @@ const iv = {
   mouseLastClick: 0,
 
   velBuf: [],
+  heicPreviewUrls: new Map(),
+  heicScriptPromise: null,
 };
 
 const $  = id => document.getElementById(id);
 const clamp = (v,lo,hi) => Math.max(lo, Math.min(hi, v));
+const IV_NATIVE_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico', '.avif', '.apng']);
+const IV_HEIC_EXTS = new Set(['.heic', '.heif']);
+const IV_PRO_EXTS = new Set(['.raw', '.cr2', '.nef', '.arw', '.dng', '.psd', '.ai', '.tiff', '.tif']);
+const IV_HEIC_CACHE_MAX = 3;
 
 function stageSize() {
   const s = $('ivStage');
@@ -83,6 +89,24 @@ function ivGetThumbUrl(item) {
   if (item._demo) return item.thumb || item.url;
   if (item._heicPreview) return item._heicPreview;
   return `/api/thumb?path=${encodeURIComponent(item.path)}&w=300&h=225`;
+}
+function ivExt(item) {
+  return (item?.ext || '').toLowerCase();
+}
+function ivIsHeic(item) {
+  return IV_HEIC_EXTS.has(ivExt(item));
+}
+function ivIsBrowserImage(item) {
+  if (!item) return false;
+  if (item._demo || item._heicPreview) return true;
+  return IV_NATIVE_IMAGE_EXTS.has(ivExt(item));
+}
+function ivUnsupportedBadge(item) {
+  const ext = ivExt(item);
+  if (IV_HEIC_EXTS.has(ext)) return 'HEIC';
+  if (['.raw', '.cr2', '.nef', '.arw', '.dng'].includes(ext)) return 'RAW';
+  if (IV_PRO_EXTS.has(ext)) return ext.replace('.', '').toUpperCase();
+  return (ext || '.IMG').replace('.', '').toUpperCase();
 }
 function ivGetMeta(item) {
   if (item._demo) return item.meta;
@@ -234,6 +258,12 @@ function ivHidePinchDot()     { const d=$('ivPinchDot'); if(!d)return; d.classLi
 // ── Image loading ─────────────────────────────────────────────────────────
 function ivLoadImg(imgEl, item, thumbOnly) {
   if (!imgEl || !item) { if(imgEl) imgEl.src=''; return; }
+  if (!ivIsBrowserImage(item)) {
+    imgEl.removeAttribute('src');
+    imgEl.style.display = 'none';
+    return;
+  }
+  imgEl.style.display = '';
   const thumbUrl = ivGetThumbUrl(item);
   const viewUrl  = ivGetViewUrl(item);
   imgEl.src = thumbUrl;
@@ -245,47 +275,104 @@ function ivLoadImg(imgEl, item, thumbOnly) {
   }
 }
 
+function ivHideUnsupported() {
+  const panel = $('ivUnsupportedPanel');
+  if (panel) panel.classList.add('hidden');
+}
+
+function ivSetUnsupported(item, state = 'idle', error = '') {
+  const panel = $('ivUnsupportedPanel');
+  if (!panel) return;
+  const badge = $('ivUnsupportedBadge');
+  const title = $('ivUnsupportedTitle');
+  const msg = $('ivUnsupportedMsg');
+  const btn = $('ivHeicPreviewBtn');
+  const spinner = $('ivHeicSpinner');
+  const btnText = $('ivHeicBtnText');
+  const isHeic = ivIsHeic(item);
+  if (badge) badge.textContent = ivUnsupportedBadge(item);
+  if (title) title.textContent = isHeic ? 'HEIC preview is available on demand' : 'Preview not natively supported by browser';
+  if (msg) {
+    msg.textContent = error || (isHeic
+      ? 'This iPhone photo is kept unloaded to protect CPU and memory. Generate a preview only when you need it.'
+      : 'Preview not natively supported by browser. Please download to view original quality.');
+  }
+  if (btn) {
+    btn.classList.toggle('hidden', !isHeic);
+    btn.disabled = state === 'loading';
+  }
+  if (spinner) spinner.classList.toggle('hidden', state !== 'loading');
+  if (btnText) btnText.textContent = state === 'loading' ? 'Generating preview…' : 'Generate High-Quality Preview';
+  panel.classList.remove('hidden', 'iv-unsupported-error');
+  if (state === 'error') panel.classList.add('iv-unsupported-error');
+}
+
+function ivDisplayCurrent(cur, mode = 'open') {
+  const wrap = $('ivImgWrap');
+  const curImg = $('imagePlayer');
+  if (!curImg || !cur) return;
+  if (!ivIsBrowserImage(cur)) {
+    if (wrap) wrap.classList.remove('iv-loading');
+    curImg.removeAttribute('src');
+    curImg.style.display = 'none';
+    curImg.style.transition = 'none';
+    curImg.style.opacity = '1';
+    curImg.style.filter = '';
+    ivResetWrap(false);
+    ivSetUnsupported(cur);
+    return;
+  }
+
+  ivHideUnsupported();
+  curImg.style.display = 'block';
+  const thumbUrl = ivGetThumbUrl(cur);
+  const viewUrl  = ivGetViewUrl(cur);
+  curImg.style.transition = 'none';
+  curImg.style.opacity = '1';
+  curImg.style.filter = mode === 'nav' ? 'blur(16px)' : (iv.filter || '');
+  curImg.src = thumbUrl;
+  if (wrap) wrap.classList.add('iv-loading');
+
+  const loader = new window.Image();
+  loader.decoding = 'async';
+  loader.onload = () => {
+    if (!curImg || iv.list[iv.idx] !== cur) return;
+    if (wrap) wrap.classList.remove('iv-loading');
+    if (mode === 'nav') {
+      curImg.src = viewUrl;
+      requestAnimationFrame(() => {
+        curImg.style.transition = 'filter 0.30s ease';
+        curImg.style.filter = iv.filter || '';
+        ivSampleBgColor(loader);
+      });
+      return;
+    }
+    curImg.style.transition = 'opacity 0.18s ease';
+    curImg.style.opacity = '0.01';
+    requestAnimationFrame(() => {
+      curImg.src = viewUrl;
+      requestAnimationFrame(() => {
+        curImg.style.opacity = '1';
+        ivSampleBgColor(loader);
+      });
+    });
+  };
+  loader.onerror = () => {
+    if (wrap) wrap.classList.remove('iv-loading');
+    if (curImg) {
+      curImg.style.transition = 'filter 0.30s ease';
+      curImg.style.filter = iv.filter || '';
+    }
+  };
+  loader.src = viewUrl;
+}
+
 function ivUpdateSlots() {
   const prev = iv.list[(iv.idx - 1 + iv.list.length) % iv.list.length];
   const cur  = iv.list[iv.idx];
   const next = iv.list[(iv.idx + 1) % iv.list.length];
-  const wrap = $('ivImgWrap');
   const curImg = $('imagePlayer');
-  if (curImg) {
-    const thumbUrl = ivGetThumbUrl(cur);
-    const viewUrl  = ivGetViewUrl(cur);
-
-    // Show thumbnail instantly — no blank screen
-    curImg.style.transition = 'none';
-    curImg.style.opacity = '1';
-    curImg.style.filter = iv.filter || '';
-    curImg.src = thumbUrl;
-
-    // Show loading ring while full-res loads
-    if (wrap) wrap.classList.add('iv-loading');
-
-    // Load full-quality silently in background
-    const loader = new window.Image();
-    loader.decoding = 'async';
-    loader.onload = () => {
-      if (!curImg || iv.list[iv.idx] !== cur) return;
-      if (wrap) wrap.classList.remove('iv-loading');
-      // Seamless swap: brief opacity dip so browser paints new src cleanly
-      curImg.style.transition = 'opacity 0.18s ease';
-      curImg.style.opacity = '0.01';
-      requestAnimationFrame(() => {
-        curImg.src = viewUrl;
-        requestAnimationFrame(() => {
-          curImg.style.opacity = '1';
-          ivSampleBgColor(loader);
-        });
-      });
-    };
-    loader.onerror = () => {
-      if (wrap) wrap.classList.remove('iv-loading');
-    };
-    loader.src = viewUrl;
-  }
+  if (curImg) ivDisplayCurrent(cur, 'open');
   ivLoadImg($('ivImgPrev'), prev, true);
   ivLoadImg($('ivImgNext'), next, true);
 }
@@ -293,7 +380,66 @@ function ivUpdateSlots() {
 function ivPreload() {
   const prev = iv.list[(iv.idx - 1 + iv.list.length) % iv.list.length];
   const next = iv.list[(iv.idx + 1) % iv.list.length];
-  [prev, next].forEach(item => { if (item) { const i=new window.Image(); i.decoding='async'; i.src=ivGetViewUrl(item); } });
+  [prev, next].forEach(item => { if (item && ivIsBrowserImage(item)) { const i=new window.Image(); i.decoding='async'; i.src=ivGetViewUrl(item); } });
+}
+
+function ivLoadHeicLib() {
+  if (window.heic2any) return Promise.resolve(window.heic2any);
+  if (iv.heicScriptPromise) return iv.heicScriptPromise;
+  iv.heicScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/vendor/heic2any/heic2any.min.js';
+    script.async = true;
+    script.onload = () => window.heic2any ? resolve(window.heic2any) : reject(new Error('HEIC converter unavailable'));
+    script.onerror = () => reject(new Error('Could not load HEIC converter'));
+    document.head.appendChild(script);
+  });
+  return iv.heicScriptPromise;
+}
+
+function ivRememberHeicPreview(item, url) {
+  const key = item.path || item.name;
+  const old = iv.heicPreviewUrls.get(key);
+  if (old) URL.revokeObjectURL(old);
+  iv.heicPreviewUrls.set(key, url);
+  item._heicPreview = url;
+  while (iv.heicPreviewUrls.size > IV_HEIC_CACHE_MAX) {
+    const [oldKey, oldUrl] = iv.heicPreviewUrls.entries().next().value;
+    URL.revokeObjectURL(oldUrl);
+    iv.heicPreviewUrls.delete(oldKey);
+    iv.list.forEach(i => {
+      if ((i.path || i.name) === oldKey) delete i._heicPreview;
+    });
+  }
+}
+
+async function ivGenerateHeicPreview(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  const item = iv.list[iv.idx];
+  if (!item || !ivIsHeic(item)) return;
+  if (item._heicPreview) {
+    ivDisplayCurrent(item, 'open');
+    return;
+  }
+  ivSetUnsupported(item, 'loading');
+  try {
+    const heic2any = await ivLoadHeicLib();
+    const res = await fetch(`/file?path=${encodeURIComponent(item.path)}`);
+    if (!res.ok) throw new Error('Could not read HEIC file');
+    const blob = await res.blob();
+    const converted = await heic2any({ blob, toType: 'image/jpeg', quality: 0.92 });
+    const jpeg = Array.isArray(converted) ? converted[0] : converted;
+    const url = URL.createObjectURL(jpeg);
+    ivRememberHeicPreview(item, url);
+    if (iv.list[iv.idx] === item) ivDisplayCurrent(item, 'open');
+  } catch (err) {
+    if (iv.list[iv.idx] === item) {
+      ivSetUnsupported(item, 'error', err?.message || 'Could not generate HEIC preview. Please download the original file.');
+    }
+  }
 }
 
 // ── Update header/counter ─────────────────────────────────────────────────
@@ -305,7 +451,7 @@ function ivRefreshUI() {
   const _ctr = $('imageCounter'); if (_ctr) _ctr.textContent = `${iv.idx + 1} / ${iv.list.length}`;
   const dl = $('imageDl');
   if (dl) {
-    const url = ivGetUrl(item);
+    const url = item._demo ? ivGetUrl(item) : `/file?path=${encodeURIComponent(item.path)}`;
     dl.href = item._demo ? url : url + '&dl=1';
     if (!item._demo) dl.download = title;
   }
@@ -391,6 +537,10 @@ function _ivReset() {
   $('imageModal').style.background = '';
   document.body.style.overflow = '';
   ['imagePlayer', 'ivImgPrev', 'ivImgNext'].forEach(id => { const el=$(id); if(el) el.src=''; });
+  iv.heicPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+  iv.heicPreviewUrls.clear();
+  iv.list.forEach(item => { if (item && item._heicPreview) delete item._heicPreview; });
+  ivHideUnsupported();
   $('ivMetaModal').classList.add('hidden');
   const slot = $('ivSlotCur');
   if (slot) { slot.style.transform=''; slot.style.opacity='1'; slot.style.transition='none'; }
@@ -427,44 +577,15 @@ function _ivAfterNav(direction) {
   if (wrap) { wrap.style.transition='none'; wrap.style.transform='translate(0,0) scale(1) rotate(0deg)'; }
 
   const cur = iv.list[iv.idx];
-  const thumbUrl = ivGetThumbUrl(cur);
-  const vUrl = ivGetViewUrl(cur);
 
   // Show blurred thumbnail instantly — visible placeholder while full-res loads
-  if (curImg) {
-    curImg.style.transition = 'none';
-    curImg.style.opacity = '1';
-    curImg.style.filter = 'blur(16px)';
-    curImg.src = thumbUrl;
-  }
+  if (curImg) ivDisplayCurrent(cur, 'nav');
 
   // Update the adjacent (opposite) slot
   const newAdjItem = direction === 'next'
     ? iv.list[(iv.idx + 1) % iv.list.length]
     : iv.list[(iv.idx - 1 + iv.list.length) % iv.list.length];
   if (prevImg && nextImg) ivLoadImg(direction === 'next' ? nextImg : prevImg, newAdjItem, true);
-
-  // Loading ring
-  if (wrap) wrap.classList.add('iv-loading');
-
-  // Load full-quality in background — unblur when ready
-  const loader = new window.Image();
-  loader.decoding = 'async';
-  loader.onload = () => {
-    if (!curImg || iv.list[iv.idx] !== cur) return;
-    if (wrap) wrap.classList.remove('iv-loading');
-    curImg.src = vUrl;
-    requestAnimationFrame(() => {
-      curImg.style.transition = 'filter 0.30s ease';
-      curImg.style.filter = iv.filter || '';
-      ivSampleBgColor(loader);
-    });
-  };
-  loader.onerror = () => {
-    if (wrap) wrap.classList.remove('iv-loading');
-    if (curImg) { curImg.style.transition = 'filter 0.30s ease'; curImg.style.filter = iv.filter || ''; }
-  };
-  loader.src = vUrl;
 
   ivRefreshUI(); ivShowZoomBadge(); ivPreload();
 }
@@ -991,6 +1112,8 @@ function ivInit() {
   if (_filterBtn) _filterBtn.addEventListener('click', ivToggleFilter);
   $('ivInfoBtn').addEventListener('click',   ivToggleMeta);
   $('ivMoreBtn').addEventListener('click', e => { e.stopPropagation(); ivToggleMore(); });
+  const heicBtn = $('ivHeicPreviewBtn');
+  if (heicBtn) heicBtn.addEventListener('click', ivGenerateHeicPreview);
 
   // More menu items (zoom + rotate only)
   $('ivZoomInBtn').addEventListener('click',    () => { ivZoomBy(0.5); ivCloseMore(); });
