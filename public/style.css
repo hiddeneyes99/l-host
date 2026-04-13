@@ -411,7 +411,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 }
 .file-type-fa {
   color: #f42534;
-  font-size: 50px;
+  font-size: 68px;
   line-height: 1;
   filter: drop-shadow(0 8px 18px rgba(244,37,52,0.22));
 }
@@ -542,7 +542,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 }
 .file-grid.list-view .file-item .thumb .file-icon-big { font-size: 22px; }
 .file-grid.list-view .file-type-img { width: 66%; height: 74%; }
-.file-grid.list-view .file-type-fa { font-size: 27px; }
+.file-grid.list-view .file-type-fa { font-size: 34px; }
 .file-grid.list-view .file-item .item-info { padding: 0; }
 .file-grid.list-view .file-item .item-name { -webkit-line-clamp: 1; }
 .file-grid.list-view .file-item .item-more { opacity: 1; position: static; background: none; }
