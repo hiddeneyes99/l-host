@@ -2245,13 +2245,78 @@ function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
   }
 }
 
-// ── PDF Viewer ──────────────────────────────────────────────────────────────
-function openPdf(item, url) {
+// ── PDF Viewer (PDF.js canvas renderer — works on mobile) ──────────────────
+let _pdfLoadTask = null;
+function _cancelPdf() {
+  if (_pdfLoadTask) { try { _pdfLoadTask.destroy(); } catch(_) {} _pdfLoadTask = null; }
+  $('pdfCanvasWrap').innerHTML = '';
+}
+
+async function openPdf(item, url) {
   $('pdfTitle').textContent = item.name;
   $('pdfDl').href = url + '&dl=1';
   $('pdfDl').download = item.name;
-  $('pdfFrame').src = url;
   openModal('pdfModal');
+  await _renderPdfPages(url);
+}
+
+async function _renderPdfPages(url) {
+  const wrap = $('pdfCanvasWrap');
+  wrap.innerHTML = `<div class="pdf-loading"><div class="pdf-spinner"></div><span>Loading PDF…</span></div>`;
+
+  // Cancel any previous load
+  if (_pdfLoadTask) { try { _pdfLoadTask.destroy(); } catch(_) {} _pdfLoadTask = null; }
+
+  // Fallback if PDF.js didn't load (no internet)
+  if (typeof pdfjsLib === 'undefined') {
+    wrap.innerHTML = `<div class="pdf-error">⚠️ PDF renderer unavailable.<br>
+      <a class="vp-fallback-dl-btn" href="${url}&dl=1" download>Download PDF</a></div>`;
+    return;
+  }
+
+  const task = pdfjsLib.getDocument(url);
+  _pdfLoadTask = task;
+
+  try {
+    const pdf = await task.promise;
+    wrap.innerHTML = '';
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap at 2× for memory
+    const containerW = wrap.clientWidth || window.innerWidth;
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const baseVP  = page.getViewport({ scale: 1 });
+      const scale   = (containerW / baseVP.width) * dpr;
+      const viewport = page.getViewport({ scale });
+
+      const pageWrap = document.createElement('div');
+      pageWrap.className = 'pdf-page-wrap';
+
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      canvas.style.width  = '100%';
+      canvas.style.display = 'block';
+
+      pageWrap.appendChild(canvas);
+
+      if (pdf.numPages > 1) {
+        const lbl = document.createElement('div');
+        lbl.className = 'pdf-page-label';
+        lbl.textContent = `${pageNum} / ${pdf.numPages}`;
+        pageWrap.appendChild(lbl);
+      }
+
+      wrap.appendChild(pageWrap);
+
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    }
+  } catch (err) {
+    if (err?.name === 'TaskCancelled' || err?.message?.includes('cancelled')) return;
+    wrap.innerHTML = `<div class="pdf-error">⚠️ Could not render PDF.<br><small>${err.message}</small><br>
+      <a class="vp-fallback-dl-btn" href="${url}&dl=1" download style="margin-top:12px;">Download PDF</a></div>`;
+  }
 }
 
 // ── HEIC / HEIF viewer — server converts to JPEG ──────────────────────────
@@ -2801,12 +2866,12 @@ document.addEventListener('DOMContentLoaded', () => {
    // Non-video modals close (image viewer handled by ivInit)
   ['audio','text','info','upload','pdf','archive'].forEach(name => {
     $(`${name}Close`).addEventListener('click', () => {
-      if (name === 'pdf') $('pdfFrame').src = '';
+      if (name === 'pdf') _cancelPdf();
       closeModal(`${name}Modal`);
     });
     const bd = $(`${name}Backdrop`);
     if (bd) bd.addEventListener('click', () => {
-      if (name === 'pdf') $('pdfFrame').src = '';
+      if (name === 'pdf') _cancelPdf();
       closeModal(`${name}Modal`);
     });
   });
@@ -2895,7 +2960,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (videoOpen) { closeVideo(); return; }
       ['audioModal','textModal','infoModal','uploadModal','folderModal','pdfModal','archiveModal'].forEach(id => {
         if (!$(id).classList.contains('hidden')) {
-          if (id === 'pdfModal') $('pdfFrame').src = '';
+          if (id === 'pdfModal') _cancelPdf();
           closeModal(id);
         }
       });

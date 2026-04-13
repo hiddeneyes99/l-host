@@ -2731,12 +2731,70 @@ img.lazy-img:not([src]) {
   flex-direction: column;
   background: var(--bg);
 }
-.pdf-frame {
+.pdf-canvas-wrap {
   flex: 1;
   width: 100%;
-  border: none;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: #525659;
+  padding: 12px;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 }
+.pdf-page-wrap {
+  margin: 0 auto 10px;
+  max-width: 900px;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  background: #fff;
+  line-height: 0;
+  position: relative;
+}
+.pdf-page-label {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  pointer-events: none;
+  line-height: 1.4;
+}
+.pdf-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 200px;
+  color: rgba(255,255,255,0.6);
+  font-size: 15px;
+}
+.pdf-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255,255,255,0.15);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.pdf-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 200px;
+  color: rgba(255,255,255,0.7);
+  font-size: 15px;
+  text-align: center;
+  padding: 24px;
+  line-height: 1.6;
+}
+.pdf-error small { color: rgba(255,255,255,0.4); font-size: 12px; }
 
 /* ARCHIVE VIEWER MODAL */
 .archive-container {

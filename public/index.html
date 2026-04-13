@@ -842,7 +842,12 @@
             </svg>
           </a>
         </div>
-        <iframe class="pdf-frame" id="pdfFrame" src="" title="PDF Viewer"></iframe>
+        <div class="pdf-canvas-wrap" id="pdfCanvasWrap">
+          <div class="pdf-loading" id="pdfLoading">
+            <div class="pdf-spinner"></div>
+            <span>Loading PDF…</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -940,6 +945,13 @@
       </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+      if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+    </script>
     <script src="/iv.js"></script>
     <script src="/app.js"></script>
     <script>
