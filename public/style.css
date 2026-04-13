@@ -3231,28 +3231,71 @@ img.lazy-img:not([src]) {
   80%, 100% { transform: translateX(var(--marquee-dist, 0px)); }
 }
 
-/* Visualizer wrap with mode buttons */
+/* Visualizer wrap */
 .mp-viz-wrap {
   position: relative;
   z-index: 1;
 }
-.mp-viz-modes {
+
+/* ── More menu ────────────────────────────────────────────────────────── */
+.mp-more-wrap {
+  position: relative;
+}
+.mp-more-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -4px;
+  min-width: 190px;
+  padding: 10px 8px 12px;
+  background: rgba(22,26,38,0.97);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  box-shadow: 0 10px 36px rgba(0,0,0,0.6);
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px) scale(0.96);
+  transition: opacity 0.17s ease, transform 0.17s ease;
+}
+.mp-more-popup.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.mp-more-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding: 2px 8px 8px;
+}
+.mp-more-viz-row {
   display: flex;
-  justify-content: center;
   gap: 6px;
-  padding: 3px 0 6px;
+  padding: 0 2px;
 }
 .mp-viz-mode-btn {
-  width: 30px; height: 22px;
-  font-size: 11px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 4px 8px;
+  border-radius: 10px;
   color: var(--text3);
-  border-radius: 6px;
-  transition: color 0.2s, background 0.15s;
-  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: rgba(255,255,255,0.04);
+  transition: color 0.18s, background 0.18s, transform 0.12s;
   -webkit-tap-highlight-color: transparent;
 }
-.mp-viz-mode-btn:hover  { color: var(--text); }
-.mp-viz-mode-btn.active { color: var(--accent); background: rgba(0,212,200,0.13); }
+.mp-viz-mode-btn svg { width: 20px; height: 14px; flex-shrink: 0; }
+.mp-viz-mode-btn[data-mode="circle"] svg { height: 18px; }
+.mp-viz-mode-btn:hover  { color: var(--text); background: rgba(255,255,255,0.08); }
+.mp-viz-mode-btn:active { transform: scale(0.92); }
+.mp-viz-mode-btn.active { color: var(--accent); background: rgba(0,212,200,0.14); border: 1px solid rgba(0,212,200,0.28); }
 
 /* ── Volume popup (desktop only) ─────────────────────────────────────── */
 .mp-vol-popup-wrap {

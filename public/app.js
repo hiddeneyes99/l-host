@@ -1446,9 +1446,21 @@ function mpInitEvents() {
   });
   $('mpSleepOpts') && $('mpSleepOpts').addEventListener('click', e => e.stopPropagation());
 
-  // Visualizer mode buttons
+  // More menu toggle
+  $('mpMoreBtn') && $('mpMoreBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    const popup = $('mpMorePopup');
+    if (popup) popup.classList.toggle('open');
+  });
+  $('mpMorePopup') && $('mpMorePopup').addEventListener('click', e => e.stopPropagation());
+
+  // Visualizer mode buttons (inside More popup)
   qsa('.mp-viz-mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => mpSetVizMode(btn.dataset.mode));
+    btn.addEventListener('click', () => {
+      mpSetVizMode(btn.dataset.mode);
+      // Close More popup after selection
+      setTimeout(() => { $('mpMorePopup') && $('mpMorePopup').classList.remove('open'); }, 200);
+    });
   });
 
   // Queue panel: open on toggle, close on X or down-swipe
@@ -1534,6 +1546,7 @@ function mpInitEvents() {
   document.addEventListener('click', () => {
     mpCloseVolPopup();
     mpCloseSleepOpts();
+    $('mpMorePopup') && $('mpMorePopup').classList.remove('open');
   });
 
   // Album art swipe gesture

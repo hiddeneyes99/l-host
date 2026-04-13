@@ -719,6 +719,29 @@
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
             </a>
+            <!-- More menu -->
+            <div class="mp-more-wrap" id="mpMoreWrap">
+              <button class="icon-btn" id="mpMoreBtn" title="More options">
+                <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+              </button>
+              <div class="mp-more-popup" id="mpMorePopup">
+                <div class="mp-more-section-label">Visualizer</div>
+                <div class="mp-more-viz-row">
+                  <button class="mp-viz-mode-btn active" data-mode="bars" id="mpVizBars">
+                    <svg viewBox="0 0 20 14" fill="currentColor"><rect x="0" y="4" width="3" height="10" rx="1"/><rect x="5" y="1" width="3" height="13" rx="1"/><rect x="10" y="5" width="3" height="9" rx="1"/><rect x="15" y="2" width="3" height="12" rx="1"/></svg>
+                    Bars
+                  </button>
+                  <button class="mp-viz-mode-btn" data-mode="wave" id="mpVizWave">
+                    <svg viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M0 7 Q2.5 2 5 7 Q7.5 12 10 7 Q12.5 2 15 7 Q17.5 12 20 7"/></svg>
+                    Wave
+                  </button>
+                  <button class="mp-viz-mode-btn" data-mode="circle" id="mpVizCircle">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><circle cx="10" cy="10" r="3"/></svg>
+                    Circle
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -742,14 +765,9 @@
           <div class="mp-track-artist" id="mpArtist">Unknown Artist</div>
         </div>
 
-        <!-- Visualizer + Mode Toggle -->
+        <!-- Visualizer -->
         <div class="mp-viz-wrap">
           <canvas class="mp-visualizer" id="mpVisualizer"></canvas>
-          <div class="mp-viz-modes">
-            <button class="mp-viz-mode-btn active" data-mode="bars" id="mpVizBars">▮▮▮</button>
-            <button class="mp-viz-mode-btn" data-mode="wave" id="mpVizWave">〜</button>
-            <button class="mp-viz-mode-btn" data-mode="circle" id="mpVizCircle">◎</button>
-          </div>
         </div>
 
         <!-- Progress -->
