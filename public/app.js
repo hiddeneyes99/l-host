@@ -3686,7 +3686,9 @@ async function showSettings() {
   wanSyncUI();
   try {
     const v = await fetchJson('/api/version');
-    $('updateCurrentVer').textContent = 'v' + v.version;
+    const ver = 'v' + v.version;
+    const el1 = $('updateCurrentVer'); if (el1) el1.textContent = ver;
+    const el2 = $('updateVerSub'); if (el2) el2.textContent = ver + ' installed';
   } catch (_) {}
 }
 function showInfo() { showSettings(); }
@@ -3697,66 +3699,88 @@ let _wanPollTimer = null;
 function wanSyncUI() {
   fetch('/api/wan/status').then(r => r.json()).then(d => {
     _wanApplyState(d);
+    if (d.status === 'stopped' || d.status === 'error') wanCheck();
   }).catch(() => {});
 }
 
 function _wanApplyState(d) {
-  const dot     = $('wanDot');
-  const txt     = $('wanStatusTxt');
-  const spinner = $('wanSpinner');
-  const urlBox  = $('wanUrlBox');
-  const qrWrap  = $('wanQrWrap');
-  const startBtn= $('wanStartBtn');
-  const stopBtn = $('wanStopBtn');
+  const dot      = $('wanDot');
+  const txt      = $('wanStatusTxt');
+  const urlBox   = $('wanUrlBox');
+  const startBtn = $('wanStartBtn');
+  const stopBtn  = $('wanStopBtn');
+  const iconWrap = $('wanIconWrap');
   if (!dot) return;
 
   dot.className = 'wan-dot wan-dot-' + d.status;
-  spinner.classList.toggle('hidden', d.status !== 'starting');
+
+  const iconColors = { stopped:'s-icon-green', starting:'s-icon-teal', running:'s-icon-green', error:'s-icon-red' };
+  if (iconWrap) {
+    iconWrap.className = 's-row-icon ' + (iconColors[d.status] || 's-icon-green');
+  }
 
   if (d.status === 'stopped') {
     txt.textContent = 'Not running';
-    urlBox.classList.add('hidden');
-    qrWrap.classList.add('hidden');
-    startBtn.classList.remove('hidden');
-    stopBtn.classList.add('hidden');
+    if (urlBox) urlBox.classList.add('hidden');
+    if (startBtn) { startBtn.classList.remove('hidden'); startBtn.disabled = false; }
+    if (stopBtn) stopBtn.classList.add('hidden');
     clearInterval(_wanPollTimer); _wanPollTimer = null;
   } else if (d.status === 'starting') {
     txt.textContent = 'Starting tunnel…';
-    urlBox.classList.add('hidden');
-    qrWrap.classList.add('hidden');
-    startBtn.classList.add('hidden');
-    stopBtn.classList.remove('hidden');
+    if (urlBox) urlBox.classList.add('hidden');
+    if (startBtn) startBtn.classList.add('hidden');
+    if (stopBtn) stopBtn.classList.remove('hidden');
   } else if (d.status === 'running') {
-    txt.textContent = 'Active';
-    $('wanUrlVal').textContent = d.url;
-    urlBox.classList.remove('hidden');
-    anime({ targets: '#wanUrlBox', opacity: [0,1], translateY: [-8,0], duration: 400, easing: 'easeOutQuad' });
-    $('wanQrImg').src = '/api/wan/qr?' + Date.now();
-    qrWrap.classList.remove('hidden');
-    anime({ targets: '#wanQrWrap', opacity: [0,1], scale: [0.92,1], duration: 500, easing: 'easeOutBack' });
-    startBtn.classList.add('hidden');
-    stopBtn.classList.remove('hidden');
+    txt.textContent = 'Active — tunnel is live';
+    const urlVal = $('wanUrlVal');
+    if (urlVal) urlVal.textContent = d.url;
+    if (urlBox) {
+      urlBox.classList.remove('hidden');
+      anime({ targets: '#wanUrlBox', opacity: [0,1], translateY: [-6,0], duration: 400, easing: 'easeOutQuad' });
+    }
+    if (startBtn) startBtn.classList.add('hidden');
+    if (stopBtn) stopBtn.classList.remove('hidden');
     clearInterval(_wanPollTimer); _wanPollTimer = null;
   } else if (d.status === 'error') {
-    txt.textContent = 'Error: ' + (d.error || 'unknown');
-    urlBox.classList.add('hidden');
-    qrWrap.classList.add('hidden');
-    startBtn.classList.remove('hidden');
-    stopBtn.classList.add('hidden');
+    txt.textContent = '⚠️ ' + (d.error || 'Error starting tunnel');
+    if (urlBox) urlBox.classList.add('hidden');
+    if (startBtn) { startBtn.classList.remove('hidden'); startBtn.disabled = false; }
+    if (stopBtn) stopBtn.classList.add('hidden');
     clearInterval(_wanPollTimer); _wanPollTimer = null;
     toast(d.error || 'Tunnel error', 'error');
   }
 }
 
+async function wanCheck() {
+  try {
+    const d = await fetchJson('/api/wan/check');
+    const noInstall = $('wanNoInstall');
+    const noInternet = $('wanNoInternet');
+    const startBtn = $('wanStartBtn');
+    if (noInstall) noInstall.classList.toggle('hidden', d.cloudflaredInstalled);
+    if (noInternet) noInternet.classList.toggle('hidden', !d.cloudflaredInstalled || d.internetAvailable);
+    if (startBtn) startBtn.disabled = !d.cloudflaredInstalled || !d.internetAvailable;
+    return d;
+  } catch (_) { return { cloudflaredInstalled: false, internetAvailable: false }; }
+}
+
 async function wanStart() {
   const btn = $('wanStartBtn');
   btn.disabled = true;
+  const chk = await wanCheck();
+  if (!chk.cloudflaredInstalled) {
+    toast('cloudflared not installed. Install via: pkg install cloudflared', 'error');
+    btn.disabled = false; return;
+  }
+  if (!chk.internetAvailable) {
+    toast('No internet connection. Please connect to the internet first.', 'error');
+    btn.disabled = false; return;
+  }
   try {
     const r = await fetch('/api/wan/start', { method: 'POST' });
     const d = await r.json();
     if (!d.ok) { toast(d.error || 'Failed to start tunnel', 'error'); btn.disabled = false; return; }
     _wanApplyState({ status: 'starting' });
-    anime({ targets: '#wanSpinner', rotate: '1turn', duration: 1000, loop: true, easing: 'linear' });
     _wanPollTimer = setInterval(() => {
       fetch('/api/wan/status').then(r => r.json()).then(d => {
         if (d.status !== 'starting') { clearInterval(_wanPollTimer); _wanPollTimer = null; _wanApplyState(d); }
@@ -3819,10 +3843,14 @@ async function checkForUpdates() {
         anime({ targets: '#updateChangelog', opacity:[0,1], translateY:[8,0], duration:400, easing:'easeOutQuad' });
       }
       if (d.htmlUrl) {
-        dlBtn.href = d.htmlUrl;
-        dlBtn.classList.remove('hidden');
+        const dlBtn = $('updateDlBtn');
+        const dlWrap = $('updateDlWrap');
+        if (dlBtn) dlBtn.href = d.htmlUrl;
+        if (dlWrap) dlWrap.classList.remove('hidden');
       }
     }
+    const verSub = $('updateVerSub');
+    if (verSub && d.latestVersion && !d.upToDate) verSub.textContent = d.currentVersion ? 'v' + d.currentVersion + ' installed' : '';
   } catch (e) {
     anime.remove('#updateCheckIcon');
     icon.style.transform = '';
@@ -3990,6 +4018,7 @@ function applyTheme(t) {
 }
 function syncThemeButtons() {
   const t = localStorage.getItem('lhost_theme') || 'dark';
+  qsa('.s-theme-pill').forEach(btn => btn.classList.toggle('active', btn.dataset.theme === t));
   qsa('.theme-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.theme === t));
 }
 
@@ -4041,7 +4070,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('lockInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
 
   // ── Theme buttons ────────────────────────────────────────────────────────
-  qsa('.theme-btn').forEach(btn => {
+  qsa('.theme-btn, .s-theme-pill').forEach(btn => {
     btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
   });
 
@@ -4086,14 +4115,48 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── WAN Tunnel ─────────────────────────────────────────────────────────
   $('wanStartBtn').addEventListener('click', wanStart);
   $('wanStopBtn').addEventListener('click', wanStop);
+  $('wanRefreshBtn').addEventListener('click', () => {
+    anime({ targets: '#wanRefreshIcon', rotate: '360deg', duration: 600, easing: 'easeInOutQuad' });
+    setTimeout(() => { if ($('wanRefreshIcon')) $('wanRefreshIcon').style.transform = ''; }, 700);
+    wanSyncUI();
+  });
   $('wanCopyBtn').addEventListener('click', () => {
-    const url = $('wanUrlVal').textContent;
+    const url = ($('wanUrlVal') || {}).textContent || '';
     if (!url) return;
     navigator.clipboard.writeText(url).then(() => toast('Link copied!', 'success')).catch(() => {
       const ta = document.createElement('textarea');
       ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
       toast('Link copied!', 'success');
     });
+  });
+  $('wanQrBtn') && $('wanQrBtn').addEventListener('click', () => {
+    const collapse = $('wanQrCollapse');
+    const isHidden = collapse.classList.contains('hidden');
+    if (isHidden) {
+      $('wanQrImg').src = '/api/wan/qr?' + Date.now();
+      collapse.classList.remove('hidden');
+      anime({ targets: '#wanQrCollapse', opacity:[0,1], translateY:[-10,0], duration:400, easing:'easeOutQuad' });
+      $('wanQrBtn').textContent = '🔼 Hide QR Code';
+    } else {
+      anime({ targets: '#wanQrCollapse', opacity:[1,0], translateY:[0,-10], duration:300, easing:'easeInQuad',
+        complete: () => collapse.classList.add('hidden') });
+      $('wanQrBtn').innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Show QR Code';
+    }
+  });
+
+  // ── LAN QR Toggle ───────────────────────────────────────────────────────
+  $('lanQrBtn') && $('lanQrBtn').addEventListener('click', () => {
+    const collapse = $('lanQrCollapse');
+    const isHidden = collapse.classList.contains('hidden');
+    if (isHidden) {
+      collapse.classList.remove('hidden');
+      anime({ targets: '#lanQrCollapse', opacity:[0,1], translateY:[-10,0], duration:400, easing:'easeOutQuad' });
+      $('lanQrBtn').textContent = '🔼 Hide QR';
+    } else {
+      anime({ targets: '#lanQrCollapse', opacity:[1,0], translateY:[0,-10], duration:300, easing:'easeInQuad',
+        complete: () => collapse.classList.add('hidden') });
+      $('lanQrBtn').innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> QR Code';
+    }
   });
 
   // ── Update Checker ──────────────────────────────────────────────────────

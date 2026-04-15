@@ -1806,6 +1806,33 @@ app.get('/api/wan/status', (req, res) => {
   res.json({ status: wanStatus, url: wanUrl, error: wanError });
 });
 
+app.get('/api/wan/check', async (req, res) => {
+  let cloudflaredInstalled = false;
+  let internetAvailable    = false;
+
+  try {
+    await new Promise((resolve, reject) => {
+      execFile('cloudflared', ['--version'], { timeout: 4000 }, (err) => {
+        if (err) reject(err); else resolve();
+      });
+    });
+    cloudflaredInstalled = true;
+  } catch (_) {}
+
+  try {
+    await new Promise((resolve, reject) => {
+      const req2 = https.get({ hostname: '1.1.1.1', path: '/', timeout: 4000 }, (r) => {
+        r.destroy(); resolve();
+      });
+      req2.on('error', reject);
+      req2.on('timeout', () => { req2.destroy(); reject(new Error('timeout')); });
+    });
+    internetAvailable = true;
+  } catch (_) {}
+
+  res.json({ cloudflaredInstalled, internetAvailable });
+});
+
 app.post('/api/wan/start', (req, res) => {
   if (wanProc) return res.json({ ok: false, error: 'Tunnel already running' });
   wanStatus = 'starting';

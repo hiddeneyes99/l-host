@@ -74,6 +74,13 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   background-clip: text;
   letter-spacing: 0.3px;
 }
+.topbar-subtitle {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text3);
+  letter-spacing: 0.2px;
+}
 .topbar-version {
   display: block;
   font-size: 10px;
@@ -3943,7 +3950,143 @@ img.lazy-img:not([src]) {
 .info-label { color: var(--text2); flex-shrink: 0; }
 .info-val { color: var(--text); text-align: right; word-break: break-all; }
 
-/* ── WAN ACCESS ──────────────────────────────────────────────────────────── */
+/* ── SETTINGS REDESIGN ───────────────────────────────────────────────────── */
+
+/* About card */
+.s-about-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px; border-radius: 18px;
+  background: linear-gradient(135deg, rgba(0,212,200,0.12) 0%, rgba(0,145,255,0.10) 100%);
+  border: 1px solid rgba(0,212,200,0.2);
+}
+.s-about-icon {
+  width: 52px; height: 52px; border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: #000;
+}
+.s-about-name { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: -0.3px; }
+.s-about-desc { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.s-about-info { flex: 1; }
+.s-about-ver {
+  font-size: 11px; font-weight: 700; color: var(--accent);
+  background: rgba(0,212,200,0.1); border: 1px solid rgba(0,212,200,0.2);
+  border-radius: 20px; padding: 4px 10px; white-space: nowrap;
+}
+
+/* Section */
+.s-section { display: flex; flex-direction: column; gap: 6px; }
+.s-section-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.7px;
+  text-transform: uppercase; color: var(--text3); padding: 0 4px;
+}
+
+/* Card */
+.s-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+/* Row */
+.s-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px; min-height: 52px;
+}
+.s-row-toggle { align-items: center; }
+.s-row-icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.s-icon-purple { background: rgba(139,92,246,0.18); color: #a78bfa; }
+.s-icon-red    { background: rgba(224,82,96,0.18);  color: #f87171; }
+.s-icon-blue   { background: rgba(0,145,255,0.18);  color: #60a5fa; }
+.s-icon-green  { background: rgba(34,201,126,0.18); color: #4ade80; }
+.s-icon-teal   { background: rgba(0,212,200,0.18);  color: var(--accent); }
+.s-row-label { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; }
+.s-row-text { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.s-row-sub { font-size: 11px; color: var(--text2); }
+.s-row-btns { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 14px 14px; }
+.s-divider { height: 1px; background: var(--border); margin: 0; }
+
+/* Theme pill toggle */
+.s-theme-toggle { display: flex; gap: 4px; background: var(--bg4); border-radius: 10px; padding: 3px; }
+.s-theme-pill {
+  padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  color: var(--text2); transition: all 0.2s; white-space: nowrap;
+}
+.s-theme-pill.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+
+/* Inputs */
+.s-input-wrap {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg4); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 0 12px; margin: 0 14px;
+  transition: border-color 0.2s;
+}
+.s-input-wrap:focus-within { border-color: var(--accent); }
+.s-input-icon { color: var(--text3); flex-shrink: 0; }
+.s-input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-size: 14px; padding: 10px 0;
+}
+.pw-fields { display: flex; flex-direction: column; gap: 8px; padding: 0 0 12px; }
+
+/* Buttons */
+.s-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 700;
+  transition: opacity 0.2s, transform 0.1s;
+  cursor: pointer; border: none;
+}
+.s-btn:active { transform: scale(0.97); }
+.s-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.s-btn-primary { background: var(--accent); color: #000; }
+.s-btn-danger  { background: var(--danger); color: #fff; }
+.s-btn-success { background: var(--success); color: #000; }
+.s-btn-ghost   { background: var(--bg4); color: var(--text2); padding: 10px 12px; }
+.s-btn:hover   { opacity: 0.85; }
+
+/* Chip (small inline button) */
+.s-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  background: rgba(0,212,200,0.12); color: var(--accent);
+  border: 1px solid rgba(0,212,200,0.2); white-space: nowrap;
+  transition: opacity 0.2s; cursor: pointer;
+}
+.s-chip:hover { opacity: 0.75; }
+.s-chip-outline { background: transparent; }
+
+/* QR */
+.s-qr-center { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0 4px; }
+.s-qr-img { width: 160px; height: 160px; }
+.s-qr-hint { font-size: 11px; color: var(--text3); }
+.lan-qr-collapse { padding: 0 14px 10px; }
+
+/* Alert */
+.s-alert {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 0 14px 2px; padding: 10px 12px; border-radius: 10px;
+  font-size: 12px;
+}
+.s-alert-warn { background: rgba(240,165,0,0.1); border: 1px solid rgba(240,165,0,0.2); color: #f0a500; }
+.s-alert-title { font-weight: 700; margin-bottom: 2px; }
+.s-alert-body { color: var(--text2); line-height: 1.5; }
+.s-alert-body code { background: var(--bg4); padding: 1px 5px; border-radius: 4px; color: var(--accent); font-size: 11px; }
+
+/* WAN url row */
+.wan-url-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 14px;
+}
+.wan-url-val {
+  flex: 1; font-size: 12px; color: var(--accent); font-weight: 600;
+  font-family: monospace; word-break: break-all; min-width: 0;
+}
+
+/* WAN ACCESS ──────────────────────────────────────────────────────────────── */
 .wan-desc {
   font-size: 12px; color: var(--text2); line-height: 1.5;
 }
