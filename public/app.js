@@ -3659,6 +3659,7 @@ function setNavActive(id) { qsa('.nav-item').forEach(b => b.classList.remove('ac
 
 // ── Info ───────────────────────────────────────────────────────────────────
 async function showSettings() {
+  history.pushState({ lhost: true }, '');
   openModal('settingsModal');
   syncThemeButtons();
   try {
@@ -3751,6 +3752,16 @@ function _wanApplyState(d) {
   }
 }
 
+const _platformLabels = {
+  termux:  { name:'Termux (Android)', cmd:'pkg install -y cloudflared' },
+  kali:    { name:'Kali Linux', cmd:'apt-get install -y cloudflared' },
+  debian:  { name:'Debian/Ubuntu', cmd:'apt-get install -y cloudflared' },
+  linux:   { name:'Linux', cmd:'(downloading binary from GitHub…)' },
+  darwin:  { name:'macOS', cmd:'brew install cloudflared' },
+  win32:   { name:'Windows', cmd:'winget install Cloudflare.cloudflared' },
+  unknown: { name:'your system', cmd:'see cloudflare.com/products/tunnel' },
+};
+
 async function wanCheck() {
   try {
     const d = await fetchJson('/api/wan/check');
@@ -3760,6 +3771,23 @@ async function wanCheck() {
     if (noInstall) noInstall.classList.toggle('hidden', d.cloudflaredInstalled);
     if (noInternet) noInternet.classList.toggle('hidden', !d.cloudflaredInstalled || d.internetAvailable);
     if (startBtn) startBtn.disabled = !d.cloudflaredInstalled || !d.internetAvailable;
+
+    // Update install platform text
+    if (!d.cloudflaredInstalled && d.platform) {
+      const pl = _platformLabels[d.platform] || _platformLabels.unknown;
+      const ptxt = $('wanInstallPlatformTxt');
+      if (ptxt) ptxt.innerHTML = `Detected: <strong>${pl.name}</strong><br>Tap <em>Install cloudflared</em> to set up automatically.`;
+      // Hide install button for macOS/windows (not auto-supported)
+      const installBtn = $('wanInstallBtn');
+      if (installBtn) {
+        const canAuto = ['termux','kali','debian','linux'].includes(d.platform);
+        installBtn.style.display = canAuto ? '' : 'none';
+        if (!canAuto) {
+          if (ptxt) ptxt.innerHTML += `<br><code>${pl.cmd}</code>`;
+        }
+      }
+    }
+
     return d;
   } catch (_) { return { cloudflaredInstalled: false, internetAvailable: false }; }
 }
@@ -4142,6 +4170,60 @@ document.addEventListener('DOMContentLoaded', () => {
         complete: () => collapse.classList.add('hidden') });
       $('wanQrBtn').innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Show QR Code';
     }
+  });
+
+  // ── About card toggle ────────────────────────────────────────────────────
+  $('aboutCard') && $('aboutCard').addEventListener('click', () => {
+    const expand = $('aboutExpand');
+    const isHidden = expand.classList.contains('hidden');
+    if (isHidden) {
+      expand.classList.remove('hidden');
+      anime({ targets: '#aboutExpand', opacity:[0,1], translateY:[-8,0], duration:380, easing:'easeOutQuad' });
+      const ver = $('updateCurrentVer'); if (ver) anime({ targets: ver, scale:[0.9,1.05,1], duration:500, easing:'easeOutBack' });
+    } else {
+      anime({ targets: '#aboutExpand', opacity:[1,0], translateY:[0,-8], duration:260, easing:'easeInQuad',
+        complete: () => expand.classList.add('hidden') });
+    }
+  });
+
+  // ── WAN Install Button ───────────────────────────────────────────────────
+  let _wanInstallPoll = null;
+  $('wanInstallBtn') && $('wanInstallBtn').addEventListener('click', async () => {
+    const btn = $('wanInstallBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Installing…';
+    const logWrap = $('wanInstallLogWrap');
+    const logEl = $('wanInstallLog');
+    const logBtn = $('wanInstallLogBtn');
+    logWrap.classList.remove('hidden');
+    if (logEl) logEl.textContent = 'Starting install…\n';
+    if (logBtn) logBtn.style.display = '';
+    try {
+      const r = await fetch('/api/wan/install', { method:'POST' });
+      const d = await r.json();
+      if (!d.ok) { toast(d.error || 'Install failed', 'error'); btn.disabled = false; btn.innerHTML = '↓ Install cloudflared'; return; }
+    } catch(e) { toast('Could not start install: ' + e.message, 'error'); btn.disabled = false; return; }
+    clearInterval(_wanInstallPoll);
+    _wanInstallPoll = setInterval(async () => {
+      try {
+        const s = await fetchJson('/api/wan/install-status');
+        if (logEl) { logEl.textContent = s.log || ''; logEl.scrollTop = logEl.scrollHeight; }
+        if (s.state === 'done') {
+          clearInterval(_wanInstallPoll); _wanInstallPoll = null;
+          btn.innerHTML = '✓ Installed!';
+          toast('cloudflared installed! Starting WAN check…', 'success');
+          setTimeout(() => {
+            $('wanNoInstall').classList.add('hidden');
+            wanCheck();
+          }, 1500);
+        } else if (s.state === 'error') {
+          clearInterval(_wanInstallPoll); _wanInstallPoll = null;
+          btn.disabled = false;
+          btn.innerHTML = '↓ Retry Install';
+          toast('Install error: ' + (s.error || 'Unknown'), 'error');
+        }
+      } catch(_) {}
+    }, 1000);
   });
 
   // ── LAN QR Toggle ───────────────────────────────────────────────────────

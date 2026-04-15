@@ -1830,7 +1830,82 @@ app.get('/api/wan/check', async (req, res) => {
     internetAvailable = true;
   } catch (_) {}
 
-  res.json({ cloudflaredInstalled, internetAvailable });
+  // Detect platform for install instructions
+  const isTermux = !!process.env.TERMUX_VERSION || fs.existsSync('/data/data/com.termux');
+  let platform = 'unknown';
+  if (isTermux) {
+    platform = 'termux';
+  } else if (process.platform === 'linux') {
+    try {
+      const rel = fs.readFileSync('/etc/os-release', 'utf8').toLowerCase();
+      if (rel.includes('kali')) platform = 'kali';
+      else if (rel.includes('debian') || rel.includes('ubuntu')) platform = 'debian';
+      else platform = 'linux';
+    } catch (_) { platform = 'linux'; }
+  } else if (process.platform === 'darwin') {
+    platform = 'darwin';
+  } else if (process.platform === 'win32') {
+    platform = 'win32';
+  }
+
+  res.json({ cloudflaredInstalled, internetAvailable, platform });
+});
+
+// ── WAN cloudflared install ─────────────────────────────────────────────────
+let _cfInstallStatus = { state: 'idle', log: '', error: '' }; // idle | running | done | error
+
+app.get('/api/wan/install-status', (req, res) => {
+  res.json(_cfInstallStatus);
+});
+
+app.post('/api/wan/install', (req, res) => {
+  if (_cfInstallStatus.state === 'running') return res.json({ ok: false, error: 'Already installing' });
+
+  const isTermux = !!process.env.TERMUX_VERSION || fs.existsSync('/data/data/com.termux');
+  let cmd, args, platform;
+
+  if (isTermux) {
+    cmd = 'pkg'; args = ['install', '-y', 'cloudflared']; platform = 'termux';
+  } else if (process.platform === 'linux') {
+    try {
+      const rel = fs.readFileSync('/etc/os-release', 'utf8').toLowerCase();
+      if (rel.includes('kali') || rel.includes('debian') || rel.includes('ubuntu')) {
+        cmd = 'apt-get'; args = ['install', '-y', 'cloudflared']; platform = 'kali';
+      } else {
+        cmd = 'bash';
+        args = ['-c', 'curl -L --output /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /tmp/cloudflared && mv /tmp/cloudflared /usr/local/bin/cloudflared'];
+        platform = 'linux';
+      }
+    } catch (_) {
+      cmd = 'bash';
+      args = ['-c', 'curl -L --output /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /tmp/cloudflared && mv /tmp/cloudflared /usr/local/bin/cloudflared'];
+      platform = 'linux';
+    }
+  } else {
+    return res.json({ ok: false, error: 'Automatic install not supported on this platform. Download from: https://github.com/cloudflare/cloudflared/releases' });
+  }
+
+  _cfInstallStatus = { state: 'running', log: `Installing cloudflared (${platform})...\n`, error: '' };
+  res.json({ ok: true, platform });
+
+  const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  proc.stdout.on('data', d => { _cfInstallStatus.log += d.toString(); });
+  proc.stderr.on('data', d => { _cfInstallStatus.log += d.toString(); });
+  proc.on('error', e => {
+    _cfInstallStatus.state = 'error';
+    _cfInstallStatus.error = e.message;
+    _cfInstallStatus.log  += '\nError: ' + e.message;
+  });
+  proc.on('close', (code) => {
+    if (code === 0) {
+      _cfInstallStatus.state = 'done';
+      _cfInstallStatus.log  += '\n✓ cloudflared installed successfully!';
+    } else {
+      _cfInstallStatus.state = 'error';
+      _cfInstallStatus.error = 'Install failed with code ' + code;
+      _cfInstallStatus.log  += '\n✗ Install failed (exit code ' + code + ')';
+    }
+  });
 });
 
 app.post('/api/wan/start', (req, res) => {

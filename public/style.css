@@ -3973,6 +3973,24 @@ img.lazy-img:not([src]) {
   background: rgba(0,212,200,0.1); border: 1px solid rgba(0,212,200,0.2);
   border-radius: 20px; padding: 4px 10px; white-space: nowrap;
 }
+.s-about-expand { margin-top: 0; }
+.s-about-expand-inner {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.s-about-row {
+  display: flex; align-items: flex-start; gap: 9px;
+  font-size: 12.5px; color: var(--text2);
+}
+.s-about-row svg { flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+.s-about-link {
+  color: var(--accent); text-decoration: none; font-weight: 500;
+  word-break: break-all;
+}
+.s-about-link:hover { text-decoration: underline; }
+.s-about-link-text { color: var(--text2); line-height: 1.4; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Section */
 .s-section { display: flex; flex-direction: column; gap: 6px; }

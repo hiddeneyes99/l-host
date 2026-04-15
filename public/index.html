@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
     <title>Hevi Explorer — File Manager</title>
-    <link rel="stylesheet" href="/style.css?v=13" />
+    <link rel="stylesheet" href="/style.css?v=14" />
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📁</text></svg>"
@@ -1047,7 +1047,7 @@
         <div class="settings-body">
 
           <!-- ── ABOUT CARD ── -->
-          <div class="s-about-card">
+          <div class="s-about-card" id="aboutCard" style="cursor:pointer;user-select:none">
             <div class="s-about-icon">
               <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             </div>
@@ -1056,6 +1056,27 @@
               <div class="s-about-desc">Local-first File Manager</div>
             </div>
             <span class="s-about-ver" id="updateCurrentVer">v1.0.0</span>
+          </div>
+          <!-- About expand panel -->
+          <div class="s-about-expand hidden" id="aboutExpand">
+            <div class="s-about-expand-inner">
+              <div class="s-about-row">
+                <svg viewBox="0 0 24 24" width="15" height="15"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+                <a href="https://github.com/technicalwhitehat-yt/hevi-explorer" target="_blank" class="s-about-link">GitHub — technicalwhitehat-yt/hevi-explorer</a>
+              </div>
+              <div class="s-about-row">
+                <svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span class="s-about-link-text">Open source · MIT License</span>
+              </div>
+              <div class="s-about-row">
+                <svg viewBox="0 0 24 24" width="15" height="15"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <span class="s-about-link-text">Works on Termux · Kali Linux · macOS · Windows</span>
+              </div>
+              <div class="s-about-row">
+                <svg viewBox="0 0 24 24" width="15" height="15"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <span class="s-about-link-text">Made with ❤ by TechnicalWhiteHat</span>
+              </div>
+            </div>
           </div>
 
           <!-- ── APPEARANCE ── -->
@@ -1164,10 +1185,21 @@
 
               <!-- Not installed alert -->
               <div class="s-alert s-alert-warn hidden" id="wanNoInstall">
-                <svg viewBox="0 0 24 24" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <div>
+                <svg viewBox="0 0 24 24" width="16" height="16" style="flex-shrink:0;margin-top:2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <div style="flex:1;min-width:0">
                   <div class="s-alert-title">cloudflared not installed</div>
-                  <div class="s-alert-body">Open Termux and run:<br><code>pkg install cloudflared</code></div>
+                  <div class="s-alert-body" id="wanInstallPlatformTxt">Detecting your platform…</div>
+                  <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="s-btn s-btn-primary" id="wanInstallBtn" style="font-size:12px;padding:6px 14px">
+                      <svg viewBox="0 0 24 24" width="13" height="13"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      Install cloudflared
+                    </button>
+                    <button class="s-btn" id="wanInstallLogBtn" style="font-size:12px;padding:6px 14px;display:none">Show Log</button>
+                  </div>
+                  <!-- Install progress log -->
+                  <div class="hidden" id="wanInstallLogWrap">
+                    <pre id="wanInstallLog" style="margin:8px 0 0;background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:11px;max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--text2)"></pre>
+                  </div>
                 </div>
               </div>
 
