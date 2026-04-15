@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
     <title>Hevi Explorer — Private Media Vault</title>
-    <link rel="stylesheet" href="/style.css?v=15" />
+    <link rel="stylesheet" href="/style.css?v=16" />
     <meta name="theme-color" content="#0b1220" />
     <link
       rel="icon"
@@ -1268,281 +1268,72 @@
           </div>
           <div class="st-body">
 
-            <!-- Hero -->
-            <div class="ab-hero">
-              <div class="ab-hero-icon">
-                <img src="/brand.svg" alt="" />
-              </div>
+            <div class="ab-ambient" aria-hidden="true"><span class="ab-orb ab-orb-one"></span><span class="ab-orb ab-orb-two"></span><span class="ab-orb ab-orb-three"></span></div>
+
+            <section class="ab-hero ab-reveal">
+              <div class="ab-hero-ring" aria-hidden="true"></div>
+              <div class="ab-hero-icon"><img src="/brand.svg" alt="Hevi Explorer logo" /></div>
+              <div class="ab-kicker">Private Media Vault</div>
               <h1 class="ab-hero-name">Hevi Explorer</h1>
-              <p class="ab-hero-tagline">Private Media Vault &amp; Local File Manager</p>
-              <div class="ab-hero-badges">
-                <span class="ab-badge ab-badge-green">✓ No Cloud</span>
-                <span class="ab-badge ab-badge-blue">Open Source</span>
-                <span class="ab-badge ab-badge-purple" id="abVersion">v1.0.0</span>
-              </div>
-            </div>
+              <p class="ab-hero-tagline">A self-hosted, local-first media vault and file manager built for private browsing, fast transfers, and complete control over your files.</p>
+              <div class="ab-hero-badges"><span class="ab-badge ab-badge-green">Local-first</span><span class="ab-badge ab-badge-blue">No cloud dependency</span><span class="ab-badge ab-badge-purple" id="abVersion">v1.0.0</span></div>
+              <div class="ab-hero-metrics"><div><strong>0</strong><span>mandatory accounts</span></div><div><strong>LAN</strong><span>full-speed transfer</span></div><div><strong>100%</strong><span>device controlled</span></div></div>
+            </section>
 
-            <!-- What is Hevi Explorer -->
-            <div class="ab-section">
-              <div class="ab-section-title">🗂 What is Hevi Explorer?</div>
-              <p class="ab-para">Hevi Explorer ek <b>self-hosted, local-first file manager</b> hai jo seedha aapke device pe run karta hai. Iska matlab hai koi cloud nahi, koi subscription nahi, koi data leak nahi. Aap apne files ko ek beautiful web interface se manage, browse, stream, aur share kar sakte ho — sirf apne device aur browser ke zariye.</p>
-              <p class="ab-para" style="margin-top:8px">Soch lo ek <b>WhatsApp ka file sharing</b> lekin bina kisi limit ke, bina kisi server ke — seedha device to device, ultra-fast speed pe.</p>
-            </div>
+            <section class="ab-section ab-reveal">
+              <div class="ab-section-head"><span class="ab-section-icon">01</span><div><div class="ab-section-title">What is Hevi Explorer?</div><p class="ab-section-sub">A private dashboard for the files already living on your own device.</p></div></div>
+              <p class="ab-para">Hevi Explorer is a self-hosted file manager and media vault that runs on your own machine through Node.js and Express. Instead of uploading your personal files to a third-party cloud, it turns your device into a secure local web server that you can open from a browser.</p>
+              <p class="ab-para">You can browse folders, preview media, stream videos, play music, open documents, manage archives, upload files, and transfer large content across devices on the same network. The experience feels like a modern media app, but the files remain under your control.</p>
+            </section>
 
-            <!-- The Origin Story -->
-            <div class="ab-section ab-story-section">
-              <div class="ab-section-title">💡 The Origin Story — Why Was It Built?</div>
-              <div class="ab-story-box">
-                <div class="ab-story-quote">"</div>
-                <p class="ab-para">Ek din mujhe <b>4 GB ka important aur secret file</b> apne phone se PC pe transfer karna tha — aur time bahut kam tha. Mujhe fast aur safely karna tha.</p>
-                <p class="ab-para" style="margin-top:8px">Pehle <b>WhatsApp</b> try kiya — lekin uski <b>2 GB ki limit</b> hai. Phir <b>Telegram</b> try kiya — wahan bhi <b>2 GB ki limit</b> thi, aur speed bhi bahut slow thi. Saath mein privacy ka darr alag tha ki file kisi server pe to nahi ja rahi.</p>
-                <p class="ab-para" style="margin-top:8px">Uss din decide kiya — <b>apna tool banaunga.</b> Koi limit nahi. Koi cloud nahi. Full speed. Full privacy. Hevi Explorer isi frustration se paida hua.</p>
-              </div>
-            </div>
+            <section class="ab-section ab-story-section ab-reveal">
+              <div class="ab-section-head"><span class="ab-section-icon">02</span><div><div class="ab-section-title">Origin Story</div><p class="ab-section-sub">Built from a real problem: moving large private files quickly without trusting a cloud server.</p></div></div>
+              <div class="ab-story-box"><div class="ab-story-quote">“</div><p class="ab-para">The idea started with a simple but frustrating situation: a large, important, private file had to be moved from phone to PC quickly. Common messaging apps were not enough because file-size limits, slow transfer speeds, and privacy concerns made the process unreliable.</p><p class="ab-para">Hevi Explorer was created to solve that exact pain. No artificial 2 GB limit. No mandatory cloud upload. No waiting for someone else’s server. Just your device, your network, your browser, and the fastest path available.</p></div>
+            </section>
 
-            <!-- What it can do -->
-            <div class="ab-section">
-              <div class="ab-section-title">⚡ What Can It Do?</div>
+            <section class="ab-section ab-reveal">
+              <div class="ab-section-head"><span class="ab-section-icon">03</span><div><div class="ab-section-title">Core Features</div><p class="ab-section-sub">Everything needed to explore, preview, protect, and move your files.</p></div></div>
               <div class="ab-features">
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-blue">📁</span><div><b>File Manager</b> — Browse folders, create, rename, move, copy, aur delete files — sab kuch ek jagah</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-purple">🎬</span><div><b>Media Streaming</b> — Videos, music, aur photos seedha browser mein stream karo, bina download kiye</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-teal">📤</span><div><b>Ultra-Fast File Transfer</b> — Koi bhi file, koi bhi size — local network pe full speed mein transfer</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-green">🌐</span><div><b>LAN Access</b> — Same Wi-Fi pe kisi bhi device se apne files access karo instantly</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-orange">🔗</span><div><b>WAN Tunnel</b> — Cloudflare tunnel se globally secure public link banao — bina port forwarding, bina static IP</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-red">🗜️</span><div><b>Archive Viewer</b> — ZIP, RAR, 7z archives bina extract kiye browser mein dekhlo</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-blue">📄</span><div><b>PDF Viewer</b> — PDF files seedha browser mein padho, koi extra app nahi chahiye</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-red">🔒</span><div><b>Password Lock</b> — Custom password se apna poora file manager protect karo</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-purple">🌙</span><div><b>Dark &amp; Light Mode</b> — Apni pasand ka theme choose karo, aankhen safe rahein</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-teal">📷</span><div><b>QR Code Access</b> — Phone se QR scan karo aur turant connect ho jao</div></div>
-                <div class="ab-feat"><span class="ab-feat-icon ab-fi-green">🔄</span><div><b>Auto Updates</b> — GitHub se latest version check karo aur up-to-date raho</div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-blue">📁</span><div><b>File Manager</b><span>Browse folders, create directories, rename items, copy, move, delete, and manage files from one clean interface.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-purple">🎬</span><div><b>Media Streaming</b><span>Watch videos, preview photos, and play music directly in the browser without downloading everything first.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-teal">📤</span><div><b>Large File Transfer</b><span>Move files across devices through your local network without chat-app limits or cloud compression.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-green">🌐</span><div><b>LAN Access</b><span>Open the vault from phones, tablets, and computers connected to the same Wi-Fi network.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-orange">🔗</span><div><b>WAN Tunnel Support</b><span>Create an encrypted public link through Cloudflare Tunnel when you need access outside the local network.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-red">🗜️</span><div><b>Archive Preview</b><span>Inspect supported compressed files such as ZIP archives without extracting everything manually.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-blue">📄</span><div><b>Document Viewer</b><span>Open PDFs, text files, code files, and common document previews directly inside the app.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-red">🔒</span><div><b>Password Lock</b><span>Add a custom access password so visitors must unlock the vault before browsing your files.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-purple">🌙</span><div><b>Theme Control</b><span>Switch between dark and light mode while keeping your preference saved locally.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-teal">📷</span><div><b>QR Connection</b><span>Scan a QR code from another device to connect instantly without typing long local addresses.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-green">🔄</span><div><b>Update Check</b><span>Check for newer releases and keep the project fresh with improvements and fixes.</span></div></div>
               </div>
-            </div>
+            </section>
 
-            <!-- How it works -->
-            <div class="ab-section">
-              <div class="ab-section-title">⚙️ How Does It Work? (Technical)</div>
-              <div class="ab-flow">
-                <div class="ab-flow-step">
-                  <div class="ab-flow-num">1</div>
-                  <div><b>Node.js Server Start</b> — Jab aap <code class="ab-code">node server.js</code> chalate ho, ek lightweight Express web server aapke device pe start hota hai port 5000 pe.</div>
-                </div>
-                <div class="ab-flow-arrow">↓</div>
-                <div class="ab-flow-step">
-                  <div class="ab-flow-num">2</div>
-                  <div><b>Web Interface Load</b> — Browser ek Vanilla JavaScript frontend load karta hai jo REST APIs se baat karta hai. Koi React nahi, koi Vue nahi — pure lightweight JS.</div>
-                </div>
-                <div class="ab-flow-arrow">↓</div>
-                <div class="ab-flow-step">
-                  <div class="ab-flow-num">3</div>
-                  <div><b>File Serving</b> — Server aapke device ki storage seedha read karta hai aur browser ko bhejta hai. Files kisi external server pe nahi jaati — <b>sab kuch local rehta hai.</b></div>
-                </div>
-                <div class="ab-flow-arrow">↓</div>
-                <div class="ab-flow-step">
-                  <div class="ab-flow-num">4</div>
-                  <div><b>LAN Access</b> — Same network ke sare devices aapke local IP se connect kar sakte hain. QR code scan karo aur kisi bhi phone se turant access milta hai.</div>
-                </div>
-                <div class="ab-flow-arrow">↓</div>
-                <div class="ab-flow-step">
-                  <div class="ab-flow-num">5</div>
-                  <div><b>WAN (Internet) Access</b> — Cloudflare <code class="ab-code">cloudflared</code> ek secure encrypted tunnel banata hai — ek random public URL milti hai. Koi router setting nahi, koi static IP nahi, seedha internet se access.</div>
-                </div>
-              </div>
-            </div>
+            <section class="ab-section ab-reveal">
+              <div class="ab-section-head"><span class="ab-section-icon">04</span><div><div class="ab-section-title">How It Works</div><p class="ab-section-sub">A simple local pipeline with optional secure internet access.</p></div></div>
+              <div class="ab-flow"><div class="ab-flow-step"><div class="ab-flow-num">1</div><div><b>Start the local server</b><span>Running <code class="ab-code">node server.js</code> starts a lightweight Express server on your device.</span></div></div><div class="ab-flow-step"><div class="ab-flow-num">2</div><div><b>Open the browser interface</b><span>The vanilla JavaScript frontend loads quickly and communicates with local REST APIs.</span></div></div><div class="ab-flow-step"><div class="ab-flow-num">3</div><div><b>Serve files from your storage</b><span>The server reads the configured root folder and streams files directly from your device.</span></div></div><div class="ab-flow-step"><div class="ab-flow-num">4</div><div><b>Connect nearby devices</b><span>Devices on the same Wi-Fi can open your local IP address or scan the QR code for instant access.</span></div></div><div class="ab-flow-step"><div class="ab-flow-num">5</div><div><b>Use WAN only when needed</b><span>Cloudflare Tunnel can create a temporary HTTPS link for remote access without router port forwarding.</span></div></div></div>
+            </section>
 
-            <!-- Data Safety -->
-            <div class="ab-section ab-safety-section">
-              <div class="ab-section-title">🛡️ Is Your Data Safe?</div>
-              <div class="ab-safety-badge">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span>100% Local — Your Files Never Leave Your Device</span>
-              </div>
-              <p class="ab-para" style="margin-top:12px"><b>Haan, aapka data bilkul safe hai.</b> Hevi Explorer kisi bhi tarah ka aapka personal data, files, ya content kisi bahar nahi bhejta. Sab kuch aapke device pe hi rehta hai.</p>
-              <div class="ab-data-list">
-                <div class="ab-data-item ab-data-no">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  <span>Aapki files ya folders ka koi data nahi bheja jaata</span>
-                </div>
-                <div class="ab-data-item ab-data-no">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  <span>Aapka naam, location, ya koi personal info track nahi hota</span>
-                </div>
-                <div class="ab-data-item ab-data-no">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  <span>Koi login nahi, koi account nahi, koi cloud sync nahi</span>
-                </div>
-              </div>
-              <div class="ab-data-divider"></div>
-              <p class="ab-para" style="color:var(--text2);font-size:12.5px"><b style="color:var(--text)">Hum sirf yeh anonymous data collect karte hain</b> (taaki agar koi bug aaye to hum identify kar sakein):</p>
-              <div class="ab-data-list">
-                <div class="ab-data-item ab-data-yes">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>Total downloads count (anonymous)</span>
-                </div>
-                <div class="ab-data-item ab-data-yes">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>Total active users count (anonymous)</span>
-                </div>
-                <div class="ab-data-item ab-data-yes">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>Device/OS type (e.g., Android, Windows) — taaki bugs fix ho sakein</span>
-                </div>
-              </div>
-            </div>
+            <section class="ab-section ab-safety-section ab-reveal">
+              <div class="ab-section-head"><span class="ab-section-icon">05</span><div><div class="ab-section-title">Data Safety</div><p class="ab-section-sub">The app is designed around ownership, transparency, and minimal exposure.</p></div></div>
+              <div class="ab-safety-badge"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Your files stay on the device you choose to run as the vault.</span></div>
+              <div class="ab-data-grid"><div class="ab-data-card ab-data-no"><strong>Not required</strong><span>No account, no mandatory login service, no cloud sync, and no third-party storage upload for normal local use.</span></div><div class="ab-data-card ab-data-yes"><strong>You control access</strong><span>Keep it LAN-only for private use, enable a password, or create a remote tunnel only when you intentionally need one.</span></div></div>
+              <p class="ab-para">Because the project is self-hosted, security depends on how you expose it. For private use, keep it on a trusted network. If you enable WAN access, share the public link carefully and use the password lock.</p>
+            </section>
 
-            <!-- Settings Guide -->
-            <div class="ab-section">
-              <div class="ab-section-title">⚙️ Settings Guide — Har Option Kya Karta Hai?</div>
-              <div class="ab-settings-list">
-                <div class="ab-setting-item">
-                  <div class="ab-setting-icon" style="background:linear-gradient(135deg,#a855f7,#6366f1)">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20c-2.76 0-5-4.48-5-10S9.24 2 12 2z"/><path d="M2 12h20"/></svg>
-                  </div>
-                  <div class="ab-setting-content">
-                    <div class="ab-setting-name">🌙 Theme</div>
-                    <div class="ab-setting-desc">Dark ya Light mode choose karo. <b>Dark mode</b> aankhon ke liye comfortable hai raat mein, <b>Light mode</b> din mein bright aur clean lagta hai. Preference localStorage mein save hoti hai.</div>
-                  </div>
-                </div>
-                <div class="ab-setting-item">
-                  <div class="ab-setting-icon" style="background:linear-gradient(135deg,#ef4444,#dc2626)">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  </div>
-                  <div class="ab-setting-content">
-                    <div class="ab-setting-name">🔒 Password Lock</div>
-                    <div class="ab-setting-desc">Hevi Explorer ko ek custom password se protect karo. Enable karne ke baad koi bhi — phone ya PC se — bina password daale access nahi kar sakta. Agar bhul gaye to server restart karo settings file se disable karke.</div>
-                  </div>
-                </div>
-                <div class="ab-setting-item">
-                  <div class="ab-setting-icon" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-                  </div>
-                  <div class="ab-setting-content">
-                    <div class="ab-setting-name">🌐 LAN — Local IP Addresses</div>
-                    <div class="ab-setting-desc">Yahan aapki local network IPs dikhti hain. QR code scan karo apne phone se aur turant same Wi-Fi pe access karo — bina kuch type kiye. Perfect hai phone se PC files dekhne ke liye.</div>
-                  </div>
-                </div>
-                <div class="ab-setting-item">
-                  <div class="ab-setting-icon" style="background:linear-gradient(135deg,#10b981,#059669)">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                  </div>
-                  <div class="ab-setting-content">
-                    <div class="ab-setting-name">🔗 WAN — Cloudflare Tunnel</div>
-                    <div class="ab-setting-desc">Internet se kahi se bhi apna file manager access karo. Cloudflare ek secure encrypted tunnel banata hai jisse ek random public HTTPS URL milti hai. Koi port forwarding nahi, koi static IP nahi. URL share karo aur duniya mein kahi se bhi access karo.</div>
-                  </div>
-                </div>
-                <div class="ab-setting-item">
-                  <div class="ab-setting-icon" style="background:linear-gradient(135deg,#14b8a6,#0d9488)">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                  </div>
-                  <div class="ab-setting-content">
-                    <div class="ab-setting-name">🔄 Updates</div>
-                    <div class="ab-setting-desc">"Check" button press karo to GitHub se latest version check hota hai. Agar naya version available ho to download link mil jaata hai changelog ke saath. Hamesha latest version use karo for best features aur security fixes.</div>
-                  </div>
-                </div>
-                <div class="ab-setting-item">
-                  <div class="ab-setting-icon" style="background:linear-gradient(135deg,#f97316,#ea580c)">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                  </div>
-                  <div class="ab-setting-content">
-                    <div class="ab-setting-name">💻 System Info</div>
-                    <div class="ab-setting-desc">Aapke device ki technical information dikhti hai — OS, hostname, platform, aur jis folder ke files serve ho rahe hain uska path. Debugging aur setup check karne ke kaam aata hai.</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <section class="ab-section ab-reveal">
+              <div class="ab-section-head"><span class="ab-section-icon">06</span><div><div class="ab-section-title">Settings Guide</div><p class="ab-section-sub">A clear explanation of the most important controls.</p></div></div>
+              <div class="ab-settings-list"><div class="ab-setting-item"><div class="ab-setting-icon ab-grad-purple">🌙</div><div class="ab-setting-content"><div class="ab-setting-name">Theme</div><div class="ab-setting-desc">Choose dark or light mode. The preference is saved locally so the interface opens the way you like it next time.</div></div></div><div class="ab-setting-item"><div class="ab-setting-icon ab-grad-red">🔒</div><div class="ab-setting-content"><div class="ab-setting-name">Password Lock</div><div class="ab-setting-desc">Protect the vault with a custom password before anyone can browse files from another device.</div></div></div><div class="ab-setting-item"><div class="ab-setting-icon ab-grad-blue">🌐</div><div class="ab-setting-content"><div class="ab-setting-name">LAN Addresses</div><div class="ab-setting-desc">Shows local network addresses and QR codes so nearby devices can connect without manual setup.</div></div></div><div class="ab-setting-item"><div class="ab-setting-icon ab-grad-green">🔗</div><div class="ab-setting-content"><div class="ab-setting-name">WAN Tunnel</div><div class="ab-setting-desc">Starts or manages a Cloudflare Tunnel for secure remote access when local network access is not enough.</div></div></div><div class="ab-setting-item"><div class="ab-setting-icon ab-grad-teal">🔄</div><div class="ab-setting-content"><div class="ab-setting-name">Updates</div><div class="ab-setting-desc">Checks whether a newer project version is available and provides release information when possible.</div></div></div><div class="ab-setting-item"><div class="ab-setting-icon ab-grad-orange">💻</div><div class="ab-setting-content"><div class="ab-setting-name">System Information</div><div class="ab-setting-desc">Displays useful runtime details such as platform, hostname, server path, and environment status for troubleshooting.</div></div></div></div>
+            </section>
 
-            <!-- Tech Stack -->
-            <div class="ab-section">
-              <div class="ab-section-title">🛠️ Tech Stack</div>
-              <div class="ab-tech-grid">
-                <div class="ab-tech"><span>⚙️</span> Node.js</div>
-                <div class="ab-tech"><span>🚀</span> Express.js v5</div>
-                <div class="ab-tech"><span>🌐</span> Vanilla JS (ES2022)</div>
-                <div class="ab-tech"><span>🎨</span> CSS3 / Flexbox</div>
-                <div class="ab-tech"><span>🔗</span> Cloudflare Tunnel</div>
-                <div class="ab-tech"><span>🎬</span> FFmpeg</div>
-                <div class="ab-tech"><span>✨</span> Anime.js</div>
-                <div class="ab-tech"><span>📄</span> PDF.js</div>
-                <div class="ab-tech"><span>🗜️</span> adm-zip</div>
-                <div class="ab-tech"><span>🎵</span> music-metadata</div>
-                <div class="ab-tech"><span>📸</span> exifr</div>
-                <div class="ab-tech"><span>📲</span> QRCode.js</div>
-              </div>
-            </div>
+            <section class="ab-section ab-reveal"><div class="ab-section-head"><span class="ab-section-icon">07</span><div><div class="ab-section-title">Tech Stack</div><p class="ab-section-sub">Built with a lightweight stack that keeps ownership simple.</p></div></div><div class="ab-tech-grid"><div class="ab-tech"><span>⚙️</span> Node.js</div><div class="ab-tech"><span>🚀</span> Express.js</div><div class="ab-tech"><span>🌐</span> Vanilla JavaScript</div><div class="ab-tech"><span>🎨</span> CSS3</div><div class="ab-tech"><span>🔗</span> Cloudflare Tunnel</div><div class="ab-tech"><span>🎬</span> Browser media APIs</div><div class="ab-tech"><span>✨</span> Anime.js</div><div class="ab-tech"><span>📄</span> PDF.js</div><div class="ab-tech"><span>🗜️</span> adm-zip</div><div class="ab-tech"><span>🎵</span> music-metadata</div><div class="ab-tech"><span>📸</span> exifr</div><div class="ab-tech"><span>📲</span> QRCode.js</div></div></section>
 
-            <!-- Build Journey -->
-            <div class="ab-section">
-              <div class="ab-section-title">🗓️ Build Journey</div>
-              <div class="ab-journey">
-                <div class="ab-journey-stat">
-                  <div class="ab-journey-num">22</div>
-                  <div class="ab-journey-label">Days to Build</div>
-                </div>
-                <div class="ab-journey-stat">
-                  <div class="ab-journey-num">4+</div>
-                  <div class="ab-journey-label">AI Tools Used</div>
-                </div>
-                <div class="ab-journey-stat">
-                  <div class="ab-journey-num">1</div>
-                  <div class="ab-journey-label">Developer</div>
-                </div>
-              </div>
-              <p class="ab-para" style="margin-top:12px">Hevi Explorer ko banane mein <b>22 din</b> lage. Is project mein AI tools ka bhi help liya gaya — <b>Gemini, Replit AI, ChatGPT, aur GPT</b> — lekin planning, architecture, aur core development <b>Afsar Ali ke experience aur vision</b> se driven raha.</p>
-            </div>
+            <section class="ab-section ab-reveal"><div class="ab-section-head"><span class="ab-section-icon">08</span><div><div class="ab-section-title">Build Journey</div><p class="ab-section-sub">A focused project shaped by real-world file sharing pain.</p></div></div><div class="ab-journey"><div class="ab-journey-stat"><div class="ab-journey-num">22</div><div class="ab-journey-label">Days to build</div></div><div class="ab-journey-stat"><div class="ab-journey-num">4+</div><div class="ab-journey-label">AI tools assisted</div></div><div class="ab-journey-stat"><div class="ab-journey-num">1</div><div class="ab-journey-label">Core creator</div></div></div><p class="ab-para">Hevi Explorer was built through practical experimentation, system design, and iterative improvement. AI tools helped with acceleration, but the direction, architecture, testing, and product vision were driven by the creator’s own experience.</p></section>
 
-            <!-- Platforms -->
-            <div class="ab-section">
-              <div class="ab-section-title">📱 Supported Platforms</div>
-              <div class="ab-plats">
-                <div class="ab-plat">🤖 Android (Termux)</div>
-                <div class="ab-plat">🐉 Kali Linux</div>
-                <div class="ab-plat">🐧 Any Linux Distro</div>
-                <div class="ab-plat">🍎 macOS</div>
-                <div class="ab-plat">🪟 Windows</div>
-              </div>
-            </div>
+            <section class="ab-section ab-reveal"><div class="ab-section-head"><span class="ab-section-icon">09</span><div><div class="ab-section-title">Supported Platforms</div><p class="ab-section-sub">Any environment that can run Node.js and access storage can become a vault host.</p></div></div><div class="ab-plats"><div class="ab-plat">🤖 Android with Termux</div><div class="ab-plat">🐉 Kali Linux</div><div class="ab-plat">🐧 Linux distributions</div><div class="ab-plat">🍎 macOS</div><div class="ab-plat">🪟 Windows</div><div class="ab-plat">☁️ Replit preview</div></div></section>
 
-            <!-- Creator -->
-            <div class="ab-section ab-creator-section">
-              <div class="ab-section-title">👨‍💻 Creator</div>
-              <div class="ab-creator">
-                <div class="ab-creator-avatar">AA</div>
-                <div class="ab-creator-info">
-                  <div class="ab-creator-name">Afsar Ali</div>
-                  <div class="ab-creator-role">21 years old · Dropout Student · Developer</div>
-                  <div class="ab-creator-bio">Kolkata se hun. Cybersecurity expert, ethical hacker, aur developer. <b>Technical White Hat (TWH)</b> ka founder — ek platform jo elite cybersecurity aur tech education ko sabke liye accessible banata hai. 8+ saalon ka experience.</div>
-                </div>
-              </div>
-            </div>
+            <section class="ab-section ab-creator-section ab-reveal"><div class="ab-section-head"><span class="ab-section-icon">10</span><div><div class="ab-section-title">Creator</div><p class="ab-section-sub">Created by Afsar Ali, founder of Technical White Hat.</p></div></div><div class="ab-creator"><div class="ab-creator-avatar">AA</div><div class="ab-creator-info"><div class="ab-creator-name">Afsar Ali</div><div class="ab-creator-role">Developer · Cybersecurity educator · Founder of Technical White Hat</div><div class="ab-creator-bio">Afsar Ali is a developer and cybersecurity-focused creator from Kolkata with years of hands-on experience in ethical hacking, Linux, automation, OSINT, and practical security education. Hevi Explorer reflects that mindset: privacy first, practical utility, and full user control.</div></div></div></section>
 
-            <!-- TWH -->
-            <div class="ab-section ab-twh-section">
-              <div class="ab-twh-header">
-                <div class="ab-twh-logo">TWH</div>
-                <div>
-                  <div class="ab-twh-name">Technical White Hat</div>
-                  <div class="ab-twh-tagline">Decoding Tech. Empowering Minds. Securing the Future.</div>
-                </div>
-              </div>
-              <p class="ab-para" style="margin-top:12px">Technical White Hat ek cybersecurity aur tech education movement hai. Yahan ethical hacking, OSINT tools, Python scripting, aur cyber defense sikhaya jaata hai — practical real-world style mein. TWH Army — YouTube aur Telegram pe ek massive growing community — hamesha active hai.</p>
-              <div class="ab-twh-tags">
-                <span class="ab-twh-tag">Ethical Hacking</span>
-                <span class="ab-twh-tag">Cybersecurity</span>
-                <span class="ab-twh-tag">OSINT Tools</span>
-                <span class="ab-twh-tag">Python</span>
-                <span class="ab-twh-tag">Linux</span>
-                <span class="ab-twh-tag">Automation</span>
-              </div>
-              <div class="ab-twh-links">
-                <a href="https://github.com/technicalwhitehat-yt" target="_blank" rel="noopener" class="ab-twh-link">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-                  GitHub — @technicalwhitehat-yt
-                </a>
-                <a href="https://github.com/technicalwhitehat-yt/hevi-explorer" target="_blank" rel="noopener" class="ab-twh-link">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-                  Hevi Explorer Source Code
-                </a>
-              </div>
-            </div>
+            <section class="ab-section ab-twh-section ab-reveal"><div class="ab-twh-header"><div class="ab-twh-logo">TWH</div><div><div class="ab-twh-name">Technical White Hat</div><div class="ab-twh-tagline">Decoding Tech. Empowering Minds. Securing the Future.</div></div></div><p class="ab-para">Technical White Hat is a cybersecurity and technology education initiative focused on practical learning. It covers ethical hacking, OSINT tools, Python scripting, Linux workflows, automation, and defensive security in a real-world style.</p><div class="ab-twh-tags"><span class="ab-twh-tag">Ethical Hacking</span><span class="ab-twh-tag">Cybersecurity</span><span class="ab-twh-tag">OSINT</span><span class="ab-twh-tag">Python</span><span class="ab-twh-tag">Linux</span><span class="ab-twh-tag">Automation</span></div><div class="ab-twh-links"><a href="https://github.com/technicalwhitehat-yt" target="_blank" rel="noopener" class="ab-twh-link">GitHub — @technicalwhitehat-yt</a><a href="https://github.com/technicalwhitehat-yt/hevi-explorer" target="_blank" rel="noopener" class="ab-twh-link">Hevi Explorer Source Code</a></div></section>
 
             <div style="height:32px"></div>
           </div>
@@ -1694,7 +1485,7 @@
       }
     </script>
     <script src="/iv.js?v=11"></script>
-    <script src="/app.js?v=11"></script>
+    <script src="/app.js?v=12"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js?v=11').then(reg => reg.update()).catch(() => {});

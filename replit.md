@@ -65,6 +65,7 @@ ROOT_DIR=/ node server.js
 
 - Browse files and folders under the configured root directory
 - Custom Hevi Explorer branding with an SVG app logo, favicon, lock-screen mark, header lockup, and sidebar mark
+- Premium About page with English product copy, privacy-focused storytelling, route-aware animations, and back-button-safe navigation
 - Category filtering for videos, images, audio, files, archives, and APKs
 - Video player with range streaming, capped chunks, seeking gestures, resume support, and preview thumbnails
 - Advanced image viewer with zoom, pan, metadata, and filters
@@ -83,6 +84,7 @@ ROOT_DIR=/ node server.js
 ## Performance
 
 - Server-side pagination for listings, search, and categories
+- About page animations are activated only while the About subpage is open and are stopped when the user exits the page
 - Persistent file index stored in `data/index.json`
 - Background index refresh and filesystem watcher when available
 - Image thumbnail caches for media previews

@@ -3445,6 +3445,7 @@ async function openText(item, url) {
 // ── Modal helpers ──────────────────────────────────────────────────────────
 function openModal(id)  { $(id).classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
 function closeModal(id) {
+  if (id === 'settingsModal') closeAboutPage(false, true);
   $(id).classList.add('hidden');
   document.body.style.overflow = '';
   if (id === 'audioModal') {
@@ -4196,25 +4197,78 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── About Page Navigation ─────────────────────────────────────────────────
-  function openAboutPage() {
+  let _aboutAnimFrame = null;
+  let _aboutRevealTimers = [];
+  let _aboutHistoryOpen = false;
+
+  function stopAboutAnimations() {
+    const page = $('stAboutPage');
+    if (_aboutAnimFrame) cancelAnimationFrame(_aboutAnimFrame);
+    _aboutRevealTimers.forEach(timer => clearTimeout(timer));
+    _aboutAnimFrame = null;
+    _aboutRevealTimers = [];
+    if (page) {
+      page.classList.remove('ab-live');
+      page.style.removeProperty('--ab-shift');
+      page.querySelectorAll('.ab-reveal').forEach(el => el.classList.remove('ab-seen'));
+    }
+  }
+
+  function startAboutAnimations() {
+    const page = $('stAboutPage');
+    if (!page || page.classList.contains('hidden')) return;
+    stopAboutAnimations();
+    page.classList.add('ab-live');
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const revealItems = Array.from(page.querySelectorAll('.ab-reveal'));
+    revealItems.forEach(el => el.classList.remove('ab-seen'));
+    revealItems.forEach((el, i) => {
+      _aboutRevealTimers.push(setTimeout(() => el.classList.add('ab-seen'), reduced ? 0 : 80 + i * 55));
+    });
+    if (reduced) return;
+    const tick = now => {
+      if (!page.classList.contains('ab-live')) return;
+      page.style.setProperty('--ab-shift', (Math.sin(now / 1800) * 18).toFixed(2));
+      _aboutAnimFrame = requestAnimationFrame(tick);
+    };
+    _aboutAnimFrame = requestAnimationFrame(tick);
+  }
+
+  function openAboutPage(pushHistory = true) {
     const page = $('stAboutPage');
     if (!page) return;
-    // Sync version badge
     const curVer = $('updateCurrentVer');
     const abVer  = $('abVersion');
     if (curVer && abVer) abVer.textContent = curVer.textContent;
-    // Slide in
+    if (pushHistory) {
+      history.pushState({ lhost: true, modal: 'settingsModal', subpage: 'about' }, '');
+      _aboutHistoryOpen = true;
+    }
     page.classList.remove('hidden', 'slide-out');
-    requestAnimationFrame(() => page.classList.add('active'));
+    requestAnimationFrame(() => {
+      page.classList.add('active');
+      startAboutAnimations();
+    });
   }
-  function closeAboutPage() {
+  function closeAboutPage(syncHistory = false, immediate = false) {
+    if (syncHistory) {
+      _aboutHistoryOpen = false;
+      history.back();
+      return;
+    }
     const page = $('stAboutPage');
     if (!page) return;
+    stopAboutAnimations();
+    _aboutHistoryOpen = false;
     page.classList.remove('active');
-    page.addEventListener('transitionend', () => page.classList.add('hidden'), { once: true });
+    if (immediate) {
+      page.classList.add('hidden');
+    } else {
+      page.addEventListener('transitionend', () => page.classList.add('hidden'), { once: true });
+    }
   }
   $('aboutCard') && $('aboutCard').addEventListener('click', openAboutPage);
-  $('aboutPageBack') && $('aboutPageBack').addEventListener('click', closeAboutPage);
+  $('aboutPageBack') && $('aboutPageBack').addEventListener('click', () => closeAboutPage(_aboutHistoryOpen));
 
   // ── WAN Install Button ───────────────────────────────────────────────────
   let _wanInstallPoll = null;
@@ -4277,6 +4331,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── History-based back navigation ──────────────────────────────────────
   history.replaceState({ lhost: true }, '');
   window.addEventListener('popstate', () => {
+    const aboutPage = $('stAboutPage');
+    if (aboutPage && !aboutPage.classList.contains('hidden') && aboutPage.classList.contains('active')) {
+      closeAboutPage(false);
+      history.replaceState({ lhost: true }, '');
+      return;
+    }
     if (!$('imageModal').classList.contains('hidden')) {
       ivClose();
       history.replaceState({ lhost: true }, '');
