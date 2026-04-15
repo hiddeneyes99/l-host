@@ -4293,13 +4293,16 @@ img.lazy-img:not([src]) {
 .st-group {
   background: var(--bg3);
   border: 1px solid var(--border);
-  border-radius: 16px; overflow: hidden;
+  border-radius: 16px;
   transition: box-shadow 0.2s, border-color 0.2s;
 }
 .st-group:hover {
   box-shadow: 0 4px 24px rgba(0,0,0,0.12);
   border-color: rgba(0,212,200,0.18);
 }
+/* Round first and last children instead of clipping with overflow:hidden */
+.st-group > *:first-child { border-top-left-radius: 15px; border-top-right-radius: 15px; }
+.st-group > *:last-child  { border-bottom-left-radius: 15px; border-bottom-right-radius: 15px; }
 
 /* ── Row inside group ───────────────────────────────────────────── */
 .st-row {
@@ -4314,16 +4317,17 @@ img.lazy-img:not([src]) {
 .st-row-label { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; }
 .st-row-sub { font-size: 12px; color: var(--text2); }
 
-/* ── Stacked row (label on top, control below) ───────────────────── */
-.st-row-stacked {
-  flex-direction: column; align-items: stretch;
-  gap: 10px; padding: 14px 14px 16px; min-height: unset;
+/* ── Theme dedicated row (below label row) ───────────────────────── */
+.st-theme-row {
+  padding: 0 14px 14px;
 }
-.st-row-top {
-  display: flex; align-items: center; gap: 12px;
+.st-theme-row .s-theme-toggle {
+  width: 100%; display: flex;
 }
-.st-theme-full { width: 100%; }
-.st-theme-full .s-theme-pill { flex: 1; display: flex; align-items: center; justify-content: center; }
+.st-theme-row .s-theme-pill {
+  flex: 1; display: flex; align-items: center;
+  justify-content: center;
+}
 
 /* ── Colored icon badge (iOS-style) ─────────────────────────────── */
 .st-ri {
