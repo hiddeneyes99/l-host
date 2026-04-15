@@ -4618,6 +4618,17 @@ img.lazy-img:not([src]) {
    ABOUT PAGE  ·  ab-* styles
    ══════════════════════════════════════════════════════════════════════════ */
 
+/* ── About page body — overrides .st-body flex to a plain scroll container */
+.ab-body {
+  display: block !important;
+  position: relative;
+}
+.ab-body > .ab-ambient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* ── Reveal animation (content always visible; ab-live enables the entrance) */
 .ab-reveal {
   opacity: 1;
@@ -4669,6 +4680,8 @@ img.lazy-img:not([src]) {
   text-align: center;
   padding: 28px 16px 20px;
   margin-bottom: 8px;
+  display: block;
+  flex-shrink: 0;
 }
 .ab-hero-ring {
   position: absolute;
