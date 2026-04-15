@@ -4195,19 +4195,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ── About card toggle ────────────────────────────────────────────────────
-  $('aboutCard') && $('aboutCard').addEventListener('click', () => {
-    const expand = $('aboutExpand');
-    const isHidden = expand.classList.contains('hidden');
-    if (isHidden) {
-      expand.classList.remove('hidden');
-      anime({ targets: '#aboutExpand', opacity:[0,1], translateY:[-8,0], duration:380, easing:'easeOutQuad' });
-      const ver = $('updateCurrentVer'); if (ver) anime({ targets: ver, scale:[0.9,1.05,1], duration:500, easing:'easeOutBack' });
-    } else {
-      anime({ targets: '#aboutExpand', opacity:[1,0], translateY:[0,-8], duration:260, easing:'easeInQuad',
-        complete: () => expand.classList.add('hidden') });
-    }
-  });
+  // ── About Page Navigation ─────────────────────────────────────────────────
+  function openAboutPage() {
+    const page = $('stAboutPage');
+    if (!page) return;
+    // Sync version badge
+    const curVer = $('updateCurrentVer');
+    const abVer  = $('abVersion');
+    if (curVer && abVer) abVer.textContent = curVer.textContent;
+    // Slide in
+    page.classList.remove('hidden', 'slide-out');
+    requestAnimationFrame(() => page.classList.add('active'));
+  }
+  function closeAboutPage() {
+    const page = $('stAboutPage');
+    if (!page) return;
+    page.classList.remove('active');
+    page.addEventListener('transitionend', () => page.classList.add('hidden'), { once: true });
+  }
+  $('aboutCard') && $('aboutCard').addEventListener('click', openAboutPage);
+  $('aboutPageBack') && $('aboutPageBack').addEventListener('click', closeAboutPage);
 
   // ── WAN Install Button ───────────────────────────────────────────────────
   let _wanInstallPoll = null;
