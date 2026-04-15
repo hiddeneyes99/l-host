@@ -3661,6 +3661,29 @@ function setNavActive(id) { qsa('.nav-item').forEach(b => b.classList.remove('ac
 async function showSettings() {
   history.pushState({ lhost: true }, '');
   openModal('settingsModal');
+
+  // ── Staggered entrance animation ──────────────────────────────
+  const targets = Array.from(document.querySelectorAll(
+    '#stMainPage .st-app-banner, #stMainPage .st-group-label, #stMainPage .st-group'
+  ));
+  targets.forEach(el => { el.style.opacity = '0'; el.style.transform = 'translateY(18px)'; });
+  anime({
+    targets,
+    opacity: [0, 1],
+    translateY: [18, 0],
+    delay: anime.stagger(55, { start: 60 }),
+    duration: 420,
+    easing: 'easeOutExpo',
+  });
+  // Header title pop-in
+  anime({
+    targets: '#stMainPage .st-header-title',
+    opacity: [0, 1],
+    translateY: [-8, 0],
+    duration: 300,
+    easing: 'easeOutCubic',
+  });
+
   syncThemeButtons();
   try {
     const cfg = await fetchJson('/api/settings');

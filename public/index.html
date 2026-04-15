@@ -1068,6 +1068,9 @@
             <div class="st-group-label">Appearance</div>
             <div class="st-group">
               <div class="st-row">
+                <div class="st-ri st-ri-purple">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20c-2.76 0-5-4.48-5-10S9.24 2 12 2z"/><path d="M2 12h20"/></svg>
+                </div>
                 <span class="st-row-label">Theme</span>
                 <div class="s-theme-toggle" id="themeToggleWrap">
                   <button class="s-theme-pill" data-theme="dark" id="themeDarkBtn">🌙 Dark</button>
@@ -1080,6 +1083,9 @@
             <div class="st-group-label">Security</div>
             <div class="st-group">
               <div class="st-row st-row-toggle">
+                <div class="st-ri st-ri-red" style="margin-top:2px">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
                 <div class="st-row-left">
                   <span class="st-row-label">Password Lock</span>
                   <span class="st-row-sub">Require password on open</span>
@@ -1111,6 +1117,9 @@
             <div class="st-group-label">Network — LAN</div>
             <div class="st-group">
               <div class="st-row">
+                <div class="st-ri st-ri-blue">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>
+                </div>
                 <span class="st-row-label">Local IP Addresses</span>
                 <button class="st-mini-btn" id="lanQrBtn">
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -1132,6 +1141,9 @@
             <div class="st-group-label">Network — WAN (Internet)</div>
             <div class="st-group">
               <div class="st-row">
+                <div class="st-ri st-ri-green">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                </div>
                 <div class="st-row-left">
                   <span class="st-row-label">Cloudflare Tunnel</span>
                   <span class="st-row-sub" id="wanStatusTxt">Checking…</span>
@@ -1205,6 +1217,9 @@
             <div class="st-group-label">Updates</div>
             <div class="st-group">
               <div class="st-row">
+                <div class="st-ri st-ri-teal">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </div>
                 <div class="st-row-left">
                   <span class="st-row-label">Current Version</span>
                   <span class="st-row-sub" id="updateVerSub">v1.0.0 installed</span>
@@ -1227,7 +1242,13 @@
 
             <!-- System Info -->
             <div class="st-group-label">System</div>
-            <div class="st-group">
+            <div class="st-group" id="systemInfoGroup">
+              <div class="st-row" style="padding-bottom:0">
+                <div class="st-ri st-ri-orange">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <span class="st-row-label">Device Info</span>
+              </div>
               <div class="info-body st-sysinfo" id="infoBody"></div>
             </div>
 
