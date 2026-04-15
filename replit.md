@@ -1,6 +1,6 @@
-# l-host — Local File Manager
+# Hevi Explorer — Private Media Vault
 
-A self-hosted file manager that runs on Replit and other Node.js environments, letting users browse and manage files through a browser.
+A self-hosted private media vault and local file manager that runs on Replit and other Node.js environments, letting users browse, manage, and stream files through a browser.
 
 ## Stack
 
@@ -18,6 +18,7 @@ files/           - Default browseable file root on Replit, created automatically
 public/
   index.html     - SPA shell
   style.css      - UI styles
+  brand.svg      - Hevi Explorer logo and favicon
   app.js         - Frontend application logic
   iv.js          - Advanced image viewer module
   sw.js          - Service worker
@@ -63,6 +64,7 @@ ROOT_DIR=/ node server.js
 ## Features
 
 - Browse files and folders under the configured root directory
+- Custom Hevi Explorer branding with an SVG app logo, favicon, lock-screen mark, header lockup, and sidebar mark
 - Category filtering for videos, images, audio, files, archives, and APKs
 - Video player with range streaming, capped chunks, seeking gestures, resume support, and preview thumbnails
 - Advanced image viewer with zoom, pan, metadata, and filters

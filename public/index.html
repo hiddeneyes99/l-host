@@ -6,11 +6,12 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
-    <title>Hevi Explorer — File Manager</title>
-    <link rel="stylesheet" href="/style.css?v=14" />
+    <title>Hevi Explorer — Private Media Vault</title>
+    <link rel="stylesheet" href="/style.css?v=15" />
+    <meta name="theme-color" content="#0b1220" />
     <link
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📁</text></svg>"
+      href="/brand.svg"
     />
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"
@@ -21,14 +22,11 @@
     <!-- ── LOCK SCREEN ── -->
     <div class="lock-screen hidden" id="lockScreen">
       <div class="lock-card">
-        <div class="lock-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
+        <div class="lock-icon brand-orb">
+          <img src="/brand.svg" alt="" />
         </div>
         <div class="lock-title">Hevi Explorer</div>
-        <div class="lock-subtitle">Enter password to continue</div>
+        <div class="lock-subtitle">Your private media vault</div>
         <div class="lock-input-wrap">
           <input type="password" id="lockInput" class="lock-input" placeholder="Password" autocomplete="current-password" />
         </div>
@@ -43,8 +41,11 @@
         <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
       </button>
       <div class="topbar-center">
-        <h1 class="topbar-title" id="topbarTitle">Hevi Explorer</h1>
-        <span class="topbar-subtitle" id="topbarSubtitle">File Manager</span>
+        <div class="brand-lockup brand-lockup-top">
+          <img class="brand-mark" src="/brand.svg" alt="" />
+          <h1 class="topbar-title" id="topbarTitle">Hevi Explorer</h1>
+        </div>
+        <span class="topbar-subtitle" id="topbarSubtitle">Private Media Vault</span>
       </div>
       <button class="icon-btn hidden" id="viewMenuBtn" title="View options">
         <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h12M3 19h7" stroke-linecap="round"/></svg>
@@ -94,12 +95,10 @@
     <div class="sidebar-drawer" id="sidebarDrawer">
       <div class="sidebar-header">
         <div class="sidebar-brand">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          </svg>
+          <img class="brand-mark brand-mark-lg" src="/brand.svg" alt="" />
           <div>
             <div class="sidebar-app-name">Hevi Explorer</div>
-            <div class="sidebar-app-ver">v1.0</div>
+            <div class="sidebar-app-ver">Private Media Vault</div>
           </div>
         </div>
         <button class="icon-btn" id="sidebarClose" title="Close">
@@ -1052,11 +1051,11 @@
             <!-- App banner -->
             <div class="st-app-banner" id="aboutCard">
               <div class="st-app-logo">
-                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <img src="/brand.svg" alt="" />
               </div>
               <div class="st-app-meta">
                 <div class="st-app-name">Hevi Explorer</div>
-                <div class="st-app-sub">Local-first File Manager</div>
+                <div class="st-app-sub">Private Media Vault</div>
               </div>
               <div class="st-app-arrow">
                 <span class="st-ver-badge" id="updateCurrentVer">v1.0.0</span>
@@ -1272,10 +1271,10 @@
             <!-- Hero -->
             <div class="ab-hero">
               <div class="ab-hero-icon">
-                <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="12 11 12 17"/><polyline points="9 14 12 17 15 14"/></svg>
+                <img src="/brand.svg" alt="" />
               </div>
               <h1 class="ab-hero-name">Hevi Explorer</h1>
-              <p class="ab-hero-tagline">Local-first File Manager &amp; Media Server</p>
+              <p class="ab-hero-tagline">Private Media Vault &amp; Local File Manager</p>
               <div class="ab-hero-badges">
                 <span class="ab-badge ab-badge-green">✓ No Cloud</span>
                 <span class="ab-badge ab-badge-blue">Open Source</span>

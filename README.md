@@ -1,6 +1,6 @@
-# l-host
+# Hevi Explorer
 
-A local-first web-based file manager and media server.  
+A private media vault and local-first web-based file manager.  
 Run it on any machine and access your files from a browser.
 
 ## Features
@@ -11,6 +11,7 @@ Run it on any machine and access your files from a browser.
 - PDF viewer
 - Archive (.zip) preview
 - Category views: Audio, Videos, Images, Files, Archives, APKs
+- Premium teal/blue brand identity with a custom SVG logo and favicon
 
 ## Requirements
 
