@@ -1864,25 +1864,25 @@ app.post('/api/wan/install', (req, res) => {
   const isTermux = !!process.env.TERMUX_VERSION || fs.existsSync('/data/data/com.termux');
   let cmd, args, platform;
 
+  const arch = require('os').arch(); // arm64, x64, arm, etc.
+  const cfArch = (arch === 'arm64' || arch === 'aarch64') ? 'arm64' : 'amd64';
+
   if (isTermux) {
     cmd = 'pkg'; args = ['install', '-y', 'cloudflared']; platform = 'termux';
   } else if (process.platform === 'linux') {
-    try {
-      const rel = fs.readFileSync('/etc/os-release', 'utf8').toLowerCase();
-      if (rel.includes('kali') || rel.includes('debian') || rel.includes('ubuntu')) {
-        cmd = 'apt-get'; args = ['install', '-y', 'cloudflared']; platform = 'kali';
-      } else {
-        cmd = 'bash';
-        args = ['-c', 'curl -L --output /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /tmp/cloudflared && mv /tmp/cloudflared /usr/local/bin/cloudflared'];
-        platform = 'linux';
-      }
-    } catch (_) {
-      cmd = 'bash';
-      args = ['-c', 'curl -L --output /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /tmp/cloudflared && mv /tmp/cloudflared /usr/local/bin/cloudflared'];
-      platform = 'linux';
-    }
+    // Always use binary download — works on Kali, Debian, Ubuntu, NixOS, any Linux
+    cmd = 'bash';
+    args = ['-c', `set -e
+echo "[1/3] Downloading cloudflared (${cfArch})..."
+curl -fsSL --output /tmp/cloudflared "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cfArch}"
+echo "[2/3] Setting permissions..."
+chmod +x /tmp/cloudflared
+echo "[3/3] Moving to /usr/local/bin/..."
+mv /tmp/cloudflared /usr/local/bin/cloudflared || (mkdir -p $HOME/.local/bin && mv /tmp/cloudflared $HOME/.local/bin/cloudflared && export PATH=$HOME/.local/bin:$PATH)
+echo "Done! cloudflared version: $(cloudflared --version 2>/dev/null || $HOME/.local/bin/cloudflared --version)"`];
+    platform = 'linux';
   } else {
-    return res.json({ ok: false, error: 'Automatic install not supported on this platform. Download from: https://github.com/cloudflare/cloudflared/releases' });
+    return res.json({ ok: false, error: 'Auto-install not supported on this platform. Download from: https://github.com/cloudflare/cloudflared/releases' });
   }
 
   _cfInstallStatus = { state: 'running', log: `Installing cloudflared (${platform})...\n`, error: '' };

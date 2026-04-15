@@ -1030,85 +1030,59 @@
       </div>
     </div>
 
-    <!-- ── SETTINGS MODAL ── -->
+    <!-- ══════════════════════════════════════════════════════════
+         SETTINGS MODAL
+    ═══════════════════════════════════════════════════════════ -->
     <div class="modal hidden" id="settingsModal">
       <div class="modal-backdrop" id="settingsBackdrop"></div>
-      <div class="settings-container">
+      <div class="st-wrap">
 
-        <!-- Header -->
-        <div class="settings-header">
-          <button class="icon-btn" id="settingsClose">
-            <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
-          </button>
-          <span class="settings-title">Settings</span>
-          <div style="width:36px"></div>
-        </div>
-
-        <div class="settings-body">
-
-          <!-- ── ABOUT CARD ── -->
-          <div class="s-about-card" id="aboutCard" style="cursor:pointer;user-select:none">
-            <div class="s-about-icon">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            </div>
-            <div class="s-about-info">
-              <div class="s-about-name">Hevi Explorer</div>
-              <div class="s-about-desc">Local-first File Manager</div>
-            </div>
-            <span class="s-about-ver" id="updateCurrentVer">v1.0.0</span>
-          </div>
-          <!-- About expand panel -->
-          <div class="s-about-expand hidden" id="aboutExpand">
-            <div class="s-about-expand-inner">
-              <div class="s-about-row">
-                <svg viewBox="0 0 24 24" width="15" height="15"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-                <a href="https://github.com/technicalwhitehat-yt/hevi-explorer" target="_blank" class="s-about-link">GitHub — technicalwhitehat-yt/hevi-explorer</a>
-              </div>
-              <div class="s-about-row">
-                <svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <span class="s-about-link-text">Open source · MIT License</span>
-              </div>
-              <div class="s-about-row">
-                <svg viewBox="0 0 24 24" width="15" height="15"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                <span class="s-about-link-text">Works on Termux · Kali Linux · macOS · Windows</span>
-              </div>
-              <div class="s-about-row">
-                <svg viewBox="0 0 24 24" width="15" height="15"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                <span class="s-about-link-text">Made with ❤ by TechnicalWhiteHat</span>
-              </div>
-            </div>
+        <!-- Settings Page -->
+        <div class="st-page" id="stMainPage">
+          <div class="st-header">
+            <button class="st-back-btn" id="settingsClose">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <span class="st-header-title">Settings</span>
+            <div style="width:36px"></div>
           </div>
 
-          <!-- ── APPEARANCE ── -->
-          <div class="s-section">
-            <div class="s-section-label">
-              <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-              Appearance
+          <div class="st-body">
+
+            <!-- App banner -->
+            <div class="st-app-banner" id="aboutCard">
+              <div class="st-app-logo">
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div class="st-app-meta">
+                <div class="st-app-name">Hevi Explorer</div>
+                <div class="st-app-sub">Local-first File Manager</div>
+              </div>
+              <div class="st-app-arrow">
+                <span class="st-ver-badge" id="updateCurrentVer">v1.0.0</span>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
             </div>
-            <div class="s-card">
-              <div class="s-row">
-                <div class="s-row-icon s-icon-purple"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
-                <span class="s-row-label">Theme</span>
+
+            <!-- Appearance -->
+            <div class="st-group-label">Appearance</div>
+            <div class="st-group">
+              <div class="st-row">
+                <span class="st-row-label">Theme</span>
                 <div class="s-theme-toggle" id="themeToggleWrap">
                   <button class="s-theme-pill" data-theme="dark" id="themeDarkBtn">🌙 Dark</button>
                   <button class="s-theme-pill" data-theme="light" id="themeLightBtn">☀️ Light</button>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- ── SECURITY ── -->
-          <div class="s-section">
-            <div class="s-section-label">
-              <svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              Security
-            </div>
-            <div class="s-card">
-              <div class="s-row s-row-toggle">
-                <div class="s-row-icon s-icon-red"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-                <div class="s-row-text">
-                  <span class="s-row-label">Password Lock</span>
-                  <span class="s-row-sub">Protect app on open</span>
+            <!-- Security -->
+            <div class="st-group-label">Security</div>
+            <div class="st-group">
+              <div class="st-row st-row-toggle">
+                <div class="st-row-left">
+                  <span class="st-row-label">Password Lock</span>
+                  <span class="st-row-sub">Require password on open</span>
                 </div>
                 <label class="vm-switch">
                   <input type="checkbox" id="pwToggle">
@@ -1116,182 +1090,262 @@
                 </label>
               </div>
               <div class="pw-fields hidden" id="pwFields">
-                <div class="s-divider"></div>
+                <div class="st-inner-sep"></div>
                 <div id="pwCurrentWrap" class="hidden">
-                  <div class="s-input-wrap">
-                    <svg viewBox="0 0 24 24" width="16" height="16" class="s-input-icon"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    <input type="password" class="s-input" id="pwCurrentInput" placeholder="Current password" />
+                  <div class="st-input-wrap">
+                    <input type="password" class="st-input" id="pwCurrentInput" placeholder="Current password" />
                   </div>
                 </div>
-                <div class="s-input-wrap">
-                  <svg viewBox="0 0 24 24" width="16" height="16" class="s-input-icon"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                  <input type="password" class="s-input" id="pwNewInput" placeholder="New password (min 4 chars)" />
+                <div class="st-input-wrap">
+                  <input type="password" class="st-input" id="pwNewInput" placeholder="New password (min 4 chars)" />
                 </div>
-                <div class="s-input-wrap">
-                  <svg viewBox="0 0 24 24" width="16" height="16" class="s-input-icon"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                  <input type="password" class="s-input" id="pwConfirmInput" placeholder="Confirm new password" />
+                <div class="st-input-wrap">
+                  <input type="password" class="st-input" id="pwConfirmInput" placeholder="Confirm new password" />
                 </div>
                 <div class="pw-error hidden" id="pwError"></div>
-                <button class="s-btn s-btn-primary" id="pwSaveBtn">Save Password</button>
+                <button class="st-save-btn" id="pwSaveBtn">Save Password</button>
               </div>
             </div>
-          </div>
 
-          <!-- ── LAN ACCESS ── -->
-          <div class="s-section">
-            <div class="s-section-label">
-              <svg viewBox="0 0 24 24" width="14" height="14"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-              LAN Access
-            </div>
-            <div class="s-card">
-              <div class="s-row">
-                <div class="s-row-icon s-icon-blue"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
-                <span class="s-row-label">Local Network</span>
-                <button class="s-chip" id="lanQrBtn">
-                  <svg viewBox="0 0 24 24" width="13" height="13"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                  QR Code
+            <!-- LAN Access -->
+            <div class="st-group-label">Network — LAN</div>
+            <div class="st-group">
+              <div class="st-row">
+                <span class="st-row-label">Local IP Addresses</span>
+                <button class="st-mini-btn" id="lanQrBtn">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                  QR
                 </button>
               </div>
               <div class="lan-qr-collapse hidden" id="lanQrCollapse">
-                <div class="s-divider"></div>
-                <div class="s-qr-center">
-                  <img id="qrImg" src="/api/qr" alt="QR Code" class="s-qr-img" />
-                  <div class="s-qr-hint">Scan to open on another device</div>
+                <div class="st-inner-sep"></div>
+                <div class="st-qr-wrap">
+                  <img id="qrImg" src="/api/qr" alt="QR Code" class="st-qr-img" />
+                  <div class="st-qr-label">Scan to open on another device</div>
                 </div>
               </div>
-              <div class="s-divider"></div>
-              <div id="lanIPs" class="lan-ips"></div>
+              <div class="st-inner-sep"></div>
+              <div id="lanIPs" class="lan-ips" style="padding:0 2px 4px"></div>
             </div>
-          </div>
 
-          <!-- ── WAN ACCESS ── -->
-          <div class="s-section">
-            <div class="s-section-label">
-              <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-              WAN Access
-            </div>
-            <div class="s-card">
-              <!-- Status row -->
-              <div class="s-row">
-                <div class="s-row-icon s-icon-green" id="wanIconWrap">
-                  <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <!-- WAN Access -->
+            <div class="st-group-label">Network — WAN (Internet)</div>
+            <div class="st-group">
+              <div class="st-row">
+                <div class="st-row-left">
+                  <span class="st-row-label">Cloudflare Tunnel</span>
+                  <span class="st-row-sub" id="wanStatusTxt">Checking…</span>
                 </div>
-                <div class="s-row-text">
-                  <span class="s-row-label">Cloudflare Tunnel</span>
-                  <span class="s-row-sub" id="wanStatusTxt">Checking…</span>
-                </div>
-                <div class="wan-dot" id="wanDot"></div>
+                <div class="st-status-dot" id="wanDot"></div>
               </div>
 
-              <!-- Not installed alert -->
-              <div class="s-alert s-alert-warn hidden" id="wanNoInstall">
-                <svg viewBox="0 0 24 24" width="16" height="16" style="flex-shrink:0;margin-top:2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <div style="flex:1;min-width:0">
-                  <div class="s-alert-title">cloudflared not installed</div>
-                  <div class="s-alert-body" id="wanInstallPlatformTxt">Detecting your platform…</div>
-                  <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-                    <button class="s-btn s-btn-primary" id="wanInstallBtn" style="font-size:12px;padding:6px 14px">
-                      <svg viewBox="0 0 24 24" width="13" height="13"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                      Install cloudflared
-                    </button>
-                    <button class="s-btn" id="wanInstallLogBtn" style="font-size:12px;padding:6px 14px;display:none">Show Log</button>
-                  </div>
-                  <!-- Install progress log -->
+              <!-- Not installed -->
+              <div class="st-inset-box hidden" id="wanNoInstall">
+                <div class="st-inset-icon">⚠️</div>
+                <div class="st-inset-body">
+                  <div class="st-inset-title">cloudflared not installed</div>
+                  <div class="st-inset-sub" id="wanInstallPlatformTxt">Detecting platform…</div>
+                  <button class="st-action-btn" id="wanInstallBtn">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Install cloudflared Automatically
+                  </button>
+                  <button class="st-mini-btn" id="wanInstallLogBtn" style="margin-top:6px;display:none">View Log</button>
                   <div class="hidden" id="wanInstallLogWrap">
-                    <pre id="wanInstallLog" style="margin:8px 0 0;background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:11px;max-height:120px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--text2)"></pre>
+                    <pre id="wanInstallLog" class="st-log-box"></pre>
                   </div>
                 </div>
               </div>
 
-              <!-- No internet alert -->
-              <div class="s-alert s-alert-warn hidden" id="wanNoInternet">
-                <svg viewBox="0 0 24 24" width="16" height="16"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
-                <div>
-                  <div class="s-alert-title">No internet connection</div>
-                  <div class="s-alert-body">Connect to the internet to start WAN tunnel.</div>
+              <!-- No internet -->
+              <div class="st-inset-box hidden" id="wanNoInternet">
+                <div class="st-inset-icon">📡</div>
+                <div class="st-inset-body">
+                  <div class="st-inset-title">No internet connection</div>
+                  <div class="st-inset-sub">Connect to internet to start WAN tunnel</div>
                 </div>
               </div>
 
-              <!-- URL box (shown when running) -->
+              <!-- Active URL -->
               <div class="wan-url-box hidden" id="wanUrlBox">
-                <div class="s-divider"></div>
-                <div class="wan-url-row">
+                <div class="st-inner-sep"></div>
+                <div class="st-url-row">
                   <svg viewBox="0 0 24 24" width="14" height="14" style="flex-shrink:0;color:var(--accent)"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  <span class="wan-url-val" id="wanUrlVal"></span>
-                  <button class="s-chip" id="wanCopyBtn">Copy</button>
+                  <span class="st-url-val" id="wanUrlVal"></span>
+                  <button class="st-mini-btn" id="wanCopyBtn">Copy</button>
                 </div>
-                <button class="s-chip s-chip-outline" id="wanQrBtn" style="align-self:flex-start;margin-top:4px">
-                  <svg viewBox="0 0 24 24" width="13" height="13"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <button class="st-mini-btn" id="wanQrBtn" style="margin-top:8px">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                   Show QR Code
                 </button>
                 <div class="lan-qr-collapse hidden" id="wanQrCollapse">
-                  <div class="s-qr-center" style="margin-top:10px">
-                    <img id="wanQrImg" class="s-qr-img" alt="WAN QR" />
-                    <div class="s-qr-hint">Scan to access from anywhere</div>
+                  <div class="st-qr-wrap" style="margin-top:10px">
+                    <img id="wanQrImg" class="st-qr-img" alt="WAN QR" />
+                    <div class="st-qr-label">Scan to access from anywhere</div>
                   </div>
                 </div>
               </div>
 
-              <!-- Actions -->
-              <div class="s-divider"></div>
-              <div class="s-row-btns">
-                <button class="s-btn s-btn-primary" id="wanStartBtn">
+              <div class="st-inner-sep"></div>
+              <div class="st-row-btns">
+                <button class="st-action-btn" id="wanStartBtn">
                   <svg viewBox="0 0 24 24" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/></svg>
                   Start Tunnel
                 </button>
-                <button class="s-btn s-btn-danger hidden" id="wanStopBtn">
+                <button class="st-action-btn st-action-danger hidden" id="wanStopBtn">
                   <svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" stroke="none"/></svg>
                   Stop Tunnel
                 </button>
-                <button class="s-btn s-btn-ghost" id="wanRefreshBtn">
-                  <svg viewBox="0 0 24 24" width="14" height="14" id="wanRefreshIcon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <button class="st-icon-btn" id="wanRefreshBtn" title="Refresh">
+                  <svg viewBox="0 0 24 24" width="15" height="15" id="wanRefreshIcon" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 </button>
               </div>
             </div>
-          </div>
 
-          <!-- ── UPDATES ── -->
-          <div class="s-section">
-            <div class="s-section-label">
-              <svg viewBox="0 0 24 24" width="14" height="14"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              Updates
-            </div>
-            <div class="s-card">
-              <div class="s-row">
-                <div class="s-row-icon s-icon-teal"><svg viewBox="0 0 24 24" width="16" height="16"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
-                <div class="s-row-text">
-                  <span class="s-row-label">App Version</span>
-                  <span class="s-row-sub" id="updateVerSub">v1.0.0 installed</span>
+            <!-- Updates -->
+            <div class="st-group-label">Updates</div>
+            <div class="st-group">
+              <div class="st-row">
+                <div class="st-row-left">
+                  <span class="st-row-label">Current Version</span>
+                  <span class="st-row-sub" id="updateVerSub">v1.0.0 installed</span>
                 </div>
-                <button class="s-chip" id="updateCheckBtn">
-                  <svg viewBox="0 0 24 24" width="12" height="12" id="updateCheckIcon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <button class="st-mini-btn" id="updateCheckBtn">
+                  <svg viewBox="0 0 24 24" width="12" height="12" id="updateCheckIcon" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   Check
                 </button>
               </div>
               <div class="update-badge hidden" id="updateBadge"></div>
               <div class="update-changelog hidden" id="updateChangelog"></div>
               <div class="hidden" id="updateDlWrap">
-                <div class="s-divider"></div>
-                <a class="s-btn s-btn-success" id="updateDlBtn" target="_blank" rel="noopener">
-                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <div class="st-inner-sep"></div>
+                <a class="st-action-btn" id="updateDlBtn" target="_blank" rel="noopener" style="text-decoration:none;justify-content:center">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   View Release on GitHub
                 </a>
               </div>
             </div>
-          </div>
 
-          <!-- ── SERVER INFO ── -->
-          <div class="s-section">
-            <div class="s-section-label">
-              <svg viewBox="0 0 24 24" width="14" height="14"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-              System Info
+            <!-- System Info -->
+            <div class="st-group-label">System</div>
+            <div class="st-group">
+              <div class="info-body st-sysinfo" id="infoBody"></div>
             </div>
-            <div class="s-card">
-              <div class="info-body" id="infoBody"></div>
-            </div>
-          </div>
 
+            <div style="height:32px"></div>
+          </div>
         </div>
+
+        <!-- ── ABOUT PAGE (slides in from right) ── -->
+        <div class="st-page st-subpage hidden" id="stAboutPage">
+          <div class="st-header">
+            <button class="st-back-btn" id="aboutPageBack">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+            </button>
+            <span class="st-header-title">About</span>
+            <div style="width:36px"></div>
+          </div>
+          <div class="st-body">
+
+            <!-- Hero -->
+            <div class="ab-hero">
+              <div class="ab-hero-icon">
+                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <h1 class="ab-hero-name">Hevi Explorer</h1>
+              <p class="ab-hero-tagline">Local-first File Manager &amp; Media Server</p>
+              <div class="ab-hero-badges">
+                <span class="ab-badge">Open Source</span>
+                <span class="ab-badge">MIT License</span>
+                <span class="ab-badge" id="abVersion">v1.0.0</span>
+              </div>
+            </div>
+
+            <!-- What is it -->
+            <div class="ab-section">
+              <div class="ab-section-title">What is Hevi Explorer?</div>
+              <p class="ab-para">Hevi Explorer is a self-hosted, local-first file manager that runs directly on your device. It gives you a full-featured web interface to browse, manage, stream, and share your files — no cloud required. Everything stays on your device, private and secure.</p>
+            </div>
+
+            <!-- Features -->
+            <div class="ab-section">
+              <div class="ab-section-title">What can it do?</div>
+              <div class="ab-features">
+                <div class="ab-feat"><span class="ab-feat-icon">📁</span><div><b>File Manager</b> — Browse folders, create, rename, move, copy, and delete files</div></div>
+                <div class="ab-feat"><span class="ab-feat-icon">🎬</span><div><b>Media Streaming</b> — Stream videos, music, and view images right in the browser</div></div>
+                <div class="ab-feat"><span class="ab-feat-icon">📤</span><div><b>File Upload</b> — Upload multiple files from any device on the same network</div></div>
+                <div class="ab-feat"><span class="ab-feat-icon">🌐</span><div><b>LAN Access</b> — Access your files from any device on your local network</div></div>
+                <div class="ab-feat"><span class="ab-feat-icon">🔗</span><div><b>WAN Tunnel</b> — Share files globally using a secure Cloudflare tunnel — no port forwarding needed</div></div>
+                <div class="ab-feat"><span class="ab-feat-icon">🗜️</span><div><b>Archive Viewer</b> — Browse ZIP, RAR, 7z archives without extracting</div></div>
+                <div class="ab-feat"><span class="ab-feat-icon">📄</span><div><b>PDF Viewer</b> — Read PDF files inline in the browser</div></div>
+                <div class="ab-feat"><span class="ab-feat-icon">🔒</span><div><b>Password Lock</b> — Protect access with a custom password</div></div>
+                <div class="ab-feat"><span class="ab-feat-icon">🌙</span><div><b>Dark &amp; Light Mode</b> — Choose your preferred theme</div></div>
+              </div>
+            </div>
+
+            <!-- How it works -->
+            <div class="ab-section">
+              <div class="ab-section-title">How does it work?</div>
+              <p class="ab-para">Hevi Explorer runs a lightweight <b>Node.js + Express</b> web server on your device. It serves a <b>Vanilla JavaScript</b> frontend that talks to the backend via REST APIs. Your files are read and served directly from your device's storage — nothing is uploaded to any external server.</p>
+              <p class="ab-para" style="margin-top:8px">For WAN access, it uses <b>Cloudflare Tunnel (cloudflared)</b> to create a secure public URL — no router port forwarding, no static IP needed.</p>
+            </div>
+
+            <!-- Why built -->
+            <div class="ab-section">
+              <div class="ab-section-title">Why was it built?</div>
+              <p class="ab-para">Most file managers require cloud storage, subscriptions, or complicated setup. Hevi Explorer was built to give developers, tech enthusiasts, and power users a <b>completely private, self-hosted</b> solution that works on <b>Android (Termux), Kali Linux, macOS, and Windows</b> — with zero cloud dependency.</p>
+            </div>
+
+            <!-- Tech stack -->
+            <div class="ab-section">
+              <div class="ab-section-title">Tech Stack</div>
+              <div class="ab-tech-grid">
+                <div class="ab-tech"><span>⚙️</span> Node.js</div>
+                <div class="ab-tech"><span>🚀</span> Express.js</div>
+                <div class="ab-tech"><span>🌐</span> Vanilla JS</div>
+                <div class="ab-tech"><span>🎨</span> CSS3</div>
+                <div class="ab-tech"><span>🔗</span> Cloudflare Tunnel</div>
+                <div class="ab-tech"><span>🎬</span> FFmpeg</div>
+                <div class="ab-tech"><span>✨</span> Anime.js</div>
+                <div class="ab-tech"><span>📄</span> PDF.js</div>
+              </div>
+            </div>
+
+            <!-- Platforms -->
+            <div class="ab-section">
+              <div class="ab-section-title">Supported Platforms</div>
+              <div class="ab-plats">
+                <div class="ab-plat">🤖 Android (Termux)</div>
+                <div class="ab-plat">🐉 Kali Linux</div>
+                <div class="ab-plat">🐧 Any Linux</div>
+                <div class="ab-plat">🍎 macOS</div>
+                <div class="ab-plat">🪟 Windows</div>
+              </div>
+            </div>
+
+            <!-- Creator -->
+            <div class="ab-section">
+              <div class="ab-section-title">Creator</div>
+              <div class="ab-creator">
+                <div class="ab-creator-avatar">TW</div>
+                <div class="ab-creator-info">
+                  <div class="ab-creator-name">TechnicalWhiteHat</div>
+                  <div class="ab-creator-bio">Tech educator, developer, and ethical hacker. Creates content about Linux, networking, cybersecurity, and open-source tools.</div>
+                  <a href="https://github.com/technicalwhitehat-yt" target="_blank" class="ab-creator-link">
+                    <svg viewBox="0 0 24 24" width="13" height="13"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+                    github.com/technicalwhitehat-yt
+                  </a>
+                  <a href="https://github.com/technicalwhitehat-yt/hevi-explorer" target="_blank" class="ab-creator-link" style="margin-top:4px">
+                    <svg viewBox="0 0 24 24" width="13" height="13"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+                    View Source on GitHub
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div style="height:32px"></div>
+          </div>
+        </div>
+
       </div>
     </div>
 
