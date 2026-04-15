@@ -1733,6 +1733,63 @@ app.get('/api/info', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
+//  APP SETTINGS  — password lock, stored in data/settings.json
+// ══════════════════════════════════════════════════════════════════════════
+
+const SETTINGS_FILE = path.join(__dirname, 'data', 'settings.json');
+
+function loadAppSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+  } catch (_) {}
+  return { passwordEnabled: false, passwordHash: '' };
+}
+function saveAppSettings(s) {
+  fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true });
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s));
+}
+
+app.get('/api/settings', (req, res) => {
+  const s = loadAppSettings();
+  res.json({ passwordEnabled: !!s.passwordEnabled });
+});
+
+app.post('/api/settings', express.json(), (req, res) => {
+  const s = loadAppSettings();
+  const { passwordEnabled, password, currentPassword } = req.body || {};
+  if (s.passwordEnabled && currentPassword !== undefined) {
+    const h = crypto.createHash('sha256').update(currentPassword).digest('hex');
+    if (h !== s.passwordHash) return res.json({ error: 'Current password is incorrect' });
+  }
+  if (typeof passwordEnabled === 'boolean') s.passwordEnabled = passwordEnabled;
+  if (password && password.length >= 4) s.passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+  saveAppSettings(s);
+  res.json({ ok: true });
+});
+
+app.post('/api/verify-password', express.json(), (req, res) => {
+  const s = loadAppSettings();
+  if (!s.passwordEnabled) return res.json({ ok: true });
+  const h = crypto.createHash('sha256').update(req.body.password || '').digest('hex');
+  res.json({ ok: h === s.passwordHash });
+});
+
+app.get('/api/qr', async (req, res) => {
+  const port = req.socket.localPort;
+  const ifaces = os.networkInterfaces();
+  const ips = Object.values(ifaces).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address);
+  const url = ips.length ? `http://${ips[0]}:${port}` : `http://localhost:${port}`;
+  try {
+    const QRCode = require('qrcode');
+    const svg = await QRCode.toString(url, { type: 'svg', margin: 2,
+      color: { dark: '#00d4c8', light: '#00000000' } });
+    res.set('Content-Type', 'image/svg+xml').send(svg);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
 //  USER STATE — Persistent favourites
 //  Survives server restarts; stored in data/userstate.json
 // ══════════════════════════════════════════════════════════════════════════

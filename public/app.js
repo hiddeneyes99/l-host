@@ -3658,22 +3658,33 @@ async function handleUpload() {
 function setNavActive(id) { qsa('.nav-item').forEach(b => b.classList.remove('active')); $(id)?.classList.add('active'); }
 
 // ── Info ───────────────────────────────────────────────────────────────────
-async function showInfo() {
+async function showSettings() {
+  openModal('settingsModal');
+  syncThemeButtons();
+  try {
+    const cfg = await fetchJson('/api/settings');
+    const tog = $('pwToggle');
+    tog.checked = !!cfg.passwordEnabled;
+    $('pwFields').classList.toggle('hidden', !cfg.passwordEnabled);
+    $('pwCurrentWrap').classList.toggle('hidden', !cfg.passwordEnabled);
+  } catch (_) {}
   try {
     const data = await fetchJson('/api/info');
     const envLabels = { termux:'🤖 Termux (Android)', android:'📱 Android', 'linux-root':'🔴 Linux (root)', linux:'🐧 Linux', darwin:'🍎 macOS', win32:'🪟 Windows', custom:'⚙️ Custom (ROOT_DIR)' };
-    const networkRows = (data.networkIPs || []).map(ip =>
-      `<div class="info-row"><span class="info-label">Network IP</span><span class="info-val" style="color:var(--accent);font-weight:600">http://${ip}:${location.port}</span></div>`).join('');
     $('infoBody').innerHTML = `
       <div class="info-row"><span class="info-label">Environment</span><span class="info-val">${envLabels[data.env] || data.env}</span></div>
       <div class="info-row"><span class="info-label">Hostname</span><span class="info-val">${data.hostname}</span></div>
       <div class="info-row"><span class="info-label">Platform</span><span class="info-val">${data.platform} · Node ${data.nodeVersion}</span></div>
       <div class="info-row"><span class="info-label">Root Dir</span><span class="info-val">${data.root}</span></div>
-      ${networkRows}
-      <div class="info-row"><span class="info-label">Override root</span><span class="info-val"><code style="background:var(--bg4);padding:2px 6px;border-radius:4px;font-size:11px">ROOT_DIR=/sdcard node server.js</code></span></div>`;
-    openModal('infoModal');
+      <div class="info-row"><span class="info-label">Tip</span><span class="info-val"><code style="background:var(--bg4);padding:2px 6px;border-radius:4px;font-size:11px">ROOT_DIR=/sdcard node server.js</code></span></div>`;
+    const port = location.port;
+    $('lanIPs').innerHTML = (data.networkIPs || []).length
+      ? (data.networkIPs.map(ip =>
+          `<div class="lan-ip-row"><span class="lan-ip-label">Network</span><span class="lan-ip-val">http://${ip}${port ? ':'+port : ''}</span></div>`).join(''))
+      : '<div style="color:var(--text2);font-size:13px">No network interfaces found</div>';
   } catch (e) { toast(e.message, 'error'); }
 }
+function showInfo() { showSettings(); }
 
 // ── Folder ─────────────────────────────────────────────────────────────────
 async function createFolder(name) {
@@ -3826,7 +3837,21 @@ function refreshCurrentView() {
 //  BOOTSTRAP
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ── Theme ───────────────────────────────────────────────────────────────────
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('lhost_theme', t);
+  syncThemeButtons();
+}
+function syncThemeButtons() {
+  const t = localStorage.getItem('lhost_theme') || 'dark';
+  qsa('.theme-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.theme === t));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+
+  // Apply saved theme immediately
+  applyTheme(localStorage.getItem('lhost_theme') || 'dark');
 
   vpInit();
   ivInit();
@@ -3835,6 +3860,83 @@ document.addEventListener('DOMContentLoaded', () => {
   // Apply saved view mode on startup
   setListMode(prefs.viewMode);
   syncViewMenu();
+
+  // ── Lock screen ──────────────────────────────────────────────────────────
+  (async () => {
+    try {
+      const cfg = await fetchJson('/api/settings');
+      if (cfg.passwordEnabled && !sessionStorage.getItem('lhost_unlocked')) {
+        $('lockScreen').classList.remove('hidden');
+        $('lockInput').focus();
+      }
+    } catch (_) {}
+  })();
+
+  async function tryUnlock() {
+    const pw = $('lockInput').value;
+    if (!pw) return;
+    try {
+      const r = await fetch('/api/verify-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        sessionStorage.setItem('lhost_unlocked', '1');
+        $('lockScreen').classList.add('hidden');
+        $('lockError').classList.add('hidden');
+        $('lockInput').value = '';
+      } else {
+        $('lockError').classList.remove('hidden');
+        $('lockInput').value = '';
+        $('lockInput').focus();
+      }
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  $('lockUnlockBtn').addEventListener('click', tryUnlock);
+  $('lockInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+
+  // ── Theme buttons ────────────────────────────────────────────────────────
+  qsa('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+  });
+
+  // ── Password settings ────────────────────────────────────────────────────
+  $('pwToggle').addEventListener('change', () => {
+    const en = $('pwToggle').checked;
+    $('pwFields').classList.toggle('hidden', !en);
+    $('pwCurrentWrap').classList.toggle('hidden', true);
+    $('pwNewInput').value = '';
+    $('pwConfirmInput').value = '';
+    $('pwError').classList.add('hidden');
+    if (!en) {
+      fetch('/api/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passwordEnabled: false })
+      }).then(r => r.json()).then(d => {
+        if (d.error) toast(d.error, 'error');
+        else { toast('Password lock disabled', 'success'); sessionStorage.removeItem('lhost_unlocked'); }
+      });
+    }
+  });
+
+  $('pwSaveBtn').addEventListener('click', async () => {
+    const current = $('pwCurrentInput').value;
+    const nw = $('pwNewInput').value;
+    const conf = $('pwConfirmInput').value;
+    const pwErr = $('pwError');
+    if (nw.length < 4) { pwErr.textContent = 'Password must be at least 4 characters'; pwErr.classList.remove('hidden'); return; }
+    if (nw !== conf) { pwErr.textContent = 'Passwords do not match'; pwErr.classList.remove('hidden'); return; }
+    pwErr.classList.add('hidden');
+    try {
+      const body = { passwordEnabled: true, password: nw };
+      if (current) body.currentPassword = current;
+      const d = await fetch('/api/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      }).then(r => r.json());
+      if (d.error) { pwErr.textContent = d.error; pwErr.classList.remove('hidden'); }
+      else { toast('Password saved!', 'success'); $('pwNewInput').value = ''; $('pwConfirmInput').value = ''; $('pwCurrentInput').value = ''; }
+    } catch (e) { toast(e.message, 'error'); }
+  });
 
   // ── History-based back navigation ──────────────────────────────────────
   history.replaceState({ lhost: true }, '');
@@ -3854,7 +3956,7 @@ document.addEventListener('DOMContentLoaded', () => {
       history.replaceState({ lhost: true }, '');
       return;
     }
-    const modals = ['textModal','infoModal','uploadModal','folderModal','pdfModal','archiveModal'];
+    const modals = ['textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal'];
     for (const id of modals) {
       if (!$(id).classList.contains('hidden')) {
         closeModal(id);
@@ -3932,7 +4034,7 @@ document.addEventListener('DOMContentLoaded', () => {
   qsa('[data-sidebar-cat]').forEach(el => {
     el.addEventListener('click', () => { closeSidebar(); loadCategory(el.dataset.sidebarCat); });
   });
-  $('sbInfo').addEventListener('click', () => { closeSidebar(); showInfo(); });
+  $('sbSettings').addEventListener('click', () => { closeSidebar(); showSettings(); });
 
   // Swipe-right to open sidebar from left edge
   let _sbTx = 0;
@@ -3974,10 +4076,10 @@ document.addEventListener('DOMContentLoaded', () => {
   $('navFiles').addEventListener('click', loadHome);
   $('navBrowse').addEventListener('click', () => navigate(state.currentPath || ''));
   $('navUpload').addEventListener('click', openUploadModal);
-  $('navInfo').addEventListener('click', showInfo);
+  $('navSettings').addEventListener('click', showSettings);
 
    // Non-video modals close (image viewer handled by ivInit)
-  ['audio','text','info','upload','pdf','archive'].forEach(name => {
+  ['audio','text','settings','upload','pdf','archive'].forEach(name => {
     $(`${name}Close`).addEventListener('click', () => {
       if (name === 'pdf') _cancelPdf();
       closeModal(`${name}Modal`);
@@ -4135,7 +4237,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (e.key === 'Escape') {
       if (videoOpen) { closeVideo(); return; }
-      ['audioModal','textModal','infoModal','uploadModal','folderModal','pdfModal','archiveModal'].forEach(id => {
+      ['audioModal','textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal'].forEach(id => {
         if (!$(id).classList.contains('hidden')) {
           if (id === 'pdfModal') _cancelPdf();
           closeModal(id);

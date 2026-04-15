@@ -18,6 +18,25 @@
     ></script>
   </head>
   <body>
+    <!-- ── LOCK SCREEN ── -->
+    <div class="lock-screen hidden" id="lockScreen">
+      <div class="lock-card">
+        <div class="lock-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <div class="lock-title">l-host</div>
+        <div class="lock-subtitle">Enter password to continue</div>
+        <div class="lock-input-wrap">
+          <input type="password" id="lockInput" class="lock-input" placeholder="Password" autocomplete="current-password" />
+        </div>
+        <div class="lock-error hidden" id="lockError">Incorrect password</div>
+        <button class="lock-btn" id="lockUnlockBtn">Unlock</button>
+      </div>
+    </div>
+
     <!-- ── TOP BAR ── -->
     <header class="topbar">
       <button class="icon-btn" id="menuBtn" title="Menu">
@@ -123,9 +142,9 @@
         </button>
       </nav>
       <div class="sidebar-footer">
-        <button class="sidebar-item" id="sbInfo">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          Server Info
+        <button class="sidebar-item" id="sbSettings">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
         </button>
       </div>
     </div>
@@ -394,13 +413,12 @@
           </svg>
         </div>
       </button>
-      <button class="nav-item" id="navInfo">
-        <svg viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="16" x2="12" y2="12" />
-          <line x1="12" y1="8" x2="12.01" y2="8" />
+      <button class="nav-item" id="navSettings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
-        <span>Info</span>
+        <span>Settings</span>
       </button>
     </nav>
 
@@ -1012,17 +1030,82 @@
       </div>
     </div>
 
-    <!-- ── INFO MODAL ── -->
-    <div class="modal hidden" id="infoModal">
-      <div class="modal-backdrop" id="infoBackdrop"></div>
-      <div class="info-container">
-        <div class="player-header">
-          <button class="icon-btn" id="infoClose">
+    <!-- ── SETTINGS MODAL ── -->
+    <div class="modal hidden" id="settingsModal">
+      <div class="modal-backdrop" id="settingsBackdrop"></div>
+      <div class="settings-container">
+        <div class="settings-header">
+          <button class="icon-btn" id="settingsClose">
             <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </button>
-          <span class="player-title">Server Info</span>
+          <span class="settings-title">Settings</span>
         </div>
-        <div class="info-body" id="infoBody"></div>
+        <div class="settings-body">
+
+          <!-- ── THEME ── -->
+          <div class="settings-section">
+            <div class="settings-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              Theme
+            </div>
+            <div class="theme-btns">
+              <button class="theme-btn" data-theme="dark">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                Dark
+              </button>
+              <button class="theme-btn" data-theme="light">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                Light
+              </button>
+            </div>
+          </div>
+
+          <!-- ── PASSWORD LOCK ── -->
+          <div class="settings-section">
+            <div class="settings-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Password Lock
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">Enable password on open</span>
+              <label class="vm-switch">
+                <input type="checkbox" id="pwToggle">
+                <span class="vm-slider"></span>
+              </label>
+            </div>
+            <div class="pw-fields hidden" id="pwFields">
+              <div id="pwCurrentWrap" class="hidden">
+                <input type="password" class="settings-input" id="pwCurrentInput" placeholder="Current password" />
+              </div>
+              <input type="password" class="settings-input" id="pwNewInput" placeholder="New password (min 4 chars)" />
+              <input type="password" class="settings-input" id="pwConfirmInput" placeholder="Confirm new password" />
+              <div class="pw-error hidden" id="pwError"></div>
+              <button class="settings-save-btn" id="pwSaveBtn">Save Password</button>
+            </div>
+          </div>
+
+          <!-- ── LAN ACCESS ── -->
+          <div class="settings-section">
+            <div class="settings-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+              LAN Access
+            </div>
+            <div class="qr-wrap">
+              <img id="qrImg" src="/api/qr" alt="QR Code" class="qr-img" />
+            </div>
+            <div id="lanIPs" class="lan-ips"></div>
+          </div>
+
+          <!-- ── SERVER INFO ── -->
+          <div class="settings-section">
+            <div class="settings-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+              Server Info
+            </div>
+            <div class="info-body" id="infoBody"></div>
+          </div>
+
+        </div>
       </div>
     </div>
 
