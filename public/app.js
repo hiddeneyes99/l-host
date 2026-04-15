@@ -3443,9 +3443,12 @@ async function openText(item, url) {
 }
 
 // ── Modal helpers ──────────────────────────────────────────────────────────
+// Proxy for closeAboutPage — assigned once DOMContentLoaded wires it up
+let _closeAboutPageFn = null;
+
 function openModal(id)  { $(id).classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
 function closeModal(id) {
-  if (id === 'settingsModal') closeAboutPage(false, true);
+  if (id === 'settingsModal' && _closeAboutPageFn) _closeAboutPageFn(false, true);
   $(id).classList.add('hidden');
   document.body.style.overflow = '';
   if (id === 'audioModal') {
@@ -4267,6 +4270,9 @@ document.addEventListener('DOMContentLoaded', () => {
       page.addEventListener('transitionend', () => page.classList.add('hidden'), { once: true });
     }
   }
+  // Expose closeAboutPage to the global proxy so closeModal can reach it
+  _closeAboutPageFn = closeAboutPage;
+
   $('aboutCard') && $('aboutCard').addEventListener('click', openAboutPage);
   $('aboutPageBack') && $('aboutPageBack').addEventListener('click', () => closeAboutPage(_aboutHistoryOpen));
 
@@ -4478,14 +4484,14 @@ document.addEventListener('DOMContentLoaded', () => {
   ['audio','text','settings','upload','pdf','archive'].forEach(name => {
     $(`${name}Close`).addEventListener('click', () => {
       if (name === 'pdf') _cancelPdf();
-      if (name === 'settings') { history.back(); return; }
       closeModal(`${name}Modal`);
+      if (name === 'settings') history.back();
     });
     const bd = $(`${name}Backdrop`);
     if (bd) bd.addEventListener('click', () => {
       if (name === 'pdf') _cancelPdf();
-      if (name === 'settings') { history.back(); return; }
       closeModal(`${name}Modal`);
+      if (name === 'settings') history.back();
     });
   });
 
