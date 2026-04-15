@@ -4478,11 +4478,13 @@ document.addEventListener('DOMContentLoaded', () => {
   ['audio','text','settings','upload','pdf','archive'].forEach(name => {
     $(`${name}Close`).addEventListener('click', () => {
       if (name === 'pdf') _cancelPdf();
+      if (name === 'settings') { history.back(); return; }
       closeModal(`${name}Modal`);
     });
     const bd = $(`${name}Backdrop`);
     if (bd) bd.addEventListener('click', () => {
       if (name === 'pdf') _cancelPdf();
+      if (name === 'settings') { history.back(); return; }
       closeModal(`${name}Modal`);
     });
   });
