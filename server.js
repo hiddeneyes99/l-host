@@ -1,5 +1,5 @@
 /**
- * l-host — Local File Manager
+ * Hevi Explorer — Local File Manager
  * ─────────────────────────────────────────────────────────────────────────
  *  Protocol 1 : Dynamic Path Handling   — auto-detects Termux / Kali / Linux
  *  Protocol 2 : Zero Heavy Dependencies — only Node built-ins + express
@@ -17,10 +17,14 @@ const path        = require('path');
 const os          = require('os');
 const net         = require('net');
 const crypto      = require('crypto');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
+const https = require('https');
+
+const APP_VERSION = require('./package.json').version;
 
 const app  = express();
 const HOST = '0.0.0.0';
+let ACTIVE_PORT = 5000;
 
 // ── Gzip responses — skip video (already compressed; gzip wastes CPU for 0 gain)
 const VIDEO_EXTS = new Set(['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp','.ts','.wmv','.rmvb','.vob','.ogg','.ogv']);
@@ -1790,6 +1794,129 @@ app.get('/api/qr', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
+//  WAN TUNNEL — Cloudflare tunnel via cloudflared
+// ══════════════════════════════════════════════════════════════════════════
+
+let wanProc   = null;
+let wanUrl    = null;
+let wanStatus = 'stopped'; // 'stopped' | 'starting' | 'running' | 'error'
+let wanError  = '';
+
+app.get('/api/wan/status', (req, res) => {
+  res.json({ status: wanStatus, url: wanUrl, error: wanError });
+});
+
+app.post('/api/wan/start', (req, res) => {
+  if (wanProc) return res.json({ ok: false, error: 'Tunnel already running' });
+  wanStatus = 'starting';
+  wanUrl    = null;
+  wanError  = '';
+
+  wanProc = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${ACTIVE_PORT}`], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  const onData = (chunk) => {
+    const str = chunk.toString();
+    const m = str.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
+    if (m && !wanUrl) {
+      wanUrl    = m[0];
+      wanStatus = 'running';
+      console.log('[wan] tunnel URL:', wanUrl);
+    }
+  };
+  wanProc.stdout.on('data', onData);
+  wanProc.stderr.on('data', onData);
+
+  wanProc.on('error', (e) => {
+    wanStatus = 'error';
+    wanError  = e.code === 'ENOENT'
+      ? 'cloudflared not found — install it via: pkg install cloudflared'
+      : e.message;
+    wanProc = null;
+    console.error('[wan] error:', wanError);
+  });
+
+  wanProc.on('close', (code) => {
+    if (wanStatus !== 'error') wanStatus = 'stopped';
+    wanProc = null;
+    wanUrl  = null;
+    console.log('[wan] tunnel closed (code ' + code + ')');
+  });
+
+  res.json({ ok: true });
+});
+
+app.post('/api/wan/stop', (req, res) => {
+  if (!wanProc) return res.json({ ok: false, error: 'No tunnel running' });
+  wanProc.kill('SIGTERM');
+  wanProc   = null;
+  wanUrl    = null;
+  wanStatus = 'stopped';
+  wanError  = '';
+  res.json({ ok: true });
+});
+
+app.get('/api/wan/qr', async (req, res) => {
+  if (!wanUrl) return res.status(404).json({ error: 'No active tunnel' });
+  try {
+    const QRCode = require('qrcode');
+    const svg = await QRCode.toString(wanUrl, { type: 'svg', margin: 2,
+      color: { dark: '#00d4c8', light: '#00000000' } });
+    res.set('Content-Type', 'image/svg+xml').send(svg);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+//  UPDATE CHECKER — GitHub Releases
+// ══════════════════════════════════════════════════════════════════════════
+
+const GITHUB_REPO = 'technicalwhitehat-yt/hevi-explorer';
+
+function githubGet(path) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.github.com',
+      path,
+      headers: { 'User-Agent': 'hevi-explorer', 'Accept': 'application/vnd.github.v3+json' },
+    };
+    https.get(options, (r) => {
+      let body = '';
+      r.on('data', c => body += c);
+      r.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch (e) { reject(new Error('Invalid JSON from GitHub')); }
+      });
+    }).on('error', reject);
+  });
+}
+
+app.get('/api/update/check', async (req, res) => {
+  try {
+    const data = await githubGet(`/repos/${GITHUB_REPO}/releases/latest`);
+    if (data.message === 'Not Found') {
+      return res.json({ currentVersion: APP_VERSION, latestVersion: null, upToDate: true, noReleases: true });
+    }
+    const latestVersion = (data.tag_name || '').replace(/^v/, '') || null;
+    const upToDate = latestVersion ? (latestVersion === APP_VERSION) : true;
+    res.json({
+      currentVersion:  APP_VERSION,
+      latestVersion:   latestVersion ? `v${latestVersion}` : null,
+      upToDate,
+      changelog:       data.body  || '',
+      publishedAt:     data.published_at || null,
+      htmlUrl:         data.html_url || `https://github.com/${GITHUB_REPO}/releases`,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/version', (req, res) => {
+  res.json({ version: APP_VERSION });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
 //  USER STATE — Persistent favourites
 //  Survives server restarts; stored in data/userstate.json
 // ══════════════════════════════════════════════════════════════════════════
@@ -1932,6 +2059,7 @@ app.post('/api/userstate/favorite', express.json(), (req, res) => {
   initIndex().catch(e => console.error('[index] init error:', e));
 
   app.listen(PORT, HOST, () => {
+    ACTIVE_PORT = PORT;
     const ifaces     = os.networkInterfaces();
     const networkIPs = Object.values(ifaces)
       .flat()
@@ -1939,7 +2067,7 @@ app.post('/api/userstate/favorite', express.json(), (req, res) => {
 
     const line = '═'.repeat(48);
     console.log(`\n╔${line}╗`);
-    console.log(`║${'  l-host  •  Local File Manager'.padEnd(48)}║`);
+    console.log(`║${'  Hevi Explorer  •  File Manager'.padEnd(48)}║`);
     console.log(`╠${line}╣`);
     console.log(`║  Environment : ${DETECTED_ENV.padEnd(31)}║`);
     console.log(`║  Root Dir    : ${ROOT_DIR.substring(0, 31).padEnd(31)}║`);

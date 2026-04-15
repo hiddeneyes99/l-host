@@ -3943,6 +3943,87 @@ img.lazy-img:not([src]) {
 .info-label { color: var(--text2); flex-shrink: 0; }
 .info-val { color: var(--text); text-align: right; word-break: break-all; }
 
+/* ── WAN ACCESS ──────────────────────────────────────────────────────────── */
+.wan-desc {
+  font-size: 12px; color: var(--text2); line-height: 1.5;
+}
+.wan-desc code {
+  background: var(--bg4); padding: 1px 5px; border-radius: 4px;
+  font-size: 11px; color: var(--accent);
+}
+.wan-status-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.wan-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  background: var(--text3); transition: background 0.3s;
+}
+.wan-dot-stopped  { background: var(--text3); }
+.wan-dot-starting { background: #f0a500; box-shadow: 0 0 6px #f0a50066;
+  animation: wan-pulse 1s ease-in-out infinite; }
+.wan-dot-running  { background: #22c55e; box-shadow: 0 0 8px #22c55e66; }
+.wan-dot-error    { background: var(--danger); }
+@keyframes wan-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.wan-status-txt { font-size: 13px; color: var(--text2); flex: 1; }
+.wan-spinner {
+  width: 16px; height: 16px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.wan-url-box {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--bg4); border-radius: 10px; padding: 10px 12px;
+}
+.wan-url-val {
+  flex: 1; font-size: 12px; color: var(--accent); font-weight: 600;
+  font-family: monospace; word-break: break-all;
+}
+.wan-copy-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 8px;
+  background: rgba(0,212,200,0.15); color: var(--accent);
+  font-size: 12px; font-weight: 600; transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+.wan-copy-btn:hover { opacity: 0.75; }
+.wan-qr-wrap {
+  display: flex; justify-content: center; padding: 8px;
+  background: var(--bg4); border-radius: 12px;
+}
+.wan-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.wan-start-btn { background: var(--accent); display: flex; align-items: center; gap: 6px; }
+.wan-stop-btn  { background: var(--danger); color: #fff; display: flex; align-items: center; gap: 6px; }
+
+/* ── UPDATES ─────────────────────────────────────────────────────────────── */
+.update-ver-row { display: flex; flex-direction: column; gap: 4px; }
+.update-badge {
+  padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 600;
+}
+.update-badge-ok  { background: rgba(34,197,94,0.12); color: #22c55e; }
+.update-badge-new { background: rgba(0,212,200,0.12); color: var(--accent); }
+.update-changelog {
+  background: var(--bg4); border-radius: 10px; padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.update-changelog-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text2); margin-bottom: 4px;
+}
+.update-changelog-line {
+  font-size: 12px; color: var(--text); padding: 2px 0;
+  padding-left: 12px; position: relative;
+}
+.update-changelog-line::before {
+  content: '•'; position: absolute; left: 0; color: var(--accent);
+}
+.update-dl-btn {
+  background: #22c55e; color: #000; display: flex; align-items: center; gap: 6px;
+}
+
 /* ── LIGHT THEME ─────────────────────────────────────────────────────────── */
 [data-theme="light"] {
   --bg:       #f0f2f5;

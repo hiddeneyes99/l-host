@@ -1,7 +1,7 @@
 {
-  "name": "l-host",
+  "name": "hevi-explorer",
   "version": "1.0.0",
-  "description": "Local-first web-based file manager and media server",
+  "description": "Hevi Explorer — Local-first file manager and media server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
