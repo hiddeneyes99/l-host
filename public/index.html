@@ -1722,10 +1722,159 @@
               </div>
             </section>
 
-            <!-- 06 TECH STACK -->
-            <section class="ab-section ab-reveal">
+            <!-- 06 CLOUD STORAGE -->
+            <section class="ab-section ab-cloud-section ab-reveal">
               <div class="ab-section-head">
                 <span class="ab-section-icon">06</span>
+                <div>
+                  <div class="ab-section-title">Cloud Storage Integration</div>
+                  <p class="ab-section-sub">Connect Google Drive, Dropbox, OneDrive, and MEGA — all inside Hevi Explorer. Your accounts, your data, zero compromise.</p>
+                </div>
+              </div>
+
+              <!-- What providers -->
+              <div class="ab-cloud-providers">
+                <div class="ab-cloud-prov ab-cp-google"><span>🔵</span><b>Google Drive</b></div>
+                <div class="ab-cloud-prov ab-cp-dropbox"><span>🟦</span><b>Dropbox</b></div>
+                <div class="ab-cloud-prov ab-cp-onedrive"><span>🟦</span><b>OneDrive</b></div>
+                <div class="ab-cloud-prov ab-cp-mega"><span>🔴</span><b>MEGA</b></div>
+              </div>
+
+              <p class="ab-para">Hevi Explorer is the only local-first file manager that seamlessly integrates four major cloud storage providers — Google Drive, Dropbox, OneDrive, and MEGA — directly into the same interface you use for your local files. No switching apps, no separate tabs. Your cloud files appear in the same clean grid layout as your device files. You browse, stream, and manage everything from one place.</p>
+
+              <!-- Why it's safe -->
+              <div class="ab-cloud-safety-block">
+                <div class="ab-cloud-safety-title">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  Why Cloud Storage in Hevi Explorer is 100% Safe
+                </div>
+                <div class="ab-cloud-safety-points">
+                  <div class="ab-csp">
+                    <span class="ab-csp-icon">🔐</span>
+                    <div>
+                      <b>Your credentials never leave your device</b>
+                      <p>OAuth tokens and API keys for Google Drive, Dropbox, OneDrive, and MEGA are stored locally in encrypted form on the device running the server — inside <code class="ab-code">data/profiles/</code>. They are encrypted using a randomly generated server secret key unique to your installation. No credential is ever sent to any Hevi server — because there is no Hevi server.</p>
+                    </div>
+                  </div>
+                  <div class="ab-csp">
+                    <span class="ab-csp-icon">🛡️</span>
+                    <div>
+                      <b>Files flow directly through your own account — not through us</b>
+                      <p>When you browse or stream a cloud file, Hevi Explorer makes the API request directly to Google, Dropbox, Microsoft, or MEGA using your own OAuth token. Your data travels from the cloud provider's servers to your browser. No third party ever touches your files.</p>
+                    </div>
+                  </div>
+                  <div class="ab-csp">
+                    <span class="ab-csp-icon">🔑</span>
+                    <div>
+                      <b>OAuth-based login — no password ever stored</b>
+                      <p>For Google Drive, Dropbox, and OneDrive, authentication uses the official OAuth 2.0 flow. You log in directly on the provider's own website. Hevi Explorer only receives a time-limited access token — your password is never seen or stored by the app.</p>
+                    </div>
+                  </div>
+                  <div class="ab-csp">
+                    <span class="ab-csp-icon">⚡</span>
+                    <div>
+                      <b>Token refresh is automatic and local</b>
+                      <p>Access tokens expire after a short time. Hevi Explorer automatically refreshes them in the background using your stored refresh token — entirely locally, without any intervention or external service from our side.</p>
+                    </div>
+                  </div>
+                  <div class="ab-csp">
+                    <span class="ab-csp-icon">🗑️</span>
+                    <div>
+                      <b>You can disconnect any account at any time</b>
+                      <p>Open Settings → Cloud Storage, tap the trash icon next to any connected account, and it is instantly removed. All stored tokens for that account are deleted from your device immediately. No traces remain.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- How to use it -->
+              <div class="ab-section-head" style="margin-top:28px; margin-bottom:0">
+                <div>
+                  <div class="ab-section-title" style="font-size:1.05rem">How to Connect Cloud Storage</div>
+                  <p class="ab-section-sub">Step-by-step — takes under 5 minutes for any provider.</p>
+                </div>
+              </div>
+              <div class="ab-flow" style="margin-top:14px">
+                <div class="ab-flow-step">
+                  <div class="ab-flow-num">1</div>
+                  <div><b>Open Settings</b><span>Tap the ⚙️ gear icon in the bottom navigation bar or sidebar to open the Settings panel.</span></div>
+                </div>
+                <div class="ab-flow-step">
+                  <div class="ab-flow-num">2</div>
+                  <div><b>Go to Cloud Storage</b><span>Inside Settings, scroll down and tap <em>Cloud Storage</em>. You will see tiles for Google Drive, Dropbox, OneDrive, and MEGA.</span></div>
+                </div>
+                <div class="ab-flow-step">
+                  <div class="ab-flow-num">3</div>
+                  <div><b>Tap "Connect" on your provider</b><span>Each provider has a <em>Connect</em> button. For Google Drive, Dropbox, and OneDrive — tapping Connect opens the official OAuth login page on that provider's website. For MEGA — you enter your MEGA email and password directly (MEGA uses its own end-to-end encrypted auth system).</span></div>
+                </div>
+                <div class="ab-flow-step">
+                  <div class="ab-flow-num">4</div>
+                  <div><b>Authorise access on the provider's page</b><span>Log in to your account on the provider's own website (Google, Microsoft, Dropbox). Grant the requested permissions. You are redirected back to Hevi Explorer automatically. Your token is saved encrypted on your device.</span></div>
+                </div>
+                <div class="ab-flow-step">
+                  <div class="ab-flow-num">5</div>
+                  <div><b>Access your cloud files</b><span>Your connected cloud account appears immediately in the sidebar and on the Home screen. Tap it to browse your cloud storage in the same grid view as local files. Stream videos and images directly without downloading. Open documents in the built-in viewers.</span></div>
+                </div>
+                <div class="ab-flow-step">
+                  <div class="ab-flow-num">6</div>
+                  <div><b>Share with other devices (optional)</b><span>Connected cloud accounts can be set to "Shared" mode. When shared, any device that opens your Hevi vault on the same network can browse and stream from that cloud account — no separate login needed on those devices.</span></div>
+                </div>
+              </div>
+
+              <!-- Features -->
+              <div class="ab-section-head" style="margin-top:28px; margin-bottom:0">
+                <div>
+                  <div class="ab-section-title" style="font-size:1.05rem">Cloud Storage Features</div>
+                  <p class="ab-section-sub">Everything you can do with your connected cloud accounts inside Hevi Explorer.</p>
+                </div>
+              </div>
+              <div class="ab-features" style="margin-top:14px">
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-blue">🗂️</span><div><b>Unified Browser View</b><span>Browse Google Drive, Dropbox, OneDrive, and MEGA files in the exact same grid/list layout as your local files. Folders, thumbnails, file sizes, and dates — all presented identically. No separate app needed.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-purple">🎬</span><div><b>Direct Cloud Video Streaming</b><span>Stream videos hosted on Google Drive, Dropbox, OneDrive, or MEGA directly in the Hevi built-in player. No need to download first. Seek, pause, and play just as you would with a local file.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-teal">🖼️</span><div><b>Cloud Image Viewing</b><span>Open images from any connected cloud account directly in the Hevi image viewer. Pinch-to-zoom, swipe navigation, and EXIF metadata — same experience as local images.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-orange">👥</span><div><b>Multiple Accounts, Multiple Providers</b><span>Connect more than one account at the same time. For example: two Google Drive accounts, one Dropbox, and one MEGA — all visible simultaneously from the sidebar. Each account is listed separately.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-green">🌐</span><div><b>Shared Cloud Access for All Devices</b><span>Mark any connected cloud account as "shared." Every device on your LAN vault (or WAN tunnel) can then browse that cloud storage without needing their own login. Useful for shared drives on a family or team network.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-red">🗑️</span><div><b>One-Tap Disconnect</b><span>Remove any connected account in one tap from Settings → Cloud Storage. All tokens are deleted instantly from your device. The account disappears from the sidebar immediately.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-blue">🔄</span><div><b>Automatic Token Refresh</b><span>Access tokens expire after a few hours. Hevi Explorer silently refreshes them in the background. You never need to log in again unless you manually disconnect the account.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-purple">📱</span><div><b>Works Across All Devices</b><span>Cloud files are accessible from every device that connects to your vault — phone, tablet, laptop — through the browser, without any additional app or login required on the client device.</span></div></div>
+              </div>
+
+              <!-- Why better than others -->
+              <div class="ab-cloud-compare">
+                <div class="ab-cloud-compare-title">Why Hevi's Cloud Integration is Different</div>
+                <div class="ab-cloud-compare-grid">
+                  <div class="ab-cc-item">
+                    <span class="ab-cc-icon">✅</span>
+                    <div><b>4 providers in one place</b><p>Most file managers support at most one cloud service. Hevi supports Google Drive, Dropbox, OneDrive, and MEGA simultaneously — in the same interface.</p></div>
+                  </div>
+                  <div class="ab-cc-item">
+                    <span class="ab-cc-icon">✅</span>
+                    <div><b>No middleman server</b><p>Unlike apps that route cloud traffic through their own servers, Hevi makes API calls directly from your device to your cloud provider. Your data never passes through any Hevi infrastructure.</p></div>
+                  </div>
+                  <div class="ab-cc-item">
+                    <span class="ab-cc-icon">✅</span>
+                    <div><b>Encrypted credential storage</b><p>Your tokens are stored encrypted on your own machine using a unique per-installation secret key. No cloud sync of credentials. No external storage of any kind.</p></div>
+                  </div>
+                  <div class="ab-cc-item">
+                    <span class="ab-cc-icon">✅</span>
+                    <div><b>Stream without downloading</b><p>Most tools force you to download cloud files before viewing. Hevi streams videos and images directly from the cloud API to your browser player — faster and with zero local storage used.</p></div>
+                  </div>
+                  <div class="ab-cc-item">
+                    <span class="ab-cc-icon">✅</span>
+                    <div><b>Multiple accounts per provider</b><p>Need access to two different Google Drive accounts or two MEGA accounts? Hevi supports connecting multiple accounts from the same provider at the same time — a feature most file managers completely lack.</p></div>
+                  </div>
+                  <div class="ab-cc-item">
+                    <span class="ab-cc-icon">✅</span>
+                    <div><b>Seamless LAN sharing</b><p>Shared cloud accounts extend to every device on your local network or WAN tunnel. One person authenticates; everyone on the vault benefits. No repeated logins across devices.</p></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- 07 TECH STACK -->
+            <section class="ab-section ab-reveal">
+              <div class="ab-section-head">
+                <span class="ab-section-icon">07</span>
                 <div>
                   <div class="ab-section-title">Tech Stack</div>
                   <p class="ab-section-sub">Built with a lean, zero-bloat stack. No frontend framework. No unnecessary dependencies.</p>
@@ -1761,10 +1910,10 @@
               </div>
             </section>
 
-            <!-- 07 BUILD JOURNEY -->
+            <!-- 08 BUILD JOURNEY -->
             <section class="ab-section ab-reveal">
               <div class="ab-section-head">
-                <span class="ab-section-icon">07</span>
+                <span class="ab-section-icon">08</span>
                 <div>
                   <div class="ab-section-title">Build Journey</div>
                   <p class="ab-section-sub">22 days. One developer. One real problem. Built with experience, planning, and a lot of iteration.</p>
@@ -1781,10 +1930,10 @@
               <p class="ab-para">Every component you see — the video player, audio player, image viewer, file manager, archive inspector, settings system, LAN QR generator, WAN tunnel integration, and file index engine — was hand-coded and iteratively improved based on real usage and testing.</p>
             </section>
 
-            <!-- 08 PLATFORMS -->
+            <!-- 09 PLATFORMS -->
             <section class="ab-section ab-reveal">
               <div class="ab-section-head">
-                <span class="ab-section-icon">08</span>
+                <span class="ab-section-icon">09</span>
                 <div>
                   <div class="ab-section-title">Supported Platforms</div>
                   <p class="ab-section-sub">Any environment that can run Node.js and access storage can be a vault host.</p>
@@ -1803,10 +1952,10 @@
               <p class="ab-para" style="margin-top:14px">The server automatically detects your environment on startup — Termux on Android, standard Linux, Replit, or a desktop OS — and sets the correct root directory and path conventions. No manual configuration needed for most setups.</p>
             </section>
 
-            <!-- 09 CREATOR -->
+            <!-- 10 CREATOR -->
             <section class="ab-section ab-creator-section ab-reveal">
               <div class="ab-section-head">
-                <span class="ab-section-icon">09</span>
+                <span class="ab-section-icon">10</span>
                 <div>
                   <div class="ab-section-title">About the Creator</div>
                   <p class="ab-section-sub">Afsar Ali — developer, cybersecurity educator, and founder of Technical White Hat.</p>
@@ -1825,7 +1974,7 @@
               <p class="ab-para">Hevi Explorer is a direct product of that mindset: build the tool you need, make it private, make it fast, and make it work on any device you actually use. No bloat, no unnecessary complexity, no dependency on anyone else's infrastructure.</p>
             </section>
 
-            <!-- 10 TWH -->
+            <!-- 11 TWH -->
             <section class="ab-section ab-twh-section ab-reveal">
               <div class="ab-twh-header">
                 <div class="ab-twh-logo-wrap">

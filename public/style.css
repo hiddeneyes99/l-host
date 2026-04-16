@@ -5359,6 +5359,156 @@ img.lazy-img:not([src]) {
 [data-theme="light"] .ab-journey-stat { background: #f5f7fa; }
 [data-theme="light"] .ab-twh-pillar   { background: #f5f7fa; }
 
+/* ── CLOUD STORAGE SECTION ─────────────────────────────────────────────── */
+.ab-cloud-section {
+  border-color: rgba(47, 140, 255, 0.22);
+  background: linear-gradient(145deg, rgba(47,140,255,.07), rgba(37,244,208,.04));
+}
+
+/* Provider pills */
+.ab-cloud-providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ab-cloud-prov {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.05);
+  color: var(--text);
+}
+.ab-cloud-prov span { font-size: 16px; }
+.ab-cp-google  { border-color: rgba(66,133,244,.3); background: rgba(66,133,244,.1); }
+.ab-cp-dropbox { border-color: rgba(0,97,252,.3);   background: rgba(0,97,252,.1); }
+.ab-cp-onedrive{ border-color: rgba(0,120,215,.3);  background: rgba(0,120,215,.1); }
+.ab-cp-mega    { border-color: rgba(210,40,40,.3);  background: rgba(210,40,40,.1); }
+
+/* Safety block */
+.ab-cloud-safety-block {
+  margin: 16px 0;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(37,244,208,.09), rgba(47,140,255,.055));
+  border: 1px solid rgba(37,244,208,.22);
+  overflow: hidden;
+}
+.ab-cloud-safety-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 16px;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: .3px;
+  background: rgba(37,244,208,.08);
+  border-bottom: 1px solid rgba(37,244,208,.15);
+}
+.ab-cloud-safety-points {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.ab-csp {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.055);
+}
+.ab-csp:last-child { border-bottom: none; }
+.ab-csp-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(37,244,208,.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ab-csp b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 850;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.ab-csp p {
+  margin: 0;
+  font-size: 12.7px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+
+/* Comparison grid */
+.ab-cloud-compare {
+  margin-top: 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(47,140,255,.22);
+  overflow: hidden;
+  background: rgba(47,140,255,.05);
+}
+.ab-cloud-compare-title {
+  padding: 12px 16px;
+  font-size: 12.5px;
+  font-weight: 900;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: #60a5fa;
+  background: rgba(47,140,255,.1);
+  border-bottom: 1px solid rgba(47,140,255,.18);
+}
+.ab-cloud-compare-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+.ab-cc-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.055);
+}
+.ab-cc-item:last-child { border-bottom: none; }
+.ab-cc-icon {
+  font-size: 17px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #34d399;
+}
+.ab-cc-item b {
+  display: block;
+  font-size: 13px;
+  font-weight: 850;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.ab-cc-item p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text2);
+  line-height: 1.55;
+}
+
+[data-theme="light"] .ab-cloud-prov  { background: rgba(255,255,255,.7); }
+[data-theme="light"] .ab-cp-google   { background: rgba(66,133,244,.1); }
+[data-theme="light"] .ab-cp-dropbox  { background: rgba(0,97,252,.1); }
+[data-theme="light"] .ab-cp-onedrive { background: rgba(0,120,215,.1); }
+[data-theme="light"] .ab-cp-mega     { background: rgba(210,40,40,.1); }
+[data-theme="light"] .ab-cloud-safety-block { background: rgba(37,244,208,.06); }
+[data-theme="light"] .ab-csp         { background: transparent; }
+[data-theme="light"] .ab-cloud-compare { background: rgba(47,140,255,.04); }
+
 /* ── FAVORITE STAR BADGE on cards ───────────────────────────────────────── */
 .fav-star-badge {
   position: absolute;
