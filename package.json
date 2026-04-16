@@ -12,10 +12,15 @@
   "dependencies": {
     "adm-zip": "^0.5.17",
     "compression": "^1.8.1",
+    "dropbox": "^10.34.0",
     "exifr": "^7.1.3",
     "express": "^5.2.1",
+    "googleapis": "^171.4.0",
     "heic2any": "^0.0.4",
+    "isomorphic-fetch": "^3.0.0",
+    "megajs": "^1.3.9",
     "music-metadata": "^11.12.3",
+    "node-fetch": "^2.7.0",
     "qrcode": "^1.5.4"
   }
 }

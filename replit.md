@@ -13,16 +13,22 @@ A self-hosted private media vault and local file manager that runs on Replit and
 ## Project Structure
 
 ```
-server.js        - Express HTTP server, API routes, indexing, thumbnails, and file streaming
+server.js        - Express HTTP server, API routes, indexing, thumbnails, file streaming, and cloud backend
 files/           - Default browseable file root on Replit, created automatically at startup
 public/
-  index.html     - SPA shell
-  style.css      - UI styles
+  index.html     - SPA shell (includes cloud browser view, cloud modals)
+  style.css      - UI styles (includes cloud section CSS)
   brand.svg      - Hevi Explorer logo and favicon
-  app.js         - Frontend application logic
+  app.js         - Frontend application logic (includes cloud account management and browser)
   iv.js          - Advanced image viewer module
   sw.js          - Service worker
-data/            - Persistent index, category caches, thumbnails, and user state
+data/
+  index.json     - Persistent file index and category caches
+  thumbs/        - Server-side thumbnail cache
+  userstate.json - User state (recent files, favorites, view preferences)
+  server_secret.key - AES-256-GCM master key for credential encryption (auto-generated)
+  cloud_devices.json - Device registry for cross-device cloud account sharing
+  profiles/{did}/cloud_creds.json - Per-device encrypted cloud credentials
 package.json     - npm manifest
 ```
 
@@ -33,6 +39,10 @@ package.json     - npm manifest
 - `exifr` for image metadata extraction
 - `music-metadata` for audio artwork and tag metadata
 - `heic2any` for browser-side HEIC/HEIF conversion when the user requests a preview
+- `googleapis` for Google Drive OAuth2 and API
+- `dropbox` for Dropbox SDK
+- `megajs` for MEGA cloud storage (CommonJS, v1)
+- `node-fetch` (v2) and `isomorphic-fetch` for OneDrive/Dropbox token refresh HTTP calls
 
 ## Replit Compatibility
 
@@ -63,6 +73,7 @@ ROOT_DIR=/ node server.js
 
 ## Features
 
+- Cloud Storage Integration: connect Google Drive, Dropbox, OneDrive, and MEGA with BYOK credentials; AES-256-GCM encrypted storage per device; OAuth popup flows; cross-device account sharing; in-app cloud file browser with breadcrumb navigation; file proxy for direct viewing; delete and share controls
 - Browse files and folders under the configured root directory
 - Home page storage summary with a compact used/free bar and a Manage details modal showing Images, Videos, Audio, Documents, Archives, APKs, Other, and System usage
 - Bottom navigation includes a right-side WAN shortcut that opens a standalone Cloudflare Tunnel control panel for start/stop, public URL copy, QR code, refresh, and install flow
@@ -114,3 +125,13 @@ ROOT_DIR=/ node server.js
 | POST | `/api/userstate/recent` | Add a recent file |
 | DELETE | `/api/userstate/recent` | Clear recent files |
 | POST | `/api/userstate/favorite` | Toggle favorite file |
+| GET | `/api/cloud/accounts` | List connected cloud accounts for this device |
+| POST | `/api/cloud/connect` | Add a new cloud account (MEGA direct login) |
+| GET | `/api/cloud/:accountId/oauth/start` | Begin OAuth flow for Google Drive / Dropbox / OneDrive |
+| GET | `/api/cloud/callback/google` | Google Drive OAuth callback |
+| GET | `/api/cloud/callback/dropbox` | Dropbox OAuth callback |
+| GET | `/api/cloud/callback/onedrive` | OneDrive OAuth callback |
+| GET | `/api/cloud/:accountId/ls` | List files in a cloud folder |
+| GET | `/api/cloud/:accountId/file` | Proxy a cloud file for viewing/streaming |
+| DELETE | `/api/cloud/:accountId` | Disconnect a cloud account |
+| POST | `/api/cloud/:accountId/share` | Share a cloud account with another device |

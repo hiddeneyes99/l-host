@@ -2319,6 +2319,571 @@ app.post('/api/userstate/favorite', express.json(), (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
+//  CLOUD STORAGE INTEGRATION
+//  Supports: Google Drive, Dropbox, OneDrive, MEGA
+//  BYOK (Bring Your Own Key) — user supplies their own API credentials
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── Server secret for AES-256-GCM encryption ──────────────────────────────
+const SERVER_SECRET_FILE = path.join(__dirname, 'data', 'server_secret.key');
+let _serverSecret = null;
+
+function getServerSecret() {
+  if (_serverSecret) return _serverSecret;
+  try {
+    _serverSecret = fs.readFileSync(SERVER_SECRET_FILE);
+    if (_serverSecret.length !== 32) throw new Error('bad length');
+  } catch (_) {
+    _serverSecret = crypto.randomBytes(32);
+    fs.mkdirSync(path.dirname(SERVER_SECRET_FILE), { recursive: true });
+    fs.writeFileSync(SERVER_SECRET_FILE, _serverSecret);
+  }
+  return _serverSecret;
+}
+
+function encryptField(text) {
+  if (!text) return '';
+  const key = getServerSecret();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const enc = Buffer.concat([cipher.update(String(text), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return JSON.stringify({ iv: iv.toString('base64'), tag: tag.toString('base64'), data: enc.toString('base64') });
+}
+
+function decryptField(str) {
+  if (!str) return '';
+  try {
+    const key = getServerSecret();
+    const { iv, tag, data } = JSON.parse(str);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(tag, 'base64'));
+    return Buffer.concat([decipher.update(Buffer.from(data, 'base64')), decipher.final()]).toString('utf8');
+  } catch (_) { return ''; }
+}
+
+// ── Cloud credentials storage ─────────────────────────────────────────────
+const CLOUD_DEVICES_FILE = path.join(__dirname, 'data', 'cloud_devices.json');
+
+function loadCloudCreds(did) {
+  try { return JSON.parse(fs.readFileSync(path.join(PROFILES_DIR, did, 'cloud_creds.json'), 'utf8')); }
+  catch (_) { return { accounts: [] }; }
+}
+
+function saveCloudCreds(did, data) {
+  const dir = path.join(PROFILES_DIR, did);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'cloud_creds.json'), JSON.stringify(data, null, 2));
+}
+
+function loadCloudDevices() {
+  try { return JSON.parse(fs.readFileSync(CLOUD_DEVICES_FILE, 'utf8')); }
+  catch (_) { return {}; }
+}
+
+function saveCloudDevices(data) {
+  fs.mkdirSync(path.dirname(CLOUD_DEVICES_FILE), { recursive: true });
+  fs.writeFileSync(CLOUD_DEVICES_FILE, JSON.stringify(data, null, 2));
+}
+
+function touchDevice(did) {
+  const reg = loadCloudDevices();
+  if (!reg[did]) reg[did] = { name: '', lastSeen: Date.now() };
+  else reg[did].lastSeen = Date.now();
+  saveCloudDevices(reg);
+}
+
+function getAccessibleAccounts(did) {
+  touchDevice(did);
+  const own = (loadCloudCreds(did).accounts || []).map(a => ({ ...a, _own: true }));
+  const shared = [];
+  try {
+    const dirs = fs.readdirSync(PROFILES_DIR);
+    for (const d of dirs) {
+      if (d === did) continue;
+      const creds = loadCloudCreds(d);
+      for (const acc of (creds.accounts || [])) {
+        const sw = acc.sharedWith;
+        if (sw === 'all' || (Array.isArray(sw) && sw.includes(did))) {
+          shared.push({ ...acc, _own: false, _ownerDid: d });
+        }
+      }
+    }
+  } catch (_) {}
+  return [...own, ...shared];
+}
+
+function sanitizeAccount(acc) {
+  const { clientSecret, accessToken, refreshToken, _ownerDid, ...rest } = acc;
+  return rest;
+}
+
+// ── HTTPS helpers ─────────────────────────────────────────────────────────
+function cloudHttpsPost(url, params, extraHeaders = {}) {
+  return new Promise((resolve, reject) => {
+    const body = new URLSearchParams(params).toString();
+    const u = new URL(url);
+    const options = {
+      hostname: u.hostname, path: u.pathname + u.search, method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body), ...extraHeaders }
+    };
+    const req = https.request(options, r => {
+      const chunks = [];
+      r.on('data', c => chunks.push(c));
+      r.on('end', () => { const t = Buffer.concat(chunks).toString(); try { resolve(JSON.parse(t)); } catch (_) { resolve(t); } });
+    });
+    req.on('error', reject); req.write(body); req.end();
+  });
+}
+
+function cloudHttpsGetJson(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const options = { hostname: u.hostname, path: u.pathname + u.search, method: 'GET', headers: { Accept: 'application/json', ...headers } };
+    const req = https.request(options, r => {
+      if ((r.statusCode === 301 || r.statusCode === 302) && r.headers.location) {
+        return cloudHttpsGetJson(r.headers.location, headers).then(resolve).catch(reject);
+      }
+      const chunks = [];
+      r.on('data', c => chunks.push(c));
+      r.on('end', () => { const t = Buffer.concat(chunks).toString(); try { resolve(JSON.parse(t)); } catch (_) { resolve(t); } });
+    });
+    req.on('error', reject); req.end();
+  });
+}
+
+// ── OAuth state store (in-memory) ─────────────────────────────────────────
+const _oauthPending = new Map();
+
+function getCallbackOrigin(req) {
+  const proto = (req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim();
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  return `${proto}://${host}`;
+}
+
+// ── Token refresh helpers ─────────────────────────────────────────────────
+async function refreshDropboxToken(ownerAcc, ownerDid) {
+  const result = await cloudHttpsPost('https://api.dropboxapi.com/oauth2/token', {
+    grant_type: 'refresh_token',
+    refresh_token: decryptField(ownerAcc.refreshToken),
+    client_id: ownerAcc.clientId,
+    client_secret: decryptField(ownerAcc.clientSecret)
+  });
+  if (!result.access_token) throw new Error('Dropbox token refresh failed');
+  const creds = loadCloudCreds(ownerDid);
+  const idx = creds.accounts.findIndex(a => a.id === ownerAcc.id);
+  if (idx >= 0) {
+    creds.accounts[idx].accessToken = encryptField(result.access_token);
+    creds.accounts[idx].tokenExpiry = Date.now() + (result.expires_in || 14400) * 1000;
+    saveCloudCreds(ownerDid, creds);
+    ownerAcc.accessToken = creds.accounts[idx].accessToken;
+    ownerAcc.tokenExpiry = creds.accounts[idx].tokenExpiry;
+  }
+  return result.access_token;
+}
+
+async function refreshOneDriveToken(ownerAcc, ownerDid) {
+  const result = await cloudHttpsPost('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+    grant_type: 'refresh_token',
+    refresh_token: decryptField(ownerAcc.refreshToken),
+    client_id: ownerAcc.clientId,
+    client_secret: decryptField(ownerAcc.clientSecret),
+    scope: 'Files.Read offline_access'
+  });
+  if (!result.access_token) throw new Error('OneDrive token refresh failed');
+  const creds = loadCloudCreds(ownerDid);
+  const idx = creds.accounts.findIndex(a => a.id === ownerAcc.id);
+  if (idx >= 0) {
+    creds.accounts[idx].accessToken = encryptField(result.access_token);
+    creds.accounts[idx].tokenExpiry = Date.now() + (result.expires_in || 3600) * 1000;
+    saveCloudCreds(ownerDid, creds);
+    ownerAcc.accessToken = creds.accounts[idx].accessToken;
+    ownerAcc.tokenExpiry = creds.accounts[idx].tokenExpiry;
+  }
+  return result.access_token;
+}
+
+async function getValidToken(ownerAcc, ownerDid) {
+  const expired = ownerAcc.tokenExpiry && Date.now() > (ownerAcc.tokenExpiry - 60000);
+  if (!expired && ownerAcc.accessToken) return decryptField(ownerAcc.accessToken);
+  if (ownerAcc.provider === 'dropbox') return await refreshDropboxToken(ownerAcc, ownerDid);
+  if (ownerAcc.provider === 'onedrive') return await refreshOneDriveToken(ownerAcc, ownerDid);
+  if (ownerAcc.provider === 'gdrive') {
+    const { google } = require('googleapis');
+    const oauth2 = new google.auth.OAuth2(ownerAcc.clientId, decryptField(ownerAcc.clientSecret));
+    oauth2.setCredentials({ refresh_token: decryptField(ownerAcc.refreshToken) });
+    const { credentials } = await oauth2.refreshAccessToken();
+    const creds = loadCloudCreds(ownerDid);
+    const idx = creds.accounts.findIndex(a => a.id === ownerAcc.id);
+    if (idx >= 0) {
+      creds.accounts[idx].accessToken = encryptField(credentials.access_token);
+      creds.accounts[idx].tokenExpiry = credentials.expiry_date;
+      saveCloudCreds(ownerDid, creds);
+    }
+    return credentials.access_token;
+  }
+  return decryptField(ownerAcc.accessToken);
+}
+
+// ── OAuth callback HTML helpers ───────────────────────────────────────────
+function oauthSuccessHtml(providerLabel) {
+  return `<!doctype html><html><head><title>Connected</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b1220;color:#edf7ff}.card{background:#111b2d;border-radius:20px;padding:36px 44px;text-align:center;max-width:360px;border:1px solid rgba(37,244,208,0.2)}.icon{font-size:52px;margin-bottom:18px}.title{font-size:22px;font-weight:700;color:#25f4d0;margin-bottom:10px}.sub{font-size:14px;color:#8899aa;line-height:1.5}</style></head><body><div class="card"><div class="icon">✅</div><div class="title">${providerLabel} Connected!</div><div class="sub">You can close this window. Hevi Explorer has been updated.</div></div><script>try{if(window.opener)window.opener.postMessage('cloud:success:${providerLabel.toLowerCase().replace(/\s+/g,'')}','*');}catch(e){}setTimeout(()=>{try{window.close();}catch(e){}},2500);</script></body></html>`;
+}
+
+function oauthErrorHtml(msg) {
+  return `<!doctype html><html><head><title>Error</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b1220;color:#edf7ff}.card{background:#111b2d;border-radius:20px;padding:36px 44px;text-align:center;max-width:360px;border:1px solid rgba(224,82,96,0.2)}.icon{font-size:52px;margin-bottom:18px}.title{font-size:22px;font-weight:700;color:#e05260;margin-bottom:10px}.sub{font-size:14px;color:#8899aa;line-height:1.5}</style></head><body><div class="card"><div class="icon">❌</div><div class="title">Connection Failed</div><div class="sub">${String(msg).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></div><script>try{if(window.opener)window.opener.postMessage('cloud:error','*');}catch(e){}setTimeout(()=>{try{window.close();}catch(e){}},4000);</script></body></html>`;
+}
+
+// ── GET /api/cloud/accounts ───────────────────────────────────────────────
+app.get('/api/cloud/accounts', (req, res) => {
+  const did = getDeviceId(req, res);
+  const accounts = getAccessibleAccounts(did);
+  res.json(accounts.map(sanitizeAccount));
+});
+
+// ── GET /api/cloud/devices ────────────────────────────────────────────────
+app.get('/api/cloud/devices', (req, res) => {
+  const did = getDeviceId(req, res);
+  touchDevice(did);
+  res.json(loadCloudDevices());
+});
+
+// ── PUT /api/cloud/device/name ────────────────────────────────────────────
+app.put('/api/cloud/device/name', express.json(), (req, res) => {
+  const did = getDeviceId(req, res);
+  const { name } = req.body || {};
+  const reg = loadCloudDevices();
+  if (!reg[did]) reg[did] = { lastSeen: Date.now() };
+  reg[did].name = name || '';
+  saveCloudDevices(reg);
+  res.json({ ok: true });
+});
+
+// ── POST /api/cloud/connect/:provider ─────────────────────────────────────
+app.post('/api/cloud/connect/:provider', express.json(), async (req, res) => {
+  const did = getDeviceId(req, res);
+  const { provider } = req.params;
+  const body = req.body || {};
+  const base = getCallbackOrigin(req);
+  const state = crypto.randomUUID();
+
+  try {
+    if (provider === 'gdrive') {
+      const { clientId, clientSecret, label } = body;
+      if (!clientId || !clientSecret) return res.status(400).json({ error: 'Missing Client ID or Client Secret' });
+      const { google } = require('googleapis');
+      const redirectUri = `${base}/api/cloud/gdrive/callback`;
+      const oauth2 = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+      const authUrl = oauth2.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: ['https://www.googleapis.com/auth/drive.readonly'] });
+      _oauthPending.set(state, { did, provider, clientId, clientSecret: encryptField(clientSecret), label: label || 'My Drive', redirectUri });
+      res.json({ authUrl: authUrl + '&state=' + encodeURIComponent(state) });
+
+    } else if (provider === 'dropbox') {
+      const { appKey, appSecret, label } = body;
+      if (!appKey || !appSecret) return res.status(400).json({ error: 'Missing App Key or App Secret' });
+      const redirectUri = `${base}/api/cloud/dropbox/callback`;
+      const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${encodeURIComponent(appKey)}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&token_access_type=offline&state=${encodeURIComponent(state)}`;
+      _oauthPending.set(state, { did, provider, clientId: appKey, clientSecret: encryptField(appSecret), label: label || 'My Dropbox', redirectUri });
+      res.json({ authUrl });
+
+    } else if (provider === 'onedrive') {
+      const { clientId, clientSecret, label } = body;
+      if (!clientId) return res.status(400).json({ error: 'Missing Application (Client) ID' });
+      const redirectUri = `${base}/api/cloud/onedrive/callback`;
+      const scope = encodeURIComponent('Files.Read offline_access');
+      const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${encodeURIComponent(state)}`;
+      _oauthPending.set(state, { did, provider, clientId, clientSecret: clientSecret ? encryptField(clientSecret) : '', label: label || 'My OneDrive', redirectUri });
+      res.json({ authUrl });
+
+    } else if (provider === 'mega') {
+      const { email, password, label } = body;
+      if (!email || !password) return res.status(400).json({ error: 'Missing email or password' });
+      const { Storage } = require('megajs');
+      const storage = new Storage({ email, password, autologin: false });
+      await new Promise((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error('Login timed out')), 30000);
+        storage.login(err => { clearTimeout(t); if (err) reject(err); else resolve(); });
+      });
+      storage.close();
+      const accountId = crypto.randomUUID();
+      const creds = loadCloudCreds(did);
+      creds.accounts.push({ id: accountId, provider: 'mega', label: label || 'My MEGA', email, accessToken: encryptField(password), sharedWith: 'none' });
+      saveCloudCreds(did, creds);
+      res.json({ ok: true, accountId });
+
+    } else {
+      res.status(400).json({ error: 'Unknown provider' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── OAuth Callback — Google Drive ─────────────────────────────────────────
+app.get('/api/cloud/gdrive/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error) return res.send(oauthErrorHtml(error));
+  const pending = _oauthPending.get(state);
+  if (!pending) return res.send(oauthErrorHtml('Session expired. Please try again.'));
+  _oauthPending.delete(state);
+  try {
+    const { google } = require('googleapis');
+    const oauth2 = new google.auth.OAuth2(pending.clientId, decryptField(pending.clientSecret), pending.redirectUri);
+    const { tokens } = await oauth2.getToken(code);
+    const accountId = crypto.randomUUID();
+    const creds = loadCloudCreds(pending.did);
+    creds.accounts.push({
+      id: accountId, provider: 'gdrive', label: pending.label,
+      clientId: pending.clientId, clientSecret: pending.clientSecret,
+      accessToken: encryptField(tokens.access_token),
+      refreshToken: tokens.refresh_token ? encryptField(tokens.refresh_token) : '',
+      tokenExpiry: tokens.expiry_date || 0, sharedWith: 'none'
+    });
+    saveCloudCreds(pending.did, creds);
+    res.send(oauthSuccessHtml('Google Drive'));
+  } catch (e) { res.send(oauthErrorHtml(e.message)); }
+});
+
+// ── OAuth Callback — Dropbox ──────────────────────────────────────────────
+app.get('/api/cloud/dropbox/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error) return res.send(oauthErrorHtml(error));
+  const pending = _oauthPending.get(state);
+  if (!pending) return res.send(oauthErrorHtml('Session expired. Please try again.'));
+  _oauthPending.delete(state);
+  try {
+    const result = await cloudHttpsPost('https://api.dropboxapi.com/oauth2/token', {
+      code, grant_type: 'authorization_code',
+      client_id: pending.clientId, client_secret: decryptField(pending.clientSecret),
+      redirect_uri: pending.redirectUri
+    });
+    if (!result.access_token) throw new Error(result.error_description || result.error || 'No access token returned');
+    const accountId = crypto.randomUUID();
+    const creds = loadCloudCreds(pending.did);
+    creds.accounts.push({
+      id: accountId, provider: 'dropbox', label: pending.label,
+      clientId: pending.clientId, clientSecret: pending.clientSecret,
+      accessToken: encryptField(result.access_token),
+      refreshToken: result.refresh_token ? encryptField(result.refresh_token) : '',
+      tokenExpiry: result.expires_in ? Date.now() + result.expires_in * 1000 : 0, sharedWith: 'none'
+    });
+    saveCloudCreds(pending.did, creds);
+    res.send(oauthSuccessHtml('Dropbox'));
+  } catch (e) { res.send(oauthErrorHtml(e.message)); }
+});
+
+// ── OAuth Callback — OneDrive ─────────────────────────────────────────────
+app.get('/api/cloud/onedrive/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error) return res.send(oauthErrorHtml(req.query.error_description || error));
+  const pending = _oauthPending.get(state);
+  if (!pending) return res.send(oauthErrorHtml('Session expired. Please try again.'));
+  _oauthPending.delete(state);
+  try {
+    const result = await cloudHttpsPost('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      code, grant_type: 'authorization_code',
+      client_id: pending.clientId, client_secret: decryptField(pending.clientSecret),
+      redirect_uri: pending.redirectUri, scope: 'Files.Read offline_access'
+    });
+    if (!result.access_token) throw new Error(result.error_description || result.error || 'No access token returned');
+    const accountId = crypto.randomUUID();
+    const creds = loadCloudCreds(pending.did);
+    creds.accounts.push({
+      id: accountId, provider: 'onedrive', label: pending.label,
+      clientId: pending.clientId, clientSecret: pending.clientSecret,
+      accessToken: encryptField(result.access_token),
+      refreshToken: result.refresh_token ? encryptField(result.refresh_token) : '',
+      tokenExpiry: result.expires_in ? Date.now() + result.expires_in * 1000 : 0, sharedWith: 'none'
+    });
+    saveCloudCreds(pending.did, creds);
+    res.send(oauthSuccessHtml('OneDrive'));
+  } catch (e) { res.send(oauthErrorHtml(e.message)); }
+});
+
+// ── GET /api/cloud/:accountId/ls ──────────────────────────────────────────
+app.get('/api/cloud/:accountId/ls', async (req, res) => {
+  const did = getDeviceId(req, res);
+  const { accountId } = req.params;
+  const folderPath = req.query.path || '';
+  const accounts = getAccessibleAccounts(did);
+  const acc = accounts.find(a => a.id === accountId);
+  if (!acc) return res.status(404).json({ error: 'Account not found' });
+  const ownerDid = acc._own ? did : acc._ownerDid;
+  const ownerCreds = loadCloudCreds(ownerDid);
+  const ownerAcc = ownerCreds.accounts.find(a => a.id === accountId);
+  if (!ownerAcc) return res.status(404).json({ error: 'Account data not found' });
+
+  try {
+    if (ownerAcc.provider === 'gdrive') {
+      const { google } = require('googleapis');
+      const token = await getValidToken(ownerAcc, ownerDid);
+      const oauth2 = new google.auth.OAuth2(ownerAcc.clientId, decryptField(ownerAcc.clientSecret));
+      oauth2.setCredentials({ access_token: token, refresh_token: ownerAcc.refreshToken ? decryptField(ownerAcc.refreshToken) : null, expiry_date: ownerAcc.tokenExpiry });
+      const drive = google.drive({ version: 'v3', auth: oauth2 });
+      const parentId = folderPath || 'root';
+      const r = await drive.files.list({ q: `'${parentId}' in parents and trashed = false`, fields: 'files(id,name,mimeType,size,modifiedTime)', pageSize: 200 });
+      const items = (r.data.files || []).map(f => ({
+        id: f.id, name: f.name,
+        type: f.mimeType === 'application/vnd.google-apps.folder' ? 'dir' : 'file',
+        size: parseInt(f.size || 0), mtime: new Date(f.modifiedTime).getTime(),
+        mimeType: f.mimeType, ext: f.name.includes('.') ? '.' + f.name.split('.').pop().toLowerCase() : ''
+      }));
+      res.json({ items, path: folderPath });
+
+    } else if (ownerAcc.provider === 'dropbox') {
+      const token = await getValidToken(ownerAcc, ownerDid);
+      const bodyStr = JSON.stringify({ path: folderPath || '', recursive: false });
+      const result = await new Promise((resolve, reject) => {
+        const r = https.request({ hostname: 'api.dropboxapi.com', path: '/2/files/list_folder', method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) } }, resp => {
+          const chunks = []; resp.on('data', c => chunks.push(c)); resp.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString())); } catch (_) { resolve({}); } });
+        });
+        r.on('error', reject); r.write(bodyStr); r.end();
+      });
+      const items = (result.entries || []).map(f => ({
+        id: f.id || f.path_lower, name: f.name,
+        type: f['.tag'] === 'folder' ? 'dir' : 'file',
+        size: f.size || 0, mtime: f.client_modified ? new Date(f.client_modified).getTime() : 0,
+        ext: f.name.includes('.') ? '.' + f.name.split('.').pop().toLowerCase() : '', path: f.path_lower
+      }));
+      res.json({ items, path: folderPath });
+
+    } else if (ownerAcc.provider === 'onedrive') {
+      const token = await getValidToken(ownerAcc, ownerDid);
+      const apiPath = folderPath ? `/me/drive/items/${encodeURIComponent(folderPath)}/children` : '/me/drive/root/children';
+      const result = await cloudHttpsGetJson(`https://graph.microsoft.com/v1.0${apiPath}?$select=id,name,file,folder,size,lastModifiedDateTime&$top=200`, { Authorization: `Bearer ${token}` });
+      const items = (result.value || []).map(f => ({
+        id: f.id, name: f.name, type: f.folder ? 'dir' : 'file',
+        size: f.size || 0, mtime: f.lastModifiedDateTime ? new Date(f.lastModifiedDateTime).getTime() : 0,
+        ext: f.name.includes('.') ? '.' + f.name.split('.').pop().toLowerCase() : '',
+        mimeType: (f.file && f.file.mimeType) ? f.file.mimeType : ''
+      }));
+      res.json({ items, path: folderPath });
+
+    } else if (ownerAcc.provider === 'mega') {
+      const { Storage } = require('megajs');
+      const storage = new Storage({ email: ownerAcc.email, password: decryptField(ownerAcc.accessToken), autologin: false });
+      await new Promise((resolve, reject) => { const t = setTimeout(() => reject(new Error('MEGA timeout')), 30000); storage.login(err => { clearTimeout(t); if (err) reject(err); else resolve(); }); });
+      let folder = storage.root;
+      if (folderPath) {
+        for (const part of folderPath.split('/').filter(Boolean)) {
+          folder = (folder.children || []).find(c => c.name === part && c.directory);
+          if (!folder) { storage.close(); return res.status(404).json({ error: 'Folder not found' }); }
+        }
+      }
+      const items = (folder.children || []).map(f => ({
+        id: f.name, name: f.name, type: f.directory ? 'dir' : 'file',
+        size: f.size || 0, mtime: 0, ext: f.name.includes('.') ? '.' + f.name.split('.').pop().toLowerCase() : ''
+      }));
+      storage.close();
+      res.json({ items, path: folderPath });
+    } else {
+      res.status(400).json({ error: 'Unknown provider' });
+    }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/cloud/:accountId/file ────────────────────────────────────────
+app.get('/api/cloud/:accountId/file', async (req, res) => {
+  const did = getDeviceId(req, res);
+  const { accountId } = req.params;
+  const filePath = req.query.path || '';
+  const accounts = getAccessibleAccounts(did);
+  const acc = accounts.find(a => a.id === accountId);
+  if (!acc) return res.status(404).json({ error: 'Account not found' });
+  const ownerDid = acc._own ? did : acc._ownerDid;
+  const ownerCreds = loadCloudCreds(ownerDid);
+  const ownerAcc = ownerCreds.accounts.find(a => a.id === accountId);
+  if (!ownerAcc) return res.status(404).json({ error: 'Account data not found' });
+
+  try {
+    const fileName = filePath.split('/').pop().split('?')[0] || 'file';
+    const mimeType = getMime(fileName);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+
+    if (ownerAcc.provider === 'gdrive') {
+      const { google } = require('googleapis');
+      const token = await getValidToken(ownerAcc, ownerDid);
+      const oauth2 = new google.auth.OAuth2(ownerAcc.clientId, decryptField(ownerAcc.clientSecret));
+      oauth2.setCredentials({ access_token: token, refresh_token: ownerAcc.refreshToken ? decryptField(ownerAcc.refreshToken) : null, expiry_date: ownerAcc.tokenExpiry });
+      const drive = google.drive({ version: 'v3', auth: oauth2 });
+      const r = await drive.files.get({ fileId: filePath, alt: 'media' }, { responseType: 'stream' });
+      res.setHeader('Content-Type', mimeType);
+      r.data.pipe(res);
+
+    } else if (ownerAcc.provider === 'dropbox') {
+      const token = await getValidToken(ownerAcc, ownerDid);
+      const arg = JSON.stringify({ path: filePath });
+      const proxyReq = https.request({ hostname: 'content.dropboxapi.com', path: '/2/files/download', method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Dropbox-API-Arg': arg, 'Content-Length': 0 } }, proxyRes => {
+        res.setHeader('Content-Type', proxyRes.headers['content-type'] || mimeType);
+        if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
+        proxyRes.pipe(res);
+      });
+      proxyReq.on('error', e => { if (!res.headersSent) res.status(500).json({ error: e.message }); });
+      proxyReq.end();
+
+    } else if (ownerAcc.provider === 'onedrive') {
+      const token = await getValidToken(ownerAcc, ownerDid);
+      const meta = await cloudHttpsGetJson(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(filePath)}?$select=@microsoft.graph.downloadUrl,name`, { Authorization: `Bearer ${token}` });
+      const downloadUrl = meta['@microsoft.graph.downloadUrl'];
+      if (!downloadUrl) return res.status(404).json({ error: 'Download URL not available' });
+      const u = new URL(downloadUrl);
+      const proxyReq = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'GET' }, proxyRes => {
+        res.setHeader('Content-Type', proxyRes.headers['content-type'] || mimeType);
+        if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
+        proxyRes.pipe(res);
+      });
+      proxyReq.on('error', e => { if (!res.headersSent) res.status(500).json({ error: e.message }); });
+      proxyReq.end();
+
+    } else if (ownerAcc.provider === 'mega') {
+      const { Storage } = require('megajs');
+      const storage = new Storage({ email: ownerAcc.email, password: decryptField(ownerAcc.accessToken), autologin: false });
+      await new Promise((resolve, reject) => { const t = setTimeout(() => reject(new Error('MEGA timeout')), 30000); storage.login(err => { clearTimeout(t); if (err) reject(err); else resolve(); }); });
+      const parts = filePath.split('/').filter(Boolean);
+      const fName = parts.pop();
+      let folder = storage.root;
+      for (const part of parts) {
+        folder = (folder.children || []).find(c => c.name === part && c.directory);
+        if (!folder) { storage.close(); return res.status(404).json({ error: 'Not found' }); }
+      }
+      const file = (folder.children || []).find(c => c.name === fName);
+      if (!file) { storage.close(); return res.status(404).json({ error: 'File not found' }); }
+      res.setHeader('Content-Type', mimeType);
+      const stream = file.download();
+      stream.pipe(res);
+      res.on('finish', () => { try { storage.close(); } catch (_) {} });
+    } else {
+      res.status(400).json({ error: 'Unknown provider' });
+    }
+  } catch (e) { if (!res.headersSent) res.status(500).json({ error: e.message }); }
+});
+
+// ── DELETE /api/cloud/:accountId ──────────────────────────────────────────
+app.delete('/api/cloud/:accountId', (req, res) => {
+  const did = getDeviceId(req, res);
+  const { accountId } = req.params;
+  const creds = loadCloudCreds(did);
+  const idx = creds.accounts.findIndex(a => a.id === accountId);
+  if (idx < 0) return res.status(404).json({ error: 'Account not found' });
+  creds.accounts.splice(idx, 1);
+  saveCloudCreds(did, creds);
+  res.json({ ok: true });
+});
+
+// ── PUT /api/cloud/:accountId/share ───────────────────────────────────────
+app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
+  const did = getDeviceId(req, res);
+  const { accountId } = req.params;
+  const { sharedWith } = req.body || {};
+  const creds = loadCloudCreds(did);
+  const acc = creds.accounts.find(a => a.id === accountId);
+  if (!acc) return res.status(404).json({ error: 'Account not found' });
+  acc.sharedWith = sharedWith;
+  saveCloudCreds(did, creds);
+  res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
 //  STARTUP — Protocol 3: Smart Port Allocation
 // ══════════════════════════════════════════════════════════════════════════
 

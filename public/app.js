@@ -747,7 +747,7 @@ function mpLoadTrack(idx) {
   mp.index = idx;
   mpUpdateFavBtn();
 
-  const trackUrl = `/file?path=${encodeURIComponent(item.path)}`;
+  const trackUrl = item._cloudUrl || `/file?path=${encodeURIComponent(item.path)}`;
   const audio = mpGetAudio();
 
   const displayName = item.name.replace(/\.[^.]+$/, '');
@@ -2866,6 +2866,7 @@ async function loadHome() {
   loadRecent();
   loadFolders();
   loadFavorites();
+  loadCloudSection();
 }
 
 function fmtBytes(bytes) {
@@ -5073,7 +5074,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (e.key === 'Escape') {
       if (videoOpen) { closeVideo(); return; }
-      ['audioModal','textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal','wanQuickModal','pinnedModal','aliasModal'].forEach(id => {
+      ['audioModal','textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal','wanQuickModal','pinnedModal','aliasModal','cloudPickerModal','cloudSetupModal','cloudShareModal'].forEach(id => {
         if (!$(id).classList.contains('hidden')) {
           if (id === 'pdfModal') _cancelPdf();
           closeModal(id);
@@ -5108,3 +5109,794 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
 });
+// ═══════════════════════════════════════════════════════════════════════════
+//  CLOUD STORAGE INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+let _cloudAccounts = [];
+let _cloudBrowserAccountId = null;
+let _cloudBrowserStack = []; // breadcrumb stack [{id, name}]
+let _cloudSetupProvider = null;
+let _cloudSetupStep = 0;
+let _cloudShareAccountId = null;
+
+// ── Provider meta ──────────────────────────────────────────────────────────
+function cloudProviderMeta(provider) {
+  if (provider === 'gdrive')   return { name: 'Google Drive', color: '#4285f4', icon: cloudGDriveIcon() };
+  if (provider === 'dropbox')  return { name: 'Dropbox',      color: '#0061ff', icon: cloudDropboxIcon() };
+  if (provider === 'onedrive') return { name: 'OneDrive',     color: '#0078d4', icon: cloudOneDriveIcon() };
+  if (provider === 'mega')     return { name: 'MEGA',         color: '#d9272e', icon: cloudMegaIcon() };
+  return { name: provider, color: '#888', icon: '☁️' };
+}
+
+function cloudGDriveIcon(size = 28) {
+  return `<svg viewBox="0 0 87.3 78" width="${size}" height="${size}" style="stroke:none;fill:none;flex-shrink:0"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.5A9.06 9.06 0 0 0 0 53h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L86.1 57.5c.8-1.4 1.2-2.95 1.2-4.5H59.7L73.55 76.8z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="M59.7 53H87.3c0-1.55-.4-3.1-1.2-4.5L61.1 4.5C60.3 3.1 59.15 2 57.8 1.2L44.05 25z" fill="#2684fc"/><path d="M27.5 53L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.4 4.5-1.2L59.7 53z" fill="#ffba00"/></svg>`;
+}
+function cloudDropboxIcon(size = 28) {
+  return `<svg viewBox="0 0 40 40" width="${size}" height="${size}" style="stroke:none;fill:none;flex-shrink:0"><path d="M10 2L0 9l10 7 10-7zM30 2L20 9l10 7 10-7zM0 23l10 7 10-7-10-7zM30 16l-10 7 10 7 10-7zM20 24.5L10 31.5 20 38.5l10-7z" fill="#0061ff"/></svg>`;
+}
+function cloudOneDriveIcon(size = 28) {
+  return `<svg viewBox="0 0 96 48" width="${size}" height="${size*0.5}" style="stroke:none;fill:none;flex-shrink:0"><path d="M32.3 38.6c-.3-1.4-.5-2.8-.5-4.3 0-10 8.1-18.1 18.1-18.1 4.8 0 9.1 1.9 12.4 4.9A15.2 15.2 0 0 1 74.6 19C81.5 19.6 87 25.4 87 32.5c0 .7-.1 1.4-.2 2.1H32.3z" fill="#0078d4"/><path d="M9.7 38.6a18 18 0 0 1 21-24.4A21.7 21.7 0 0 1 56 16.7a15.2 15.2 0 0 0-12.4 6.4 18.1 18.1 0 0 0-2.4-.2c-7.6 0-14 4.7-16.5 11.4A18 18 0 0 1 9.7 38.6z" fill="#28a8e0"/></svg>`;
+}
+function cloudMegaIcon(size = 28) {
+  return `<svg viewBox="0 0 40 36" width="${size}" height="${size*0.9}" style="stroke:none;fill:none;flex-shrink:0"><text x="0" y="30" font-family="Arial Black,sans-serif" font-size="34" font-weight="900" fill="#d9272e">M</text></svg>`;
+}
+
+// ── Load cloud section on home ─────────────────────────────────────────────
+async function loadCloudSection() {
+  try {
+    _cloudAccounts = await fetchJson('/api/cloud/accounts');
+    renderCloudCards(_cloudAccounts);
+  } catch (e) {
+    const row = $('cloudCardsRow');
+    if (row) row.innerHTML = `<div style="font-size:12px;color:var(--text3);padding:4px 0">Unable to load cloud accounts</div>`;
+  }
+}
+
+function renderCloudCards(accounts) {
+  const row = $('cloudCardsRow');
+  if (!row) return;
+  row.innerHTML = '';
+
+  if (!accounts.length) {
+    const addCard = document.createElement('button');
+    addCard.className = 'cloud-card cloud-card-add';
+    addCard.innerHTML = `<div class="cloud-card-icon">+</div><span class="cloud-card-label">Add Account</span>`;
+    addCard.addEventListener('click', openCloudPicker);
+    row.appendChild(addCard);
+    return;
+  }
+
+  for (const acc of accounts) {
+    const meta = cloudProviderMeta(acc.provider);
+    const card = document.createElement('button');
+    card.className = 'cloud-card';
+    card.dataset.accountId = acc.id;
+    card.innerHTML = `
+      ${!acc._own ? `<span class="cloud-badge-shared">Shared</span>` : ''}
+      <div class="cloud-card-icon">${meta.icon}</div>
+      <span class="cloud-card-label">${escHtml(acc.label || meta.name)}</span>
+      <span class="cloud-card-provider">${meta.name}</span>`;
+    card.addEventListener('click', () => openCloudBrowser(acc.id, acc));
+    row.appendChild(card);
+  }
+
+  // Always show + add button at end
+  const addCard = document.createElement('button');
+  addCard.className = 'cloud-card cloud-card-add';
+  addCard.innerHTML = `<div class="cloud-card-icon" style="font-size:22px">+</div><span class="cloud-card-label">Add</span>`;
+  addCard.addEventListener('click', openCloudPicker);
+  row.appendChild(addCard);
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Cloud provider picker ──────────────────────────────────────────────────
+function openCloudPicker() {
+  $('cloudPickerModal').classList.remove('hidden');
+}
+function closeCloudPicker() {
+  $('cloudPickerModal').classList.add('hidden');
+}
+
+// ── Cloud setup modal ──────────────────────────────────────────────────────
+const CLOUD_SETUP_STEPS = {
+  gdrive:   4,
+  dropbox:  4,
+  onedrive: 4,
+  mega:     2,
+};
+
+function openCloudSetup(provider) {
+  closeCloudPicker();
+  _cloudSetupProvider = provider;
+  _cloudSetupStep = 0;
+  const meta = cloudProviderMeta(provider);
+  $('cloudSetupTitle').textContent = `Connect ${meta.name}`;
+  renderCloudSetupDots();
+  renderCloudSetupStep();
+  $('cloudSetupModal').classList.remove('hidden');
+}
+
+function renderCloudSetupDots() {
+  const total = CLOUD_SETUP_STEPS[_cloudSetupProvider] || 2;
+  const dots = $('cloudSetupStepDots');
+  dots.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'cloud-step-dot' + (i === _cloudSetupStep ? ' active' : '');
+    dots.appendChild(d);
+  }
+}
+
+function renderCloudSetupStep() {
+  const body = $('cloudSetupBody');
+  const backBtn = $('cloudSetupBackBtn');
+  const nextBtn = $('cloudSetupNextBtn');
+  const redirectBase = window.location.origin;
+
+  backBtn.style.display = _cloudSetupStep > 0 ? '' : 'none';
+  renderCloudSetupDots();
+
+  const p = _cloudSetupProvider;
+
+  if (p === 'gdrive') {
+    if (_cloudSetupStep === 0) {
+      body.innerHTML = `
+        <div class="cs-intro-icon">${cloudGDriveIcon(60)}</div>
+        <div class="cs-intro-title">Connect Google Drive</div>
+        <div class="cs-intro-sub">To use your Google Drive with Hevi Explorer, you'll create a free personal Google Cloud API project. This takes about 5 minutes and is 100% free — no credit card required.<br><br>Your files are accessed directly through your own Google account. No third-party server ever sees your data.</div>`;
+      nextBtn.textContent = 'Get Started →';
+    } else if (_cloudSetupStep === 1) {
+      body.innerHTML = `
+        <div class="cs-guide-title">Set up Google Cloud Credentials</div>
+        <a href="https://console.cloud.google.com" target="_blank" rel="noopener" class="cs-link">🌐 Open Google Cloud Console ↗</a>
+        <ol class="cs-steps-list">
+          <li><span class="cs-step-num">1</span><span class="cs-step-text">Sign in with your Google account, then click <strong>Select a project → New Project</strong>. Name it anything (e.g. "Hevi Explorer").</span></li>
+          <li><span class="cs-step-num">2</span><span class="cs-step-text">In the left menu, go to <strong>APIs &amp; Services → Library</strong>. Search for <strong>Google Drive API</strong> and click <strong>Enable</strong>.</span></li>
+          <li><span class="cs-step-num">3</span><span class="cs-step-text">Go to <strong>APIs &amp; Services → Credentials</strong>. Click <strong>+ Create Credentials → OAuth 2.0 Client ID</strong>.</span></li>
+          <li><span class="cs-step-num">4</span><span class="cs-step-text">If prompted, configure the OAuth consent screen — choose <strong>External</strong>, fill in an app name, then save.</span></li>
+          <li><span class="cs-step-num">5</span><span class="cs-step-text">Set Application type to <strong>Web application</strong>. Under <strong>Authorized redirect URIs</strong> click Add URI and paste exactly:<br><code>${redirectBase}/api/cloud/gdrive/callback</code></span></li>
+          <li><span class="cs-step-num">6</span><span class="cs-step-text">Click <strong>Create</strong>. Copy your <strong>Client ID</strong> and <strong>Client Secret</strong>.</span></li>
+        </ol>`;
+      nextBtn.textContent = 'I have my credentials →';
+    } else if (_cloudSetupStep === 2) {
+      body.innerHTML = `
+        <div class="cs-guide-title">Enter your Google Drive credentials</div>
+        <label class="cs-label">Client ID</label>
+        <input type="text" class="st-input" id="csGdriveClientId" placeholder="xxxxxx.apps.googleusercontent.com" autocomplete="off" />
+        <label class="cs-label">Client Secret</label>
+        <input type="password" class="st-input" id="csGdriveClientSecret" placeholder="Client secret" autocomplete="off" />
+        <label class="cs-label">Account Label (optional)</label>
+        <input type="text" class="st-input" id="csGdriveLabel" placeholder="My Drive" autocomplete="off" />
+        <div class="cs-note">Your credentials are stored encrypted on your local server and never shared with anyone.</div>`;
+      nextBtn.textContent = 'Authorize with Google →';
+    } else if (_cloudSetupStep === 3) {
+      body.innerHTML = `
+        <div class="cs-intro-icon">🔐</div>
+        <div class="cs-intro-title">Authorize Access</div>
+        <div class="cs-intro-sub">Click the button below to open a Google authorization window. Sign in and grant Hevi Explorer read-only access to your Drive files.<br><br>After you approve, this window will automatically update.</div>
+        <div style="margin-top:20px;text-align:center" id="csGdriveAuthStatus"></div>`;
+      nextBtn.textContent = 'Open Google Authorization ↗';
+    }
+
+  } else if (p === 'dropbox') {
+    if (_cloudSetupStep === 0) {
+      body.innerHTML = `
+        <div class="cs-intro-icon">${cloudDropboxIcon(60)}</div>
+        <div class="cs-intro-title">Connect Dropbox</div>
+        <div class="cs-intro-sub">You'll create a free Dropbox app using your own Dropbox developer account. This gives you full, private access to your Dropbox files through Hevi Explorer.</div>`;
+      nextBtn.textContent = 'Get Started →';
+    } else if (_cloudSetupStep === 1) {
+      body.innerHTML = `
+        <div class="cs-guide-title">Create a Dropbox App</div>
+        <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener" class="cs-link">🌐 Open Dropbox App Console ↗</a>
+        <ol class="cs-steps-list">
+          <li><span class="cs-step-num">1</span><span class="cs-step-text">Click <strong>Create app</strong>. Choose <strong>Scoped access</strong> and <strong>Full Dropbox</strong>.</span></li>
+          <li><span class="cs-step-num">2</span><span class="cs-step-text">Name it anything (e.g. "HeviExplorer"). Click <strong>Create app</strong>.</span></li>
+          <li><span class="cs-step-num">3</span><span class="cs-step-text">On the <strong>Settings</strong> tab, scroll to <strong>OAuth 2 → Redirect URIs</strong>. Add this URI:<br><code>${redirectBase}/api/cloud/dropbox/callback</code></span></li>
+          <li><span class="cs-step-num">4</span><span class="cs-step-text">Copy your <strong>App key</strong> and <strong>App secret</strong> from the Settings tab.</span></li>
+        </ol>`;
+      nextBtn.textContent = 'I have my app key →';
+    } else if (_cloudSetupStep === 2) {
+      body.innerHTML = `
+        <div class="cs-guide-title">Enter your Dropbox App credentials</div>
+        <label class="cs-label">App Key</label>
+        <input type="text" class="st-input" id="csDropboxKey" placeholder="App key" autocomplete="off" />
+        <label class="cs-label">App Secret</label>
+        <input type="password" class="st-input" id="csDropboxSecret" placeholder="App secret" autocomplete="off" />
+        <label class="cs-label">Account Label (optional)</label>
+        <input type="text" class="st-input" id="csDropboxLabel" placeholder="My Dropbox" autocomplete="off" />
+        <div class="cs-note">Stored encrypted on your local server only.</div>`;
+      nextBtn.textContent = 'Authorize with Dropbox →';
+    } else if (_cloudSetupStep === 3) {
+      body.innerHTML = `
+        <div class="cs-intro-icon">🔐</div>
+        <div class="cs-intro-title">Authorize Access</div>
+        <div class="cs-intro-sub">Click the button to open a Dropbox authorization window. Sign in and allow access. After you approve, this window will automatically update.</div>
+        <div style="margin-top:20px;text-align:center" id="csDropboxAuthStatus"></div>`;
+      nextBtn.textContent = 'Open Dropbox Authorization ↗';
+    }
+
+  } else if (p === 'onedrive') {
+    if (_cloudSetupStep === 0) {
+      body.innerHTML = `
+        <div class="cs-intro-icon">${cloudOneDriveIcon(56)}</div>
+        <div class="cs-intro-title" style="margin-top:10px">Connect OneDrive</div>
+        <div class="cs-intro-sub">You'll register a free personal Microsoft app using the Azure Portal. This gives Hevi Explorer read-only access to your OneDrive files through your own account.</div>`;
+      nextBtn.textContent = 'Get Started →';
+    } else if (_cloudSetupStep === 1) {
+      body.innerHTML = `
+        <div class="cs-guide-title">Register a Microsoft App</div>
+        <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener" class="cs-link">🌐 Open Azure App Registrations ↗</a>
+        <ol class="cs-steps-list">
+          <li><span class="cs-step-num">1</span><span class="cs-step-text">Click <strong>+ New registration</strong>. Enter any name. Under <strong>Supported account types</strong>, select <strong>Personal Microsoft accounts only</strong>.</span></li>
+          <li><span class="cs-step-num">2</span><span class="cs-step-text">Under <strong>Redirect URI</strong>, select <strong>Web</strong> and paste:<br><code>${redirectBase}/api/cloud/onedrive/callback</code></span></li>
+          <li><span class="cs-step-num">3</span><span class="cs-step-text">Click <strong>Register</strong>. Copy the <strong>Application (client) ID</strong> shown on the overview page.</span></li>
+          <li><span class="cs-step-num">4</span><span class="cs-step-text">Go to <strong>Certificates &amp; secrets → New client secret</strong>. Set an expiry and click Add. Copy the <strong>Value</strong> (not Secret ID).</span></li>
+          <li><span class="cs-step-num">5</span><span class="cs-step-text">Go to <strong>API permissions → Add a permission → Microsoft Graph → Delegated → Files.Read</strong>. Click <strong>Add permissions</strong>.</span></li>
+        </ol>`;
+      nextBtn.textContent = 'I have my credentials →';
+    } else if (_cloudSetupStep === 2) {
+      body.innerHTML = `
+        <div class="cs-guide-title">Enter your Microsoft App credentials</div>
+        <label class="cs-label">Application (Client) ID</label>
+        <input type="text" class="st-input" id="csOneDriveClientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
+        <label class="cs-label">Client Secret Value</label>
+        <input type="password" class="st-input" id="csOneDriveClientSecret" placeholder="Client secret value" autocomplete="off" />
+        <label class="cs-label">Account Label (optional)</label>
+        <input type="text" class="st-input" id="csOneDriveLabel" placeholder="My OneDrive" autocomplete="off" />
+        <div class="cs-note">Stored encrypted on your local server only.</div>`;
+      nextBtn.textContent = 'Authorize with Microsoft →';
+    } else if (_cloudSetupStep === 3) {
+      body.innerHTML = `
+        <div class="cs-intro-icon">🔐</div>
+        <div class="cs-intro-title">Authorize Access</div>
+        <div class="cs-intro-sub">Click the button to open a Microsoft authorization window. Sign in with your Microsoft personal account and grant Hevi Explorer Files.Read access.</div>
+        <div style="margin-top:20px;text-align:center" id="csOneDriveAuthStatus"></div>`;
+      nextBtn.textContent = 'Open Microsoft Authorization ↗';
+    }
+
+  } else if (p === 'mega') {
+    if (_cloudSetupStep === 0) {
+      body.innerHTML = `
+        <div class="cs-intro-icon">${cloudMegaIcon(60)}</div>
+        <div class="cs-intro-title">Connect MEGA</div>
+        <div class="cs-intro-sub">MEGA doesn't use API keys — it uses your MEGA account email and password directly. Your credentials are encrypted and stored only on your local server. They are never sent anywhere except to MEGA's own servers to log in.</div>`;
+      nextBtn.textContent = 'Enter Credentials →';
+    } else if (_cloudSetupStep === 1) {
+      body.innerHTML = `
+        <div class="cs-guide-title">MEGA Account Credentials</div>
+        <label class="cs-label">MEGA Email</label>
+        <input type="email" class="st-input" id="csMegaEmail" placeholder="your@email.com" autocomplete="off" />
+        <label class="cs-label">MEGA Password</label>
+        <input type="password" class="st-input" id="csMegaPassword" placeholder="Password" autocomplete="off" />
+        <label class="cs-label">Account Label (optional)</label>
+        <input type="text" class="st-input" id="csMegaLabel" placeholder="My MEGA" autocomplete="off" />
+        <div class="cs-note">Stored encrypted on your local server. Hevi Explorer uses these credentials only to access your MEGA files.</div>`;
+      nextBtn.textContent = 'Connect MEGA →';
+    }
+  }
+}
+
+async function cloudSetupNext() {
+  const p = _cloudSetupProvider;
+  const total = CLOUD_SETUP_STEPS[p] || 2;
+  const nextBtn = $('cloudSetupNextBtn');
+
+  // Handle special action steps
+  if (p === 'gdrive' && _cloudSetupStep === 2) {
+    const clientId = ($('csGdriveClientId') || {}).value || '';
+    const clientSecret = ($('csGdriveClientSecret') || {}).value || '';
+    if (!clientId.trim() || !clientSecret.trim()) { toast('Please fill in Client ID and Client Secret', 'error'); return; }
+    // Store for next step
+    window._csGdriveClientId = clientId.trim();
+    window._csGdriveClientSecret = clientSecret.trim();
+    window._csGdriveLabel = (($('csGdriveLabel') || {}).value || '').trim();
+  }
+
+  if (p === 'gdrive' && _cloudSetupStep === 3) {
+    // Trigger OAuth
+    nextBtn.disabled = true; nextBtn.textContent = 'Opening…';
+    try {
+      const r = await fetch('/api/cloud/connect/gdrive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: window._csGdriveClientId, clientSecret: window._csGdriveClientSecret, label: window._csGdriveLabel || 'My Drive' }) });
+      const d = await r.json();
+      if (d.error) { toast(d.error, 'error'); nextBtn.disabled = false; nextBtn.textContent = 'Open Google Authorization ↗'; return; }
+      const popup = window.open(d.authUrl, 'gdrive_auth', 'width=520,height=640,left=100,top=100');
+      const status = $('csGdriveAuthStatus');
+      if (status) status.innerHTML = `<div style="font-size:13px;color:var(--text2)">⏳ Waiting for authorization…</div>`;
+      const handler = (e) => {
+        if (e.data === 'cloud:success:googledrive' || e.data && String(e.data).startsWith('cloud:success')) {
+          window.removeEventListener('message', handler);
+          closeCloudSetup();
+          toast('Google Drive connected!', 'success');
+          loadCloudSection();
+          if (state.currentView === 'home') {} // already on home
+        } else if (e.data === 'cloud:error') {
+          window.removeEventListener('message', handler);
+          if (status) status.innerHTML = `<div style="color:var(--danger);font-size:13px">❌ Authorization failed. Try again.</div>`;
+          nextBtn.disabled = false; nextBtn.textContent = 'Open Google Authorization ↗';
+        }
+      };
+      window.addEventListener('message', handler);
+      // Fallback polling if popup closed
+      const poll = setInterval(() => {
+        if (popup && popup.closed) {
+          clearInterval(poll);
+          window.removeEventListener('message', handler);
+          if (!$('cloudSetupModal').classList.contains('hidden')) {
+            nextBtn.disabled = false; nextBtn.textContent = 'Open Google Authorization ↗';
+            if (status) status.innerHTML = '';
+          }
+        }
+      }, 1000);
+    } catch (e) { toast(e.message, 'error'); nextBtn.disabled = false; nextBtn.textContent = 'Open Google Authorization ↗'; }
+    return;
+  }
+
+  if (p === 'dropbox' && _cloudSetupStep === 2) {
+    const appKey = ($('csDropboxKey') || {}).value || '';
+    const appSecret = ($('csDropboxSecret') || {}).value || '';
+    if (!appKey.trim() || !appSecret.trim()) { toast('Please fill in App Key and App Secret', 'error'); return; }
+    window._csDropboxKey = appKey.trim();
+    window._csDropboxSecret = appSecret.trim();
+    window._csDropboxLabel = (($('csDropboxLabel') || {}).value || '').trim();
+  }
+
+  if (p === 'dropbox' && _cloudSetupStep === 3) {
+    nextBtn.disabled = true; nextBtn.textContent = 'Opening…';
+    try {
+      const r = await fetch('/api/cloud/connect/dropbox', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appKey: window._csDropboxKey, appSecret: window._csDropboxSecret, label: window._csDropboxLabel || 'My Dropbox' }) });
+      const d = await r.json();
+      if (d.error) { toast(d.error, 'error'); nextBtn.disabled = false; nextBtn.textContent = 'Open Dropbox Authorization ↗'; return; }
+      const popup = window.open(d.authUrl, 'dropbox_auth', 'width=520,height=640,left=100,top=100');
+      const status = $('csDropboxAuthStatus');
+      if (status) status.innerHTML = `<div style="font-size:13px;color:var(--text2)">⏳ Waiting for authorization…</div>`;
+      const handler = (e) => {
+        if (e.data && String(e.data).startsWith('cloud:success')) {
+          window.removeEventListener('message', handler);
+          closeCloudSetup();
+          toast('Dropbox connected!', 'success');
+          loadCloudSection();
+        } else if (e.data === 'cloud:error') {
+          window.removeEventListener('message', handler);
+          if (status) status.innerHTML = `<div style="color:var(--danger);font-size:13px">❌ Authorization failed. Try again.</div>`;
+          nextBtn.disabled = false; nextBtn.textContent = 'Open Dropbox Authorization ↗';
+        }
+      };
+      window.addEventListener('message', handler);
+      const poll = setInterval(() => { if (popup && popup.closed) { clearInterval(poll); window.removeEventListener('message', handler); if (!$('cloudSetupModal').classList.contains('hidden')) { nextBtn.disabled = false; nextBtn.textContent = 'Open Dropbox Authorization ↗'; if (status) status.innerHTML = ''; } } }, 1000);
+    } catch (e) { toast(e.message, 'error'); nextBtn.disabled = false; nextBtn.textContent = 'Open Dropbox Authorization ↗'; }
+    return;
+  }
+
+  if (p === 'onedrive' && _cloudSetupStep === 2) {
+    const clientId = ($('csOneDriveClientId') || {}).value || '';
+    const clientSecret = ($('csOneDriveClientSecret') || {}).value || '';
+    if (!clientId.trim()) { toast('Please fill in the Application (Client) ID', 'error'); return; }
+    window._csOneDriveClientId = clientId.trim();
+    window._csOneDriveClientSecret = clientSecret.trim();
+    window._csOneDriveLabel = (($('csOneDriveLabel') || {}).value || '').trim();
+  }
+
+  if (p === 'onedrive' && _cloudSetupStep === 3) {
+    nextBtn.disabled = true; nextBtn.textContent = 'Opening…';
+    try {
+      const r = await fetch('/api/cloud/connect/onedrive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: window._csOneDriveClientId, clientSecret: window._csOneDriveClientSecret, label: window._csOneDriveLabel || 'My OneDrive' }) });
+      const d = await r.json();
+      if (d.error) { toast(d.error, 'error'); nextBtn.disabled = false; nextBtn.textContent = 'Open Microsoft Authorization ↗'; return; }
+      const popup = window.open(d.authUrl, 'onedrive_auth', 'width=520,height=640,left=100,top=100');
+      const status = $('csOneDriveAuthStatus');
+      if (status) status.innerHTML = `<div style="font-size:13px;color:var(--text2)">⏳ Waiting for authorization…</div>`;
+      const handler = (e) => {
+        if (e.data && String(e.data).startsWith('cloud:success')) {
+          window.removeEventListener('message', handler);
+          closeCloudSetup();
+          toast('OneDrive connected!', 'success');
+          loadCloudSection();
+        } else if (e.data === 'cloud:error') {
+          window.removeEventListener('message', handler);
+          if (status) status.innerHTML = `<div style="color:var(--danger);font-size:13px">❌ Authorization failed. Try again.</div>`;
+          nextBtn.disabled = false; nextBtn.textContent = 'Open Microsoft Authorization ↗';
+        }
+      };
+      window.addEventListener('message', handler);
+      const poll = setInterval(() => { if (popup && popup.closed) { clearInterval(poll); window.removeEventListener('message', handler); if (!$('cloudSetupModal').classList.contains('hidden')) { nextBtn.disabled = false; nextBtn.textContent = 'Open Microsoft Authorization ↗'; if (status) status.innerHTML = ''; } } }, 1000);
+    } catch (e) { toast(e.message, 'error'); nextBtn.disabled = false; nextBtn.textContent = 'Open Microsoft Authorization ↗'; }
+    return;
+  }
+
+  if (p === 'mega' && _cloudSetupStep === 1) {
+    const email = ($('csMegaEmail') || {}).value || '';
+    const password = ($('csMegaPassword') || {}).value || '';
+    if (!email.trim() || !password) { toast('Please enter your MEGA email and password', 'error'); return; }
+    nextBtn.disabled = true; nextBtn.textContent = 'Connecting…';
+    try {
+      const r = await fetch('/api/cloud/connect/mega', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), password, label: (($('csMegaLabel') || {}).value || '').trim() || 'My MEGA' }) });
+      const d = await r.json();
+      if (d.error) { toast(d.error, 'error'); nextBtn.disabled = false; nextBtn.textContent = 'Connect MEGA →'; return; }
+      closeCloudSetup();
+      toast('MEGA connected!', 'success');
+      loadCloudSection();
+    } catch (e) { toast(e.message, 'error'); nextBtn.disabled = false; nextBtn.textContent = 'Connect MEGA →'; }
+    return;
+  }
+
+  // Advance step
+  if (_cloudSetupStep < total - 1) {
+    _cloudSetupStep++;
+    renderCloudSetupStep();
+  }
+}
+
+function cloudSetupBack() {
+  if (_cloudSetupStep > 0) {
+    _cloudSetupStep--;
+    $('cloudSetupNextBtn').disabled = false;
+    renderCloudSetupStep();
+  }
+}
+
+function closeCloudSetup() {
+  $('cloudSetupModal').classList.add('hidden');
+  _cloudSetupProvider = null;
+  _cloudSetupStep = 0;
+}
+
+// ── Cloud browser view ─────────────────────────────────────────────────────
+function openCloudBrowser(accountId, acc) {
+  _cloudBrowserAccountId = accountId;
+  _cloudBrowserStack = [];
+  const meta = cloudProviderMeta((acc || {}).provider || '');
+  $('cloudBrowserTitle').textContent = (acc && acc.label) ? acc.label : meta.name;
+  showView('cloud');
+  loadCloudFiles(accountId, '', null);
+}
+
+async function loadCloudFiles(accountId, folderPath, folderName) {
+  const grid = $('cloudGrid');
+  grid.innerHTML = `<div class="loader-wrap"><div class="loader"></div></div>`;
+
+  // Update breadcrumb stack
+  if (folderPath === '' || folderPath === null) {
+    _cloudBrowserStack = [];
+  } else {
+    // Check if going back
+    const existIdx = _cloudBrowserStack.findIndex(s => s.id === folderPath);
+    if (existIdx >= 0) {
+      _cloudBrowserStack = _cloudBrowserStack.slice(0, existIdx + 1);
+    } else {
+      _cloudBrowserStack.push({ id: folderPath, name: folderName || folderPath });
+    }
+  }
+  renderCloudBreadcrumb(accountId);
+
+  try {
+    const data = await fetchJson(`/api/cloud/${encodeURIComponent(accountId)}/ls?path=${encodeURIComponent(folderPath || '')}`);
+    renderCloudGrid(accountId, data.items || []);
+  } catch (e) {
+    grid.innerHTML = `<div class="empty-state"><p style="color:var(--danger)">Error: ${escHtml(e.message)}</p></div>`;
+  }
+}
+
+function renderCloudBreadcrumb(accountId) {
+  const bc = $('cloudBreadcrumb');
+  if (!bc) return;
+  const acc = _cloudAccounts.find(a => a.id === accountId);
+  const meta = cloudProviderMeta((acc || {}).provider || '');
+  const rootName = (acc && acc.label) ? acc.label : meta.name;
+  let html = `<span class="cloud-bc-item" data-cloud-path="" data-cloud-name="">🏠 ${escHtml(rootName)}</span>`;
+  for (let i = 0; i < _cloudBrowserStack.length; i++) {
+    const s = _cloudBrowserStack[i];
+    html += `<span class="cloud-bc-sep">›</span>`;
+    if (i === _cloudBrowserStack.length - 1) {
+      html += `<span class="cloud-bc-current">${escHtml(s.name)}</span>`;
+    } else {
+      html += `<span class="cloud-bc-item" data-cloud-path="${escHtml(s.id)}" data-cloud-name="${escHtml(s.name)}">${escHtml(s.name)}</span>`;
+    }
+  }
+  bc.innerHTML = html;
+  bc.querySelectorAll('.cloud-bc-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const p = el.dataset.cloudPath || '';
+      const n = el.dataset.cloudName || '';
+      if (p === '') {
+        _cloudBrowserStack = [];
+        renderCloudBreadcrumb(accountId);
+        loadCloudFiles(accountId, '', null);
+      } else {
+        const targetIdx = _cloudBrowserStack.findIndex(s => s.id === p);
+        if (targetIdx >= 0) _cloudBrowserStack = _cloudBrowserStack.slice(0, targetIdx + 1);
+        renderCloudBreadcrumb(accountId);
+        loadCloudFiles(accountId, p, n);
+      }
+    });
+  });
+}
+
+function renderCloudGrid(accountId, items) {
+  const grid = $('cloudGrid');
+  if (!items.length) {
+    grid.innerHTML = `<div class="empty-state"><p>This folder is empty</p></div>`;
+    return;
+  }
+
+  const acc = _cloudAccounts.find(a => a.id === accountId);
+  const provider = acc ? acc.provider : '';
+
+  const sorted = [...items].sort((a, b) => {
+    if (a.type === 'dir' && b.type !== 'dir') return -1;
+    if (a.type !== 'dir' && b.type === 'dir') return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  grid.innerHTML = '';
+  for (const item of sorted) {
+    const card = document.createElement('div');
+    const isFolder = item.type === 'dir';
+    const ext = (item.ext || '').toLowerCase();
+    const visual = isFolder ? { icon: '📁', className: 'file-type-folder' } : fileVisual(item);
+
+    card.className = `file-card ${visual.className || ''}`;
+    card.dataset.cloudItemId = item.id;
+    card.dataset.cloudItemName = item.name;
+    card.dataset.cloudItemType = item.type;
+
+    const sizeStr = (!isFolder && item.size) ? fmtBytes(item.size) : '';
+
+    card.innerHTML = `
+      <div class="fc-thumb">
+        <div class="fc-icon">${visual.icon || '📄'}</div>
+        ${visual.label ? `<div class="fc-type-badge">${visual.label}</div>` : ''}
+      </div>
+      <div class="fc-info">
+        <div class="fc-name">${escHtml(item.name)}</div>
+        ${sizeStr ? `<div class="fc-meta">${sizeStr}</div>` : ''}
+      </div>`;
+
+    card.addEventListener('click', () => {
+      if (isFolder) {
+        loadCloudFiles(accountId, item.id, item.name);
+      } else {
+        openCloudFile(accountId, item);
+      }
+    });
+    grid.appendChild(card);
+  }
+}
+
+function openCloudFile(accountId, item) {
+  const fileUrl = `/api/cloud/${encodeURIComponent(accountId)}/file?path=${encodeURIComponent(item.id)}`;
+  const ext = (item.ext || '').toLowerCase();
+  const cat = item.mimeType ? (item.mimeType.startsWith('video') ? 'video' : item.mimeType.startsWith('audio') ? 'audio' : item.mimeType.startsWith('image') ? 'image' : '') : '';
+
+  const isVideo  = cat === 'video' || ['.mp4','.mkv','.avi','.mov','.webm','.m4v','.ts','.flv'].includes(ext);
+  const isAudio  = cat === 'audio' || ['.mp3','.flac','.wav','.aac','.m4a','.ogg','.opus'].includes(ext);
+  const isImage  = cat === 'image' || ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.avif','.svg'].includes(ext);
+  const isPdf    = ext === '.pdf';
+  const isText   = ['.txt','.md','.log','.json','.xml','.csv','.sh','.py','.js','.ts','.html','.css'].includes(ext);
+
+  if (isVideo) {
+    cloudOpenVideo(item.name, fileUrl);
+  } else if (isAudio) {
+    const fakeItem = { name: item.name, path: null, category: 'audio', ext, _cloudUrl: fileUrl };
+    openAudio(fakeItem, fileUrl, [fakeItem]);
+  } else if (isImage) {
+    window.open(fileUrl, '_blank');
+  } else if (isPdf) {
+    openPdf({ name: item.name, path: null }, fileUrl);
+  } else if (isText) {
+    openText({ name: item.name, path: null }, fileUrl);
+  } else {
+    window.open(fileUrl, '_blank');
+  }
+}
+
+// ── Cloud video/audio open helpers ────────────────────────────────────────
+function cloudOpenVideo(name, url) {
+  const vid = $('videoPlayer');
+  const modal = $('videoModal');
+  if (!vid || !modal) { window.open(url, '_blank'); return; }
+  // Build a minimal fake item so the player can display it
+  const fakeItem = { name, path: '__cloud__', category: 'video', ext: url.split('.').pop().split('?')[0] };
+  // Directly set video source bypassing path-based URL building
+  vid.src = url;
+  $('vpTitle').textContent = name;
+  const dlBtn = $('vpDownloadBtn');
+  if (dlBtn) { dlBtn.href = url; dlBtn.download = name; }
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  history.pushState({ lhost: true }, '');
+  vid.play().catch(() => {});
+}
+
+// ── Cloud settings in settings modal ──────────────────────────────────────
+async function loadCloudSettings() {
+  const list = $('cloudSettingsAccountsList');
+  const sep = $('cloudSettingsSep');
+  if (!list) return;
+  try {
+    const accounts = await fetchJson('/api/cloud/accounts');
+    _cloudAccounts = accounts;
+    if (!accounts.length) {
+      list.innerHTML = `<div style="font-size:13px;color:var(--text3);padding:6px 0 2px">No cloud accounts connected yet.</div>`;
+      if (sep) sep.style.display = 'none';
+      return;
+    }
+    if (sep) sep.style.display = '';
+    list.innerHTML = '';
+    for (const acc of accounts) {
+      const meta = cloudProviderMeta(acc.provider);
+      const item = document.createElement('div');
+      item.className = 'cloud-st-item';
+      item.innerHTML = `
+        <div class="cloud-st-icon" style="background:${meta.color}22">${meta.icon}</div>
+        <div class="cloud-st-info">
+          <div class="cloud-st-name">${escHtml(acc.label || meta.name)}</div>
+          <div class="cloud-st-meta">${meta.name}${!acc._own ? ' · Shared' : ''}</div>
+        </div>
+        <div class="cloud-st-actions">
+          ${acc._own ? `<button class="st-mini-btn cloud-st-share-btn" data-id="${acc.id}">Share</button>` : ''}
+          ${acc._own ? `<button class="st-mini-btn" style="color:var(--danger)" data-id="${acc.id}" data-action="disconnect">Disconnect</button>` : ''}
+        </div>`;
+      list.appendChild(item);
+    }
+    list.querySelectorAll('[data-action="disconnect"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Disconnect ${accounts.find(a => a.id === btn.dataset.id)?.label || 'this account'}?`)) return;
+        try {
+          await fetch(`/api/cloud/${btn.dataset.id}`, { method: 'DELETE' });
+          toast('Account disconnected', 'success');
+          loadCloudSettings();
+          loadCloudSection();
+        } catch (e) { toast(e.message, 'error'); }
+      });
+    });
+    list.querySelectorAll('.cloud-st-share-btn').forEach(btn => {
+      btn.addEventListener('click', () => openCloudShareModal(btn.dataset.id, accounts));
+    });
+  } catch (e) {
+    list.innerHTML = `<div style="font-size:13px;color:var(--danger)">Error loading accounts</div>`;
+  }
+
+  // Load device name
+  try {
+    const devices = await fetchJson('/api/cloud/devices');
+    const myId = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('hevi_did='));
+    if (myId) {
+      const did = decodeURIComponent(myId.split('=')[1]);
+      const inp = $('cloudDeviceNameInput');
+      if (inp && devices[did]) inp.value = devices[did].name || '';
+    }
+  } catch (_) {}
+}
+
+// ── Cloud share modal ──────────────────────────────────────────────────────
+async function openCloudShareModal(accountId, accounts) {
+  _cloudShareAccountId = accountId;
+  const acc = accounts.find(a => a.id === accountId);
+  const sw = acc ? (acc.sharedWith || 'none') : 'none';
+
+  // Set radio
+  const opts = $('cloudShareOptions');
+  if (opts) {
+    opts.querySelectorAll('input[name="cloudShare"]').forEach(inp => {
+      inp.checked = (inp.value === sw || (inp.value === 'select' && Array.isArray(sw)));
+    });
+  }
+  await loadCloudShareDevices(sw);
+  $('cloudShareModal').classList.remove('hidden');
+}
+
+async function loadCloudShareDevices(currentSw) {
+  const container = $('cloudShareDeviceList');
+  if (!container) return;
+  try {
+    const devices = await fetchJson('/api/cloud/devices');
+    const myIdCookie = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('hevi_did='));
+    const myDid = myIdCookie ? decodeURIComponent(myIdCookie.split('=')[1]) : '';
+    const others = Object.entries(devices).filter(([did]) => did !== myDid);
+    if (!others.length) {
+      container.innerHTML = `<div style="font-size:12px;color:var(--text3)">No other devices found. Open Hevi Explorer on other devices first.</div>`;
+    } else {
+      container.innerHTML = others.map(([did, info]) => {
+        const checked = Array.isArray(currentSw) && currentSw.includes(did) ? 'checked' : '';
+        return `<label class="cloud-share-device"><input type="checkbox" class="cloud-did-check" data-did="${did}" ${checked}> <span>${escHtml(info.name || did.slice(0,8) + '…')}</span><span style="font-size:10px;color:var(--text3);margin-left:auto">${info.name ? did.slice(0,6) : ''}</span></label>`;
+      }).join('');
+    }
+  } catch (_) {}
+
+  // Toggle device list visibility based on radio
+  const updateVisibility = () => {
+    const val = document.querySelector('input[name="cloudShare"]:checked')?.value || 'none';
+    container.classList.toggle('hidden', val !== 'select');
+  };
+  document.querySelectorAll('input[name="cloudShare"]').forEach(inp => inp.addEventListener('change', updateVisibility));
+  updateVisibility();
+}
+
+async function saveCloudShare() {
+  const val = document.querySelector('input[name="cloudShare"]:checked')?.value || 'none';
+  let sharedWith = val;
+  if (val === 'select') {
+    sharedWith = [...document.querySelectorAll('.cloud-did-check:checked')].map(cb => cb.dataset.did);
+  }
+  try {
+    const r = await fetch(`/api/cloud/${_cloudShareAccountId}/share`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sharedWith }) });
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); return; }
+    $('cloudShareModal').classList.add('hidden');
+    toast('Share settings saved', 'success');
+    loadCloudSettings();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ── Event listeners ────────────────────────────────────────────────────────
+(function initCloudEvents() {
+  // Provider picker
+  $('cloudPickerClose')?.addEventListener('click', closeCloudPicker);
+  $('cloudPickerBackdrop')?.addEventListener('click', closeCloudPicker);
+  document.querySelectorAll('[data-provider]').forEach(btn => {
+    btn.addEventListener('click', () => openCloudSetup(btn.dataset.provider));
+  });
+
+  // Cloud setup modal
+  $('cloudSetupClose')?.addEventListener('click', closeCloudSetup);
+  $('cloudSetupBackdrop')?.addEventListener('click', closeCloudSetup);
+  $('cloudSetupNextBtn')?.addEventListener('click', cloudSetupNext);
+  $('cloudSetupBackBtn')?.addEventListener('click', cloudSetupBack);
+
+  // Cloud manage button on home
+  $('cloudManageBtn')?.addEventListener('click', () => {
+    // Open settings modal on cloud section
+    closeModal && closeModal('settingsModal'); // ensure closed
+    $('settingsModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => {
+      const el = $('cloudSettingsGroup');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
+    loadCloudSettings();
+  });
+
+  // Cloud settings add button
+  $('cloudSettingsAddBtn')?.addEventListener('click', openCloudPicker);
+
+  // Cloud browser back button
+  $('cloudBrowserBackBtn')?.addEventListener('click', () => {
+    if (_cloudBrowserStack.length > 0) {
+      const parent = _cloudBrowserStack.length > 1 ? _cloudBrowserStack[_cloudBrowserStack.length - 2] : null;
+      _cloudBrowserStack.pop();
+      const path = parent ? parent.id : '';
+      const name = parent ? parent.name : null;
+      loadCloudFiles(_cloudBrowserAccountId, path, name);
+    } else {
+      loadHome();
+    }
+  });
+
+  // Device name save
+  $('cloudDeviceNameSaveBtn')?.addEventListener('click', async () => {
+    const name = ($('cloudDeviceNameInput') || {}).value || '';
+    try {
+      await fetch('/api/cloud/device/name', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      toast('Device name saved', 'success');
+    } catch (e) { toast(e.message, 'error'); }
+  });
+
+  // Cloud share modal
+  $('cloudShareBackdrop')?.addEventListener('click', () => $('cloudShareModal').classList.add('hidden'));
+  $('cloudShareCancelBtn')?.addEventListener('click', () => $('cloudShareModal').classList.add('hidden'));
+  $('cloudShareSaveBtn')?.addEventListener('click', saveCloudShare);
+})();
+
+// ── Hook into settings modal open ─────────────────────────────────────────
+['navSettings', 'sbSettings'].forEach(id => {
+  const el = $(id);
+  if (el) el.addEventListener('click', () => loadCloudSettings(), { capture: false });
+});
+
+// Load cloud section on initial home load
+loadCloudSection();
