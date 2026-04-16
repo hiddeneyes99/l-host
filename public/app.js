@@ -745,6 +745,7 @@ function mpLoadTrack(idx) {
   const item = mp.queue[idx];
   if (!item) return;
   mp.index = idx;
+  mpUpdateFavBtn();
 
   const trackUrl = `/file?path=${encodeURIComponent(item.path)}`;
   const audio = mpGetAudio();
@@ -2983,6 +2984,12 @@ function renderRecentCards(grid, items) {
       card.innerHTML = `<div class="recent-file-thumb">${fileThumbHtml(item)}</div>
         <div class="card-overlay"><span class="card-name">${item.name}</span></div>`;
     }
+    if (_cachedFavorites.some(f => f.path === item.path)) {
+      const star = document.createElement('span');
+      star.className = 'fav-star-badge';
+      star.textContent = '★';
+      card.appendChild(star);
+    }
     card.addEventListener('click', () => openFile(item));
     if (item.category === 'image' && imgObserver) {
       const li = card.querySelector('.lazy-img');
@@ -3140,7 +3147,9 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
     thumbHtml = fileThumbHtml(item);
   }
 
+  const isFavItem = _cachedFavorites.some(f => f.path === item.path);
   el.innerHTML = `${thumbHtml}
+    ${isFavItem ? '<span class="fav-star-badge">★</span>' : ''}
     <div class="item-info">
       <div class="item-name">${item.name}</div>
       <div class="item-size">${item.sizeStr}</div>
@@ -3552,12 +3561,83 @@ async function toggleFavorite(item) {
     });
     const d = await r.json();
     toast(d.favorited ? '⭐ Added to Favorites' : 'Removed from Favorites');
-    // Refresh cached favorites
     const st = await fetchJson('/api/userstate');
     _cachedFavorites = st.favorites || [];
-    // Refresh home if visible
+    refreshFavStarBadges();
+    mpUpdateFavBtn();
     if (state.currentView === 'home') loadFavorites();
+    if (state.currentView === 'favAll') loadFavoritesAll();
   } catch (e) { toast(e.message, 'error'); }
+}
+
+function refreshFavStarBadges() {
+  qsa('[data-path]').forEach(el => {
+    const p = el.dataset.path;
+    const isFav = _cachedFavorites.some(f => f.path === p);
+    let star = el.querySelector('.fav-star-badge');
+    if (isFav && !star) {
+      star = document.createElement('span');
+      star.className = 'fav-star-badge';
+      star.textContent = '★';
+      el.appendChild(star);
+    } else if (!isFav && star) {
+      star.remove();
+    }
+  });
+}
+
+function mpUpdateFavBtn() {
+  const btn = $('mpFavBtn');
+  if (!btn) return;
+  const item = mp.queue && mp.queue[mp.index];
+  if (!item) { btn.classList.remove('fav-active'); return; }
+  const isFav = _cachedFavorites.some(f => f.path === item.path);
+  btn.classList.toggle('fav-active', isFav);
+}
+
+async function loadFavoritesAll() {
+  history.pushState({ lhost: true }, '');
+  showView('favAll');
+  updateBreadcrumb('');
+  const list = $('favAllList');
+  list.innerHTML = '<div class="loader-wrap"><div class="loader"></div></div>';
+  try {
+    const st = await fetchJson('/api/userstate');
+    _cachedFavorites = st.favorites || [];
+    if (!_cachedFavorites.length) {
+      list.innerHTML = '<div class="fav-all-empty">No favorites yet.<br>Long-press or use the ⋮ menu to add any file.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    for (const item of _cachedFavorites) {
+      const row = document.createElement('div');
+      row.className = 'fav-all-item';
+      const thumbHtml = item.category === 'image'
+        ? `<img src="/api/thumb?path=${encodeURIComponent(item.path)}&w=100&h=100" decoding="async" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`
+        : item.category === 'audio'
+          ? `<img src="/api/art?path=${encodeURIComponent(item.path)}" decoding="async" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`
+          : item.type === 'dir' ? '📁'
+          : item.category === 'video' ? '🎬'
+          : item.category === 'text' ? '📄'
+          : '📎';
+      row.innerHTML = `
+        <div class="fav-all-thumb">${typeof thumbHtml === 'string' && thumbHtml.startsWith('<') ? thumbHtml : `<span>${thumbHtml}</span>`}</div>
+        <div class="fav-all-info">
+          <div class="fav-all-name">${item.name}</div>
+          <div class="fav-all-sub">${item.category || 'file'}${item.sizeStr ? ' · ' + item.sizeStr : ''}</div>
+        </div>
+        <button class="fav-all-rm" title="Remove from favorites">✕</button>`;
+      row.querySelector('.fav-all-rm').addEventListener('click', async e => {
+        e.stopPropagation();
+        await toggleFavorite(item);
+      });
+      row.addEventListener('click', e => {
+        if (e.target.classList.contains('fav-all-rm')) return;
+        openFile(item);
+      });
+      list.appendChild(row);
+    }
+  } catch (e) { list.innerHTML = `<div class="fav-all-empty">${e.message}</div>`; }
 }
 
 function showCtxMenu(e, item) {
@@ -4158,6 +4238,7 @@ function refreshCurrentView() {
   else if (state.currentView === 'cat') loadCategory(pg.param);
   else if (state.currentView === 'search') doSearch(pg.param);
   else if (state.currentView === 'recentAll') loadRecentAll();
+  else if (state.currentView === 'favAll') loadFavoritesAll();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4527,6 +4608,12 @@ document.addEventListener('DOMContentLoaded', () => {
   qsa('[data-browse]').forEach(el => el.addEventListener('click', () => navigate('')));
   $('recentViewAllBtn').addEventListener('click', () => loadRecentAll());
   $('recentAllBackBtn').addEventListener('click', () => loadHome());
+  $('favViewAllBtn') && $('favViewAllBtn').addEventListener('click', () => loadFavoritesAll());
+  $('favAllBackBtn') && $('favAllBackBtn').addEventListener('click', () => loadHome());
+  $('mpFavBtn') && $('mpFavBtn').addEventListener('click', () => {
+    const item = mp.queue && mp.queue[mp.index];
+    if (item) toggleFavorite(item);
+  });
   $('uploadCatBtn').addEventListener('click', openUploadModal);
   $('storageCard').addEventListener('click', openStorageDetails);
   $('storageCard').addEventListener('keydown', e => {

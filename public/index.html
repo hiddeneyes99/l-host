@@ -287,6 +287,7 @@
         <section class="section" id="favSection" style="display:none">
           <div class="section-header">
             <span class="section-title">⭐ Favorites</span>
+            <button class="view-all-btn" id="favViewAllBtn">View All</button>
           </div>
           <div class="recent-grid" id="favGrid"></div>
         </section>
@@ -381,6 +382,18 @@
           <span class="cat-view-title">Recent Files</span>
         </div>
         <div class="file-grid" id="recentAllGrid"></div>
+      </div>
+
+      <!-- FAVORITES ALL VIEW -->
+      <div class="view hidden" id="favAllView">
+        <div class="browser-actions">
+          <button class="action-btn" id="favAllBackBtn">
+            <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
+            Back
+          </button>
+          <span class="cat-view-title">⭐ All Favorites</span>
+        </div>
+        <div class="fav-all-list" id="favAllList"></div>
       </div>
     </main>
 
@@ -910,6 +923,11 @@
               <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
               <polyline points="7 23 3 19 7 15"/>
               <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+            </svg>
+          </button>
+          <button class="mp-ctrl-secondary" id="mpFavBtn" title="Favorite">
+            <svg viewBox="0 0 24 24" id="mpFavIcon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
             </svg>
           </button>
         </div>
