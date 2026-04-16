@@ -4285,11 +4285,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const copyWanUrl = () => {
     const url = (($('quickWanUrlVal') || {}).textContent || ($('wanUrlVal') || {}).textContent || '').trim();
     if (!url) return;
-    navigator.clipboard.writeText(url).then(() => toast('Link copied!', 'success')).catch(() => {
+    const fallbackCopy = () => {
+      if (navigator.share) {
+        navigator.share({ title: 'Hevi Explorer', url }).then(() => toast('Link shared!', 'success')).catch(() => promptCopy());
+      } else {
+        promptCopy();
+      }
+    };
+    const promptCopy = () => {
       const ta = document.createElement('textarea');
-      ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
-      toast('Link copied!', 'success');
-    });
+      ta.value = url;
+      ta.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:90vw;max-width:480px;padding:12px;font-size:14px;z-index:99999;border:2px solid #0ff;border-radius:8px;background:#111;color:#fff;';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.setSelectionRange(0, ta.value.length);
+      try { document.execCommand('copy'); toast('Link copied!', 'success'); ta.remove(); }
+      catch(e) { toast('Long-press the link above to copy', 'info'); setTimeout(() => ta.remove(), 4000); }
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url).then(() => toast('Link copied!', 'success')).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
   };
   $('wanCopyBtn').addEventListener('click', copyWanUrl);
   $('quickWanCopyBtn') && $('quickWanCopyBtn').addEventListener('click', copyWanUrl);
