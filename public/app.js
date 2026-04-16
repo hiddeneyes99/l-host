@@ -29,7 +29,7 @@ const prefs = (() => {
 if (!prefs.viewMode)   prefs.viewMode  = 'grid';
 if (!prefs.sortBy)     prefs.sortBy    = 'date';
 if (!prefs.sortDir)    prefs.sortDir   = 'desc';
-if (prefs.showHidden === undefined) prefs.showHidden = false;
+if (prefs.showHidden === undefined) prefs.showHidden = true;
 
 function savePrefs() {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch(_) {}
