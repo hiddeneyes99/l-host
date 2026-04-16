@@ -3950,6 +3950,7 @@ img.lazy-img:not([src]) {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   padding: 2px 24px 16px;
 }
 .mp-sleep-trigger {
@@ -5368,8 +5369,8 @@ img.lazy-img:not([src]) {
 
 /* ── AUDIO PLAYER FAV BUTTON ─────────────────────────────────────────────── */
 #mpFavBtn { color: var(--text2); transition: color 0.2s; }
-#mpFavBtn.fav-active { color: #fbbf24; }
-#mpFavBtn.fav-active #mpFavIcon { fill: #fbbf24; stroke: #fbbf24; }
+#mpFavBtn.fav-active { color: #fbbf24; background: rgba(251,191,36,0.12); }
+#mpFavBtn.fav-active #mpFavIcon { fill: #fbbf24; stroke: #fbbf24; opacity: 1; }
 
 /* ── FAVORITES ALL VIEW ──────────────────────────────────────────────────── */
 .fav-all-list {
@@ -5924,15 +5925,25 @@ img.lazy-img:not([src]) {
 .cloud-share-opt {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 11px 14px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
   background: var(--bg3);
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text);
+  transition: background 0.18s;
 }
-.cloud-share-opt input[type="radio"] { accent-color: var(--accent); }
+.cloud-share-opt:hover { background: rgba(255,255,255,0.07); }
+.cloud-share-opt span { flex: 1; }
+.cloud-share-opt input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
 .cloud-share-device-list {
   margin-top: 12px;
   display: flex;

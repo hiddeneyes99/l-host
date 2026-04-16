@@ -973,15 +973,16 @@
               <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
             </svg>
           </button>
-          <button class="mp-ctrl-secondary" id="mpFavBtn" title="Favorite">
-            <svg viewBox="0 0 24 24" id="mpFavIcon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-          </button>
         </div>
 
-        <!-- Sleep Timer row -->
+        <!-- Sleep Timer + Favorite row -->
         <div class="mp-sleep-row">
+          <button class="mp-sleep-trigger" id="mpFavBtn" title="Favorite">
+            <svg viewBox="0 0 24 24" id="mpFavIcon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span>Favorite</span>
+          </button>
           <button class="mp-sleep-trigger" id="mpSleepBtn" title="Sleep Timer">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             <span id="mpSleepLabel">Sleep</span>
@@ -2129,9 +2130,9 @@
         <h3 style="margin-bottom:12px">Share Account</h3>
         <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Choose who can access this cloud account from other devices on this vault.</p>
         <div class="cloud-share-options" id="cloudShareOptions">
-          <label class="cloud-share-opt"><input type="radio" name="cloudShare" value="none"> <span>🔒 Only me (private)</span></label>
-          <label class="cloud-share-opt"><input type="radio" name="cloudShare" value="all"> <span>🌐 All devices on this vault</span></label>
-          <label class="cloud-share-opt"><input type="radio" name="cloudShare" value="select"> <span>🎯 Select specific devices</span></label>
+          <label class="cloud-share-opt"><span>🔒 Only me (private)</span><input type="radio" name="cloudShare" value="none"></label>
+          <label class="cloud-share-opt"><span>🌐 All devices on this vault</span><input type="radio" name="cloudShare" value="all"></label>
+          <label class="cloud-share-opt"><span>🎯 Select specific devices</span><input type="radio" name="cloudShare" value="select"></label>
         </div>
         <div class="cloud-share-device-list hidden" id="cloudShareDeviceList"></div>
         <div class="dialog-actions" style="margin-top:18px">
