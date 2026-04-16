@@ -4079,6 +4079,19 @@ function syncThemeButtons() {
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  // ── Settings info-description toggles (iOS-style expandable hints) ────────
+  document.querySelectorAll('.st-info-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const label = btn.closest('.st-group-label');
+      if (!label) return;
+      const group = label.nextElementSibling;
+      if (!group || !group.classList.contains('st-group')) return;
+      const isOpen = group.classList.toggle('st-desc-open');
+      btn.classList.toggle('st-info-active', isOpen);
+    });
+  });
+
   // Apply saved theme immediately
   applyTheme(localStorage.getItem('lhost_theme') || 'dark');
 
