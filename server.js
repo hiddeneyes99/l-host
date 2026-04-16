@@ -2087,6 +2087,76 @@ app.get('/api/version', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
+//  PER-DEVICE PINNED FOLDERS — user-curated Active Folders list
+// ══════════════════════════════════════════════════════════════════════════
+
+function devicePinnedFile(did) { return path.join(PROFILES_DIR, did, 'pinned.json'); }
+const _pinnedCache  = new Map();
+const _pinnedTimers = new Map();
+
+function loadDevicePinned(did) {
+  if (_pinnedCache.has(did)) return _pinnedCache.get(did);
+  let items = [];
+  try {
+    const f = devicePinnedFile(did);
+    if (fs.existsSync(f)) {
+      const data = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (Array.isArray(data.items)) items = data.items;
+    }
+  } catch (_) {}
+  _pinnedCache.set(did, items);
+  return items;
+}
+
+function saveDevicePinned(did, items) {
+  _pinnedCache.set(did, items);
+  clearTimeout(_pinnedTimers.get(did));
+  _pinnedTimers.set(did, setTimeout(() => {
+    try {
+      fs.mkdirSync(path.join(PROFILES_DIR, did), { recursive: true });
+      fs.writeFileSync(devicePinnedFile(did), JSON.stringify({ updatedAt: Date.now(), items }));
+    } catch (_) {}
+  }, 400));
+}
+
+// GET /api/pinned — list this device's pinned folders
+app.get('/api/pinned', (req, res) => {
+  const did = getDeviceId(req, res);
+  res.json({ items: loadDevicePinned(did) });
+});
+
+// POST /api/pinned — pin a folder (add or update alias)
+app.post('/api/pinned', express.json(), (req, res) => {
+  const did = getDeviceId(req, res);
+  const { path: folderPath, name, alias } = req.body || {};
+  if (folderPath === undefined || folderPath === null) return res.status(400).json({ error: 'Missing path' });
+  const folderName = name || path.basename(folderPath) || 'Root';
+  let items = loadDevicePinned(did).filter(i => i.path !== folderPath);
+  items.push({ path: folderPath, name: folderName, alias: alias || null, addedAt: Date.now() });
+  saveDevicePinned(did, items);
+  res.json({ ok: true, items });
+});
+
+// DELETE /api/pinned — unpin a folder
+app.delete('/api/pinned', express.json(), (req, res) => {
+  const did = getDeviceId(req, res);
+  const { path: folderPath } = req.body || {};
+  if (folderPath === undefined || folderPath === null) return res.status(400).json({ error: 'Missing path' });
+  const items = loadDevicePinned(did).filter(i => i.path !== folderPath);
+  saveDevicePinned(did, items);
+  res.json({ ok: true, items });
+});
+
+// PUT /api/pinned — full replace (reorder or bulk alias update)
+app.put('/api/pinned', express.json(), (req, res) => {
+  const did = getDeviceId(req, res);
+  const { items } = req.body || {};
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'Missing items array' });
+  saveDevicePinned(did, items);
+  res.json({ ok: true, items });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
 //  PER-DEVICE USER STATE — each device gets its own recent + favorites
 //  Identified by a long-lived cookie (hevi_did); stored in data/profiles/<id>/
 // ══════════════════════════════════════════════════════════════════════════

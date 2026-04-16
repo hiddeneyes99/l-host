@@ -389,7 +389,13 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   cursor: pointer;
   border: 1px solid var(--border);
   transition: transform 0.15s, border-color 0.15s;
+  position: relative;
 }
+.folder-card-add {
+  border-style: dashed;
+  opacity: 0.7;
+}
+.folder-card-add:hover { opacity: 1; }
 .folder-card:active { transform: scale(0.95); }
 .folder-card:hover { border-color: var(--accent); }
 .folder-card .folder-icon {
@@ -5321,3 +5327,145 @@ img.lazy-img:not([src]) {
   font-size: 15px;
 }
 [data-theme="light"] .fav-all-item:active { background: #f0f0f4; }
+
+/* ── MANAGE ACTIVE FOLDERS MODAL ────────────────────────────────────────── */
+.pinned-sheet {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  z-index: 1001;
+  box-shadow: 0 -4px 40px rgba(0,0,0,0.5);
+}
+.pinned-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.pinned-sheet-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text1);
+}
+.pinned-hint {
+  padding: 10px 18px;
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+.pinned-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+.pinned-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.pinned-row:active { background: var(--surface2); }
+.pinned-row-icon { font-size: 22px; flex-shrink: 0; }
+.pinned-row-info { flex: 1; min-width: 0; }
+.pinned-row-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pinned-row-path {
+  font-size: 11px;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.pinned-row-btns { display: flex; gap: 4px; flex-shrink: 0; }
+.pinned-row-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text2);
+  transition: background 0.15s, color 0.15s;
+}
+.pinned-row-btn:hover, .pinned-row-btn:active { background: var(--surface2); color: var(--text1); }
+.pinned-row-btn.danger:hover, .pinned-row-btn.danger:active { color: #f87171; border-color: #f87171; }
+.pinned-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--text2);
+  font-size: 14px;
+}
+.pinned-actions {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+.pinned-add-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.pinned-add-btn:active { opacity: 0.8; }
+
+/* ── PIN PICK MODE BANNER ─────────────────────────────────────────────────── */
+.pin-pick-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: var(--accent);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 200;
+  box-shadow: 0 2px 12px rgba(0,212,200,0.3);
+}
+.pin-pick-cancel {
+  background: rgba(0,0,0,0.15);
+  border: none;
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+/* ── PIN BADGE on folder cards ───────────────────────────────────────────── */
+.folder-card.is-pinned { border-color: var(--accent); }
+.folder-card .pin-dot {
+  position: absolute;
+  top: 4px; right: 4px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+[data-theme="light"] .pinned-sheet { background: #fff; }
+[data-theme="light"] .pinned-row:active { background: #f0f0f4; }

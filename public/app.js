@@ -3017,22 +3017,172 @@ async function loadRecent() {
   } catch (e) { grid.innerHTML = `<div class="empty-state"><p>${e.message}</p></div>`; }
 }
 
+// ── Pinned Folders state ───────────────────────────────────────────────────
+let _pinnedFolders = []; // { path, name, alias, addedAt }
+let _pinPickMode   = false;
+
 async function loadFolders() {
   const scroll = $('foldersScroll');
   scroll.innerHTML = '<div class="loader-wrap"><div class="loader"></div></div>';
   try {
-    const data = await fetchJson(`/api/ls?path=&page=0&limit=50&${buildListParams()}`);
-    const dirs = data.items.filter(i => i.type === 'dir').slice(0, 10);
-    if (!dirs.length) { scroll.innerHTML = '<div style="color:var(--text3);padding:16px;font-size:13px;">No folders found</div>'; return; }
-    scroll.innerHTML = '';
-    for (const dir of dirs) {
-      const card = document.createElement('div');
-      card.className = 'folder-card';
-      card.innerHTML = `<span class="folder-icon">📁</span><div class="folder-name">${dir.name}</div><div class="folder-count">Folder</div>`;
-      card.addEventListener('click', () => navigate(dir.path));
-      scroll.appendChild(card);
+    const pd = await fetchJson('/api/pinned');
+    _pinnedFolders = pd.items || [];
+    if (_pinnedFolders.length) {
+      scroll.innerHTML = '';
+      for (const pin of _pinnedFolders) {
+        scroll.appendChild(makePinCard(pin));
+      }
+      // "+" add card at end
+      const addCard = document.createElement('div');
+      addCard.className = 'folder-card folder-card-add';
+      addCard.innerHTML = `<span class="folder-icon">➕</span><div class="folder-name">Add Folder</div>`;
+      addCard.addEventListener('click', () => openPinnedModal());
+      scroll.appendChild(addCard);
+    } else {
+      // fallback: auto-show top root folders with a hint
+      const data = await fetchJson(`/api/ls?path=&page=0&limit=50&${buildListParams()}`);
+      const dirs = data.items.filter(i => i.type === 'dir').slice(0, 10);
+      scroll.innerHTML = '';
+      if (!dirs.length) {
+        scroll.innerHTML = '<div style="color:var(--text3);padding:16px;font-size:13px;">No folders found. Tap Manage to pin folders.</div>';
+        return;
+      }
+      for (const dir of dirs) {
+        const card = document.createElement('div');
+        card.className = 'folder-card';
+        card.innerHTML = `<span class="folder-icon">📁</span><div class="folder-name">${dir.name}</div><div class="folder-count">Auto</div>`;
+        card.addEventListener('click', () => navigate(dir.path));
+        scroll.appendChild(card);
+      }
     }
   } catch (e) { scroll.innerHTML = `<div style="color:var(--text3);padding:16px;font-size:13px;">${e.message}</div>`; }
+}
+
+function makePinCard(pin) {
+  const card = document.createElement('div');
+  card.className = 'folder-card is-pinned';
+  const label = pin.alias || pin.name || pin.path || 'Folder';
+  card.innerHTML = `<span class="folder-icon">📌</span><div class="folder-name">${label}</div><div class="folder-count">Pinned</div>`;
+  card.addEventListener('click', () => navigate(pin.path));
+  return card;
+}
+
+// ── Pinned Folders Modal ────────────────────────────────────────────────────
+async function openPinnedModal() {
+  const pd = await fetchJson('/api/pinned');
+  _pinnedFolders = pd.items || [];
+  renderPinnedModal();
+  openModal('pinnedModal');
+}
+
+function renderPinnedModal() {
+  const list = $('pinnedList');
+  const hint = $('pinnedHint');
+  list.innerHTML = '';
+  if (!_pinnedFolders.length) {
+    hint.style.display = '';
+    list.innerHTML = '<div class="pinned-empty">No pinned folders yet.<br>Tap "Browse &amp; Pin" to add one.</div>';
+    return;
+  }
+  hint.style.display = 'none';
+  for (const pin of _pinnedFolders) {
+    const row = document.createElement('div');
+    row.className = 'pinned-row';
+    const label = pin.alias || pin.name || pin.path || 'Folder';
+    const sub   = pin.alias ? pin.name : (pin.path ? '/' + pin.path : 'Root');
+    row.innerHTML = `
+      <span class="pinned-row-icon">📌</span>
+      <div class="pinned-row-info">
+        <div class="pinned-row-name">${label}</div>
+        <div class="pinned-row-path">${sub}</div>
+      </div>
+      <div class="pinned-row-btns">
+        <button class="pinned-row-btn" data-alias title="Rename label">✏️</button>
+        <button class="pinned-row-btn danger" data-remove title="Remove">✕</button>
+      </div>`;
+    row.querySelector('[data-alias]').addEventListener('click', e => { e.stopPropagation(); openAliasDialog(pin); });
+    row.querySelector('[data-remove]').addEventListener('click', async e => {
+      e.stopPropagation();
+      await unpinFolder(pin.path);
+      renderPinnedModal();
+      loadFolders();
+    });
+    row.addEventListener('click', () => { closeModal('pinnedModal'); navigate(pin.path); });
+    list.appendChild(row);
+  }
+}
+
+async function pinFolder(item) {
+  const r = await fetch('/api/pinned', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: item.path, name: item.name }),
+  });
+  const d = await r.json();
+  _pinnedFolders = d.items || [];
+  toast('📌 Pinned to Active Folders', 'success');
+  loadFolders();
+}
+
+async function unpinFolder(folderPath) {
+  const r = await fetch('/api/pinned', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: folderPath }),
+  });
+  const d = await r.json();
+  _pinnedFolders = d.items || [];
+  toast('Removed from Active Folders');
+  loadFolders();
+}
+
+// ── Alias dialog ────────────────────────────────────────────────────────────
+let _aliasTarget = null;
+function openAliasDialog(pin) {
+  _aliasTarget = pin;
+  $('aliasInput').value = pin.alias || pin.name || '';
+  openModal('aliasModal');
+  setTimeout(() => $('aliasInput').focus(), 100);
+}
+
+async function saveAlias() {
+  if (!_aliasTarget) return;
+  const alias = $('aliasInput').value.trim();
+  await fetch('/api/pinned', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: _aliasTarget.path, name: _aliasTarget.name, alias: alias || null }),
+  });
+  closeModal('aliasModal');
+  _aliasTarget = null;
+  const pd = await fetchJson('/api/pinned');
+  _pinnedFolders = pd.items || [];
+  renderPinnedModal();
+  loadFolders();
+}
+
+// ── Pin pick mode (browse to select a folder to pin) ─────────────────────────
+function enterPinPickMode() {
+  _pinPickMode = true;
+  closeModal('pinnedModal');
+  navigate(''); // go to root to browse
+  // Show banner
+  let banner = $('pinPickBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.className = 'pin-pick-banner';
+    banner.id = 'pinPickBanner';
+    banner.innerHTML = `<span>Tap a folder to pin it to Active Folders</span><button class="pin-pick-cancel" id="pinPickCancelBtn">Cancel</button>`;
+    document.body.appendChild(banner);
+    banner.querySelector('#pinPickCancelBtn').addEventListener('click', exitPinPickMode);
+  }
+  banner.style.display = 'flex';
+}
+
+function exitPinPickMode() {
+  _pinPickMode = false;
+  const banner = $('pinPickBanner');
+  if (banner) banner.style.display = 'none';
 }
 
 // ── Browser ────────────────────────────────────────────────────────────────
@@ -3180,6 +3330,11 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
 
   el.addEventListener('click', e => {
     if (e.target.closest('[data-more]')) { showCtxMenu(e, item); return; }
+    if (isDir && _pinPickMode) {
+      exitPinPickMode();
+      pinFolder(item);
+      return;
+    }
     if (isDir) navigate(item.path);
     else {
       // Use live pg sets so items loaded later are included in swipe/queue nav
@@ -3651,6 +3806,15 @@ function showCtxMenu(e, item) {
   const favBtn = $('ctxFavorite');
   favBtn.querySelector('.ctx-fav-label').textContent = isFav ? 'Unfavorite' : 'Favorite';
   favBtn.querySelector('.ctx-fav-star').textContent   = isFav ? '★' : '☆';
+  // Pin option: only for directories
+  const pinBtn = $('ctxPin');
+  if (item.type === 'dir') {
+    pinBtn.style.display = 'flex';
+    const isPinned = _pinnedFolders.some(p => p.path === item.path);
+    $('ctxPinLabel').textContent = isPinned ? 'Unpin from Active Folders' : 'Pin to Active Folders';
+  } else {
+    pinBtn.style.display = 'none';
+  }
 }
 function hideCtxMenu() { $('ctxMenu').classList.add('hidden'); state.ctxItem = null; }
 
@@ -4610,6 +4774,16 @@ document.addEventListener('DOMContentLoaded', () => {
   $('recentAllBackBtn').addEventListener('click', () => loadHome());
   $('favViewAllBtn') && $('favViewAllBtn').addEventListener('click', () => loadFavoritesAll());
   $('favAllBackBtn') && $('favAllBackBtn').addEventListener('click', () => loadHome());
+
+  // Manage Active Folders
+  $('managePinnedBtn') && $('managePinnedBtn').addEventListener('click', () => openPinnedModal());
+  $('pinnedCloseBtn') && $('pinnedCloseBtn').addEventListener('click', () => closeModal('pinnedModal'));
+  $('pinnedBackdrop') && $('pinnedBackdrop').addEventListener('click', () => closeModal('pinnedModal'));
+  $('pinnedBrowseBtn') && $('pinnedBrowseBtn').addEventListener('click', () => enterPinPickMode());
+  $('aliasConfirmBtn') && $('aliasConfirmBtn').addEventListener('click', () => saveAlias());
+  $('aliasCancelBtn')  && $('aliasCancelBtn').addEventListener('click', () => closeModal('aliasModal'));
+  $('aliasBackdrop')   && $('aliasBackdrop').addEventListener('click', () => closeModal('aliasModal'));
+  $('aliasInput') && $('aliasInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveAlias(); });
   $('mpFavBtn') && $('mpFavBtn').addEventListener('click', () => {
     const item = mp.queue && mp.queue[mp.index];
     if (item) toggleFavorite(item);
@@ -4819,6 +4993,12 @@ document.addEventListener('DOMContentLoaded', () => {
   $('ctxOpen').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (!i) return; if (i.type === 'dir') navigate(i.path); else openFile(i); });
   $('ctxDownload').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (!i) return; const a = document.createElement('a'); a.href = `/file?path=${encodeURIComponent(i.path)}&dl=1`; a.download = i.name; a.click(); });
   $('ctxFavorite').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) toggleFavorite(i); });
+  $('ctxPin').addEventListener('click', () => {
+    const i = state.ctxItem; hideCtxMenu();
+    if (!i || i.type !== 'dir') return;
+    const isPinned = _pinnedFolders.some(p => p.path === i.path);
+    isPinned ? unpinFolder(i.path) : pinFolder(i);
+  });
   $('ctxRename').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) renameItem(i); });
   $('ctxCopy').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) copyItem(i); });
   $('ctxMove').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) moveItem(i); });
@@ -4893,7 +5073,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (e.key === 'Escape') {
       if (videoOpen) { closeVideo(); return; }
-      ['audioModal','textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal','wanQuickModal'].forEach(id => {
+      ['audioModal','textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal','wanQuickModal','pinnedModal','aliasModal'].forEach(id => {
         if (!$(id).classList.contains('hidden')) {
           if (id === 'pdfModal') _cancelPdf();
           closeModal(id);
