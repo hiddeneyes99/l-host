@@ -837,6 +837,13 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .nav-item.active { color: var(--accent); }
 .nav-item.active svg { stroke: var(--accent); }
 .nav-upload-center { flex: 0.7; }
+.nav-wan.active {
+  color: #25f4d0;
+}
+.nav-wan.active svg {
+  stroke: #25f4d0;
+  filter: drop-shadow(0 0 8px rgba(37,244,208,0.45));
+}
 .nav-upload-btn {
   width: 50px; height: 50px;
   border-radius: 16px;
@@ -4557,6 +4564,19 @@ img.lazy-img:not([src]) {
   box-shadow: 0 0 0 3px rgba(34,197,94,0.25);
 }
 .wan-dot-error { background: #ef4444; }
+.wan-section-focus {
+  animation: wan-section-focus 1.45s ease both;
+}
+@keyframes wan-section-focus {
+  0%, 100% {
+    border-color: rgba(255,255,255,0.08);
+    box-shadow: none;
+  }
+  35%, 70% {
+    border-color: rgba(37,244,208,0.48);
+    box-shadow: 0 0 0 1px rgba(37,244,208,0.16), 0 16px 42px rgba(37,244,208,0.14);
+  }
+}
 @keyframes st-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.5; transform: scale(0.85); }

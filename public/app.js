@@ -3742,7 +3742,7 @@ async function handleUpload() {
 function setNavActive(id) { qsa('.nav-item').forEach(b => b.classList.remove('active')); $(id)?.classList.add('active'); }
 
 // ── Info ───────────────────────────────────────────────────────────────────
-async function showSettings() {
+async function showSettings(options = {}) {
   history.pushState({ lhost: true }, '');
   openModal('settingsModal');
 
@@ -3792,6 +3792,7 @@ async function showSettings() {
       : '<div style="color:var(--text2);font-size:13px">No network interfaces found</div>';
   } catch (e) { toast(e.message, 'error'); }
   wanSyncUI();
+  if (options.focusWan) focusWanTunnelSection();
   try {
     const v = await fetchJson('/api/version');
     const ver = 'v' + v.version;
@@ -3800,6 +3801,21 @@ async function showSettings() {
   } catch (_) {}
 }
 function showInfo() { showSettings(); }
+
+function focusWanTunnelSection() {
+  setTimeout(() => {
+    const section = $('wanSection');
+    if (!section) return;
+    section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    section.classList.add('wan-section-focus');
+    setTimeout(() => section.classList.remove('wan-section-focus'), 1700);
+  }, 260);
+}
+
+function openWanTunnelPanel() {
+  setNavActive('navWan');
+  showSettings({ focusWan: true });
+}
 
 // ── WAN Tunnel ─────────────────────────────────────────────────────────────
 let _wanPollTimer = null;
@@ -4577,7 +4593,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('navFiles').addEventListener('click', loadHome);
   $('navBrowse').addEventListener('click', () => navigate(state.currentPath || ''));
   $('navUpload').addEventListener('click', openUploadModal);
-  $('navSettings').addEventListener('click', showSettings);
+  $('navSettings').addEventListener('click', () => { setNavActive('navSettings'); showSettings(); });
+  $('navWan').addEventListener('click', openWanTunnelPanel);
 
    // Non-video modals close (image viewer handled by ivInit)
   ['audio','text','settings','upload','pdf','archive','storage'].forEach(name => {
