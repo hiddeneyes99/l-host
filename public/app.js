@@ -29,7 +29,7 @@ const prefs = (() => {
 if (!prefs.viewMode)   prefs.viewMode  = 'grid';
 if (!prefs.sortBy)     prefs.sortBy    = 'date';
 if (!prefs.sortDir)    prefs.sortDir   = 'desc';
-if (prefs.showHidden === undefined) prefs.showHidden = true;
+if (prefs.showHidden === undefined) prefs.showHidden = false;
 
 function savePrefs() {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch(_) {}
@@ -4462,7 +4462,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!q) { showView('home'); return; }
     searchTimeout = setTimeout(() => doSearch(q), 350);
   });
-  $('searchClearBtn').addEventListener('click', () => { $('searchInput').value = ''; showView('home'); });
+  $('searchClearBtn').addEventListener('click', () => {
+    $('searchInput').value = '';
+    state.searchOpen = false;
+    $('searchBar').classList.remove('open');
+    $('main').classList.remove('search-open');
+    showView('home');
+  });
 
   // Browser actions
   $('backBtn').addEventListener('click', () => {
