@@ -2087,127 +2087,163 @@ app.get('/api/version', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-//  USER STATE — Persistent favourites
-//  Survives server restarts; stored in data/userstate.json
+//  PER-DEVICE USER STATE — each device gets its own recent + favorites
+//  Identified by a long-lived cookie (hevi_did); stored in data/profiles/<id>/
 // ══════════════════════════════════════════════════════════════════════════
 
-const STATE_FILE  = path.join(__dirname, 'data', 'userstate.json');
-const RECENT_FILE = path.join(__dirname, 'data', 'recent.json');
-const RECENT_MAX  = 50;
+const PROFILES_DIR = path.join(__dirname, 'data', 'profiles');
+const RECENT_MAX   = 50;
 
-// ── Recent files — fast separate file ────────────────────────────────────
-function loadRecent() {
-  try {
-    if (fs.existsSync(RECENT_FILE)) {
-      const data = JSON.parse(fs.readFileSync(RECENT_FILE, 'utf8'));
-      if (Array.isArray(data.items)) return data.items;
-    }
-  } catch (_) {}
-  // Migration: pull from old userstate.json if it exists
-  try {
-    if (fs.existsSync(STATE_FILE)) {
-      const old = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-      if (Array.isArray(old.recent) && old.recent.length) return old.recent.slice(0, RECENT_MAX);
-    }
-  } catch (_) {}
-  return [];
+// ── Cookie helpers ────────────────────────────────────────────────────────
+function parseCookies(req) {
+  const cookies = {};
+  (req.headers.cookie || '').split(';').forEach(part => {
+    const [k, ...v] = part.trim().split('=');
+    if (k) cookies[k.trim()] = decodeURIComponent(v.join('='));
+  });
+  return cookies;
 }
 
-let recentItems = loadRecent();
-let _recentSaveTimer = null;
+function getDeviceId(req, res) {
+  const cookies = parseCookies(req);
+  let did = cookies['hevi_did'];
+  if (!did || !/^[0-9a-f-]{36}$/.test(did)) {
+    did = crypto.randomUUID();
+    const maxAge = 365 * 24 * 3600;
+    res.setHeader('Set-Cookie', `hevi_did=${did}; Max-Age=${maxAge}; Path=/; SameSite=Lax`);
+  }
+  return did;
+}
 
-function saveRecent() {
-  clearTimeout(_recentSaveTimer);
-  _recentSaveTimer = setTimeout(() => {
+// ── Per-device file paths ─────────────────────────────────────────────────
+function deviceRecentFile(did)  { return path.join(PROFILES_DIR, did, 'recent.json'); }
+function deviceStateFile(did)   { return path.join(PROFILES_DIR, did, 'userstate.json'); }
+
+// ── In-memory per-device caches ───────────────────────────────────────────
+const _recentCache  = new Map(); // did → items[]
+const _recentTimers = new Map();
+const _stateCache   = new Map(); // did → { favorites:[] }
+const _stateTimers  = new Map();
+
+function loadDeviceRecent(did) {
+  if (_recentCache.has(did)) return _recentCache.get(did);
+  let items = [];
+  try {
+    const f = deviceRecentFile(did);
+    if (fs.existsSync(f)) {
+      const data = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (Array.isArray(data.items)) items = data.items;
+    }
+  } catch (_) {}
+  _recentCache.set(did, items);
+  return items;
+}
+
+function saveDeviceRecent(did, items) {
+  _recentCache.set(did, items);
+  clearTimeout(_recentTimers.get(did));
+  _recentTimers.set(did, setTimeout(() => {
     try {
-      fs.mkdirSync(path.dirname(RECENT_FILE), { recursive: true });
-      fs.writeFileSync(RECENT_FILE, JSON.stringify({ updatedAt: Date.now(), items: recentItems }));
+      fs.mkdirSync(path.join(PROFILES_DIR, did), { recursive: true });
+      fs.writeFileSync(deviceRecentFile(did), JSON.stringify({ updatedAt: Date.now(), items }));
     } catch (_) {}
-  }, 400);
+  }, 400));
 }
 
-// GET /api/recent — return all recent files (fast, tiny file)
+function loadDeviceState(did) {
+  if (_stateCache.has(did)) return _stateCache.get(did);
+  let state = { favorites: [] };
+  try {
+    const f = deviceStateFile(did);
+    if (fs.existsSync(f)) {
+      const data = JSON.parse(fs.readFileSync(f, 'utf8'));
+      state = { favorites: data.favorites || [] };
+    }
+  } catch (_) {}
+  _stateCache.set(did, state);
+  return state;
+}
+
+function saveDeviceState(did, state) {
+  _stateCache.set(did, state);
+  clearTimeout(_stateTimers.get(did));
+  _stateTimers.set(did, setTimeout(() => {
+    try {
+      fs.mkdirSync(path.join(PROFILES_DIR, did), { recursive: true });
+      fs.writeFileSync(deviceStateFile(did), JSON.stringify(state, null, 2));
+    } catch (_) {}
+  }, 500));
+}
+
+// GET /api/recent — return this device's recent files
 app.get('/api/recent', (req, res) => {
+  const did   = getDeviceId(req, res);
+  const items = loadDeviceRecent(did);
   const limit = Math.min(RECENT_MAX, Math.max(1, parseInt(req.query.limit || String(RECENT_MAX), 10)));
-  res.json({ items: recentItems.slice(0, limit), total: recentItems.length });
+  res.json({ items: items.slice(0, limit), total: items.length });
 });
 
-// POST /api/recent — add / bump an item to top
+// POST /api/recent — add / bump an item for this device
 app.post('/api/recent', express.json(), (req, res) => {
+  const did  = getDeviceId(req, res);
   const item = req.body;
   if (!item || !item.path) return res.status(400).json({ error: 'Missing path' });
-  recentItems = recentItems.filter(r => r.path !== item.path);
-  recentItems.unshift({ ...item, openedAt: Date.now() });
-  if (recentItems.length > RECENT_MAX) recentItems = recentItems.slice(0, RECENT_MAX);
-  saveRecent();
-  res.json({ ok: true, total: recentItems.length });
+  let items = loadDeviceRecent(did).filter(r => r.path !== item.path);
+  items.unshift({ ...item, openedAt: Date.now() });
+  if (items.length > RECENT_MAX) items = items.slice(0, RECENT_MAX);
+  saveDeviceRecent(did, items);
+  res.json({ ok: true, total: items.length });
 });
 
-// DELETE /api/recent — clear history
+// DELETE /api/recent — clear this device's history
 app.delete('/api/recent', (req, res) => {
-  recentItems = [];
-  saveRecent();
+  const did = getDeviceId(req, res);
+  saveDeviceRecent(did, []);
   res.json({ ok: true });
 });
 
-// ── Userstate — favorites only ────────────────────────────────────────────
-function loadUserState() {
-  try {
-    if (fs.existsSync(STATE_FILE)) {
-      const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-      return { favorites: data.favorites || [] };
-    }
-  } catch (_) {}
-  return { favorites: [] };
-}
+// GET /api/userstate — this device's favorites + recent
+app.get('/api/userstate', (req, res) => {
+  const did   = getDeviceId(req, res);
+  const state = loadDeviceState(did);
+  const items = loadDeviceRecent(did);
+  res.json({ ...state, recent: items });
+});
 
-let userState = loadUserState();
-let _saveTimer = null;
-
-function saveUserState() {
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    try {
-      fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
-      fs.writeFileSync(STATE_FILE, JSON.stringify(userState, null, 2));
-    } catch (_) {}
-  }, 500);
-}
-
-// GET /api/userstate — kept for backward compat (favorites + recent merged)
-app.get('/api/userstate', (req, res) => res.json({ ...userState, recent: recentItems }));
-
-// POST /api/userstate/recent — backward compat alias → delegates to /api/recent
+// POST /api/userstate/recent — backward compat alias
 app.post('/api/userstate/recent', express.json(), (req, res) => {
+  const did  = getDeviceId(req, res);
   const item = req.body;
   if (!item || !item.path) return res.status(400).json({ error: 'Missing path' });
-  recentItems = recentItems.filter(r => r.path !== item.path);
-  recentItems.unshift({ ...item, openedAt: Date.now() });
-  if (recentItems.length > RECENT_MAX) recentItems = recentItems.slice(0, RECENT_MAX);
-  saveRecent();
+  let items = loadDeviceRecent(did).filter(r => r.path !== item.path);
+  items.unshift({ ...item, openedAt: Date.now() });
+  if (items.length > RECENT_MAX) items = items.slice(0, RECENT_MAX);
+  saveDeviceRecent(did, items);
   res.json({ ok: true });
 });
 
 // DELETE /api/userstate/recent — backward compat alias
 app.delete('/api/userstate/recent', (req, res) => {
-  recentItems = [];
-  saveRecent();
+  const did = getDeviceId(req, res);
+  saveDeviceRecent(did, []);
   res.json({ ok: true });
 });
 
-// POST /api/userstate/favorite — toggle favorite on/off
+// POST /api/userstate/favorite — toggle favorite for this device
 app.post('/api/userstate/favorite', express.json(), (req, res) => {
-  const item = req.body;
+  const did   = getDeviceId(req, res);
+  const item  = req.body;
   if (!item || !item.path) return res.status(400).json({ error: 'Missing path' });
-  const idx = userState.favorites.findIndex(f => f.path === item.path);
+  const state = loadDeviceState(did);
+  const idx   = state.favorites.findIndex(f => f.path === item.path);
   if (idx >= 0) {
-    userState.favorites.splice(idx, 1);
-    saveUserState();
+    state.favorites.splice(idx, 1);
+    saveDeviceState(did, state);
     res.json({ ok: true, favorited: false });
   } else {
-    userState.favorites.unshift({ ...item, addedAt: Date.now() });
-    if (userState.favorites.length > 100) userState.favorites = userState.favorites.slice(0, 100);
-    saveUserState();
+    state.favorites.unshift({ ...item, addedAt: Date.now() });
+    if (state.favorites.length > 100) state.favorites = state.favorites.slice(0, 100);
+    saveDeviceState(did, state);
     res.json({ ok: true, favorited: true });
   }
 });
