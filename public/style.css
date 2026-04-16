@@ -3246,28 +3246,28 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 }
 .sidebar-nav::-webkit-scrollbar { width: 0; }
 .sidebar-section-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--text3);
-  padding: 14px 10px 6px;
+  padding: 16px 12px 6px;
 }
 .sidebar-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   width: 100%;
   text-align: left;
-  padding: 11px 12px;
+  padding: 13px 14px;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--text2);
   transition: background 0.15s, color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
-.sidebar-item svg { flex-shrink: 0; opacity: 0.7; }
+.sidebar-item svg { flex-shrink: 0; opacity: 0.7; width: 22px; height: 22px; }
 .sidebar-item:hover  { background: rgba(255,255,255,0.06); color: var(--text); }
 .sidebar-item:active { background: rgba(255,255,255,0.04); transform: scale(0.98); }
 .sidebar-item.active { color: var(--accent); background: rgba(0,212,200,0.1); }
