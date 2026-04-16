@@ -4370,28 +4370,67 @@ img.lazy-img:not([src]) {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  padding: 10px 13px;
   background: rgba(0,212,200,0.05);
   border: 1px solid rgba(0,212,200,0.12);
   border-left: 2.5px solid rgba(0,212,200,0.5);
   border-radius: 0 10px 10px 0;
-  margin-bottom: 12px;
   font-size: 12px;
   color: var(--text2);
   line-height: 1.6;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  padding: 0 13px;
+  margin-bottom: 0;
+  pointer-events: none;
+  transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1),
+              opacity 0.28s ease,
+              padding 0.32s ease,
+              margin-bottom 0.32s ease;
 }
 .st-setting-desc::before {
   content: 'ℹ';
   font-size: 14px;
   color: var(--accent);
   flex-shrink: 0;
-  line-height: 1.35;
+  line-height: 1.5;
   font-style: normal;
+}
+.st-desc-open .st-setting-desc {
+  max-height: 140px;
+  opacity: 1;
+  padding: 10px 13px;
+  margin-bottom: 12px;
+  pointer-events: auto;
 }
 [data-theme="light"] .st-setting-desc {
   background: rgba(0,180,170,0.06);
   border-color: rgba(0,150,140,0.18);
   border-left-color: rgba(0,150,140,0.55);
+}
+
+/* ── Info toggle button on group labels ──────────────────────────── */
+.st-info-btn {
+  margin-left: auto;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(0,212,200,0.08);
+  border: 1px solid rgba(0,212,200,0.22);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-style: italic;
+  font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s;
+  line-height: 1;
+}
+.st-info-btn:hover { background: rgba(0,212,200,0.18); border-color: rgba(0,212,200,0.45); }
+.st-info-btn:active { transform: scale(0.88); }
+.st-info-btn.st-info-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
 }
 
 /* ── Theme dedicated row (below label row) ───────────────────────── */
