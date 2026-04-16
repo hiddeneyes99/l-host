@@ -2799,24 +2799,38 @@ app.get('/api/cloud/:accountId/file', async (req, res) => {
     const fileName = filePath.split('/').pop().split('?')[0] || 'file';
     const mimeType = getMime(fileName);
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('Accept-Ranges', 'bytes');
+    const rangeHeader = req.headers['range'];
+
+    // Helper: pipe a proxied response, forwarding status + range headers
+    function pipeProxyRes(proxyRes, fallbackMime) {
+      const status = proxyRes.statusCode === 206 ? 206 : (rangeHeader ? 206 : 200);
+      res.setHeader('Content-Type', proxyRes.headers['content-type'] || fallbackMime);
+      if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
+      if (proxyRes.headers['content-range']) res.setHeader('Content-Range', proxyRes.headers['content-range']);
+      res.writeHead(proxyRes.statusCode || status);
+      proxyRes.pipe(res);
+    }
 
     if (ownerAcc.provider === 'gdrive') {
-      const { google } = require('googleapis');
       const token = await getValidToken(ownerAcc, ownerDid);
-      const oauth2 = new google.auth.OAuth2(ownerAcc.clientId, decryptField(ownerAcc.clientSecret));
-      oauth2.setCredentials({ access_token: token, refresh_token: ownerAcc.refreshToken ? decryptField(ownerAcc.refreshToken) : null, expiry_date: ownerAcc.tokenExpiry });
-      const drive = google.drive({ version: 'v3', auth: oauth2 });
-      const r = await drive.files.get({ fileId: filePath, alt: 'media' }, { responseType: 'stream' });
-      res.setHeader('Content-Type', mimeType);
-      r.data.pipe(res);
+      const fileId = filePath;
+      const reqHeaders = { Authorization: `Bearer ${token}` };
+      if (rangeHeader) reqHeaders['Range'] = rangeHeader;
+      const gUrl = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`);
+      const proxyReq = https.request({ hostname: gUrl.hostname, path: gUrl.pathname + gUrl.search, method: 'GET', headers: reqHeaders }, proxyRes => {
+        pipeProxyRes(proxyRes, mimeType);
+      });
+      proxyReq.on('error', e => { if (!res.headersSent) res.status(500).json({ error: e.message }); });
+      proxyReq.end();
 
     } else if (ownerAcc.provider === 'dropbox') {
       const token = await getValidToken(ownerAcc, ownerDid);
       const arg = JSON.stringify({ path: filePath });
-      const proxyReq = https.request({ hostname: 'content.dropboxapi.com', path: '/2/files/download', method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Dropbox-API-Arg': arg, 'Content-Length': 0 } }, proxyRes => {
-        res.setHeader('Content-Type', proxyRes.headers['content-type'] || mimeType);
-        if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
-        proxyRes.pipe(res);
+      const dbHeaders = { Authorization: `Bearer ${token}`, 'Dropbox-API-Arg': arg, 'Content-Length': 0 };
+      if (rangeHeader) dbHeaders['Range'] = rangeHeader;
+      const proxyReq = https.request({ hostname: 'content.dropboxapi.com', path: '/2/files/download', method: 'POST', headers: dbHeaders }, proxyRes => {
+        pipeProxyRes(proxyRes, mimeType);
       });
       proxyReq.on('error', e => { if (!res.headersSent) res.status(500).json({ error: e.message }); });
       proxyReq.end();
@@ -2827,10 +2841,10 @@ app.get('/api/cloud/:accountId/file', async (req, res) => {
       const downloadUrl = meta['@microsoft.graph.downloadUrl'];
       if (!downloadUrl) return res.status(404).json({ error: 'Download URL not available' });
       const u = new URL(downloadUrl);
-      const proxyReq = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'GET' }, proxyRes => {
-        res.setHeader('Content-Type', proxyRes.headers['content-type'] || mimeType);
-        if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
-        proxyRes.pipe(res);
+      const odHeaders = {};
+      if (rangeHeader) odHeaders['Range'] = rangeHeader;
+      const proxyReq = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'GET', headers: odHeaders }, proxyRes => {
+        pipeProxyRes(proxyRes, mimeType);
       });
       proxyReq.on('error', e => { if (!res.headersSent) res.status(500).json({ error: e.message }); });
       proxyReq.end();

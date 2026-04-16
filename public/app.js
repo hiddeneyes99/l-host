@@ -5656,6 +5656,26 @@ function renderCloudGrid(accountId, items) {
         ${sizeStr ? `<div class="fc-meta">${sizeStr}</div>` : ''}
       </div>`;
 
+    // Show image thumbnail for image files
+    const itemExt = (item.ext || '').toLowerCase();
+    const isImageFile = item.mimeType ? item.mimeType.startsWith('image/') : ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.avif'].includes(itemExt);
+    if (!isFolder && isImageFile) {
+      const thumbUrl = `/api/cloud/${encodeURIComponent(accountId)}/file?path=${encodeURIComponent(item.id)}`;
+      const fcThumb = card.querySelector('.fc-thumb');
+      if (fcThumb) {
+        const img = document.createElement('img');
+        img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;opacity:0;transition:opacity .25s';
+        img.decoding = 'async';
+        img.loading = 'lazy';
+        img.onload = () => { img.style.opacity = '1'; };
+        img.onerror = () => { img.remove(); };
+        img.src = thumbUrl;
+        fcThumb.style.position = 'relative';
+        fcThumb.style.overflow = 'hidden';
+        fcThumb.appendChild(img);
+      }
+    }
+
     card.addEventListener('click', () => {
       if (isFolder) {
         loadCloudFiles(accountId, item.id, item.name);
@@ -5684,7 +5704,8 @@ function openCloudFile(accountId, item) {
     const fakeItem = { name: item.name, path: null, category: 'audio', ext, _cloudUrl: fileUrl };
     openAudio(fakeItem, fileUrl, [fakeItem]);
   } else if (isImage) {
-    window.open(fileUrl, '_blank');
+    const fakeItem = { name: item.name, path: null, _cloudUrl: fileUrl, category: 'image', ext, size: item.size || 0, sizeStr: item.size ? fmtBytes(item.size) : '' };
+    ivOpen([fakeItem], 0, false);
   } else if (isPdf) {
     openPdf({ name: item.name, path: null }, fileUrl);
   } else if (isText) {

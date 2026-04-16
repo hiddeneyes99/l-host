@@ -76,6 +76,7 @@ function stageSize() {
 function ivGetViewUrl(item) {
   if (item._demo) return item.url;
   if (item._heicPreview) return item._heicPreview;
+  if (item._cloudUrl) return item._cloudUrl;
   const IV_PREVIEW_MIN = 2 * 1024 * 1024;
   if (item.size && item.size < IV_PREVIEW_MIN) return `/file?path=${encodeURIComponent(item.path)}`;
   return `/api/preview?path=${encodeURIComponent(item.path)}`;
@@ -83,11 +84,13 @@ function ivGetViewUrl(item) {
 function ivGetUrl(item) {
   if (item._demo) return item.url;
   if (item._heicPreview) return item._heicPreview;
+  if (item._cloudUrl) return item._cloudUrl;
   return `/file?path=${encodeURIComponent(item.path)}`;
 }
 function ivGetThumbUrl(item) {
   if (item._demo) return item.thumb || item.url;
   if (item._heicPreview) return item._heicPreview;
+  if (item._cloudUrl) return item._cloudUrl;
   return `/api/thumb?path=${encodeURIComponent(item.path)}&w=300&h=225`;
 }
 function ivExt(item) {
@@ -99,6 +102,7 @@ function ivIsHeic(item) {
 function ivIsBrowserImage(item) {
   if (!item) return false;
   if (item._demo || item._heicPreview) return true;
+  if (item._cloudUrl) return true;
   return IV_NATIVE_IMAGE_EXTS.has(ivExt(item));
 }
 function ivUnsupportedBadge(item) {
@@ -451,8 +455,8 @@ function ivRefreshUI() {
   const _ctr = $('imageCounter'); if (_ctr) _ctr.textContent = `${iv.idx + 1} / ${iv.list.length}`;
   const dl = $('imageDl');
   if (dl) {
-    const url = item._demo ? ivGetUrl(item) : `/file?path=${encodeURIComponent(item.path)}`;
-    dl.href = item._demo ? url : url + '&dl=1';
+    const url = item._demo ? ivGetUrl(item) : (item._cloudUrl || `/file?path=${encodeURIComponent(item.path)}`);
+    dl.href = item._demo ? url : url + (item._cloudUrl ? '' : '&dl=1');
     if (!item._demo) dl.download = title;
   }
 }
