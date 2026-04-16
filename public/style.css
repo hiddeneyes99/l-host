@@ -6196,3 +6196,124 @@ img.lazy-img:not([src]) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ── TWH WATERMARKS ─────────────────────────────────────────────────────── */
+
+/* 1. Lock screen watermark */
+.lock-twh-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 22px;
+  font-size: 12px;
+  color: rgba(255,255,255,.35);
+  letter-spacing: .2px;
+}
+.lock-twh-brand b { color: rgba(255,255,255,.55); font-weight: 700; }
+.lock-twh-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 6px;
+  opacity: .6;
+  filter: grayscale(20%);
+}
+
+/* 2. Sidebar watermark */
+.sb-twh-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text3);
+  opacity: .55;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.sb-twh-logo {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 5px;
+  opacity: .7;
+}
+
+/* 3. Settings page bottom watermark */
+.st-twh-watermark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0 0;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(37,244,208,.06), rgba(47,140,255,.04));
+  border: 1px solid rgba(37,244,208,.12);
+}
+.st-twh-wm-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 11px;
+  flex-shrink: 0;
+  opacity: .85;
+}
+.st-twh-wm-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.st-twh-wm-made {
+  font-size: 10px;
+  color: var(--text3);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+}
+.st-twh-wm-name {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: .1px;
+}
+.st-twh-wm-tag {
+  font-size: 11px;
+  color: var(--text3);
+  font-style: italic;
+}
+
+/* 4. Bottom nav watermark */
+.nav-twh-brand {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: var(--bg);
+  z-index: 89;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text3);
+  opacity: .3;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.nav-twh-logo {
+  width: 11px;
+  height: 11px;
+  object-fit: contain;
+  border-radius: 3px;
+  opacity: .7;
+}
+
+[data-theme="light"] .lock-twh-brand { color: rgba(0,0,0,.35); }
+[data-theme="light"] .lock-twh-brand b { color: rgba(0,0,0,.55); }
+[data-theme="light"] .st-twh-watermark { background: rgba(37,244,208,.06); }
