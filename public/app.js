@@ -2861,9 +2861,89 @@ async function loadHome() {
   showView('home');
   updateBreadcrumb('');
   setNavActive('navFiles');
+  loadStorageSummary();
   loadRecent();
   loadFolders();
   loadFavorites();
+}
+
+function fmtBytes(bytes) {
+  if (!Number.isFinite(bytes)) return '—';
+  const units = ['B','KB','MB','GB','TB','PB'];
+  let value = Math.max(0, bytes);
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  return `${value >= 10 || i === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[i]}`;
+}
+
+let _storageCache = null;
+
+async function loadStorageSummary(openDetails = false) {
+  const sub = $('storageSub');
+  try {
+    const data = await fetchJson('/api/storage');
+    _storageCache = data;
+    renderStorageSummary(data);
+    if (openDetails) renderStorageDetails(data);
+  } catch (e) {
+    if (sub) sub.textContent = 'Storage data unavailable';
+    if (openDetails) {
+      $('storageBreakdown').innerHTML = `<div class="empty-state"><p>${e.message}</p></div>`;
+    }
+  }
+}
+
+function renderStorageSummary(data) {
+  const disk = data.disk || {};
+  const used = Number(disk.used || data.vaultBytes || 0);
+  const free = Number(disk.free || 0);
+  const total = Number(disk.total || used + free || 0);
+  const percent = total ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
+  $('storageMeterFill').style.width = `${percent}%`;
+  $('storageUsedText').textContent = `Used ${fmtBytes(used)}`;
+  $('storageFreeText').textContent = disk.free === undefined ? 'Free —' : `Free ${fmtBytes(free)}`;
+  $('storageSub').textContent = total
+    ? `${percent.toFixed(1)}% used of ${fmtBytes(total)}`
+    : `${fmtBytes(data.vaultBytes || 0)} in vault files`;
+}
+
+function renderStorageDetails(data) {
+  const disk = data.disk || {};
+  const used = Number(disk.used || data.vaultBytes || 0);
+  const free = Number(disk.free || 0);
+  const total = Number(disk.total || used + free || 0);
+  const percent = total ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
+  $('storageModalUsed').textContent = `${fmtBytes(used)} used`;
+  $('storageModalFree').textContent = disk.free === undefined ? 'Free space unavailable' : `${fmtBytes(free)} free`;
+  $('storageModalMeterFill').style.width = `${percent}%`;
+  $('storageRootText').textContent = `Root: ${data.root || '/'} · ${data.scannedFiles || 0} files scanned${data.indexReady ? '' : ' · index updating'}`;
+
+  const rows = (data.categories || []).filter(cat => cat.bytes > 0 || cat.key !== 'system');
+  $('storageBreakdown').innerHTML = rows.map(cat => {
+    const pct = used ? Math.min(100, Math.max(0, cat.percentOfUsed || 0)) : 0;
+    const count = cat.count === null ? 'device / app space' : `${cat.count} item${cat.count === 1 ? '' : 's'}`;
+    return `<div class="storage-row storage-row-${cat.key}">
+      <div class="storage-row-head">
+        <span class="storage-dot"></span>
+        <div>
+          <div class="storage-row-label">${cat.label}</div>
+          <div class="storage-row-sub">${count}</div>
+        </div>
+        <strong>${fmtBytes(cat.bytes)}</strong>
+      </div>
+      <div class="storage-row-track"><div style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function openStorageDetails() {
+  openModal('storageModal');
+  $('storageBreakdown').innerHTML = '<div class="loader-wrap"><div class="loader"></div></div>';
+  if (_storageCache) renderStorageDetails(_storageCache);
+  loadStorageSummary(true);
 }
 
 function renderRecentCards(grid, items) {
@@ -4359,7 +4439,7 @@ document.addEventListener('DOMContentLoaded', () => {
       history.replaceState({ lhost: true }, '');
       return;
     }
-    const modals = ['textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal'];
+    const modals = ['textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal'];
     for (const id of modals) {
       if (!$(id).classList.contains('hidden')) {
         closeModal(id);
@@ -4383,6 +4463,18 @@ document.addEventListener('DOMContentLoaded', () => {
   $('recentViewAllBtn').addEventListener('click', () => loadRecentAll());
   $('recentAllBackBtn').addEventListener('click', () => loadHome());
   $('uploadCatBtn').addEventListener('click', openUploadModal);
+  $('storageCard').addEventListener('click', openStorageDetails);
+  $('storageCard').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openStorageDetails();
+    }
+  });
+  $('storageManageBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    openStorageDetails();
+  });
+  $('storageRefreshBtn').addEventListener('click', () => loadStorageSummary(true));
 
   // ── View menu button ────────────────────────────────────────────────────
   $('viewMenuBtn').addEventListener('click', e => {
@@ -4488,7 +4580,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('navSettings').addEventListener('click', showSettings);
 
    // Non-video modals close (image viewer handled by ivInit)
-  ['audio','text','settings','upload','pdf','archive'].forEach(name => {
+  ['audio','text','settings','upload','pdf','archive','storage'].forEach(name => {
     $(`${name}Close`).addEventListener('click', () => {
       if (name === 'pdf') _cancelPdf();
       closeModal(`${name}Modal`);
@@ -4648,7 +4740,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (e.key === 'Escape') {
       if (videoOpen) { closeVideo(); return; }
-      ['audioModal','textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal'].forEach(id => {
+      ['audioModal','textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal'].forEach(id => {
         if (!$(id).classList.contains('hidden')) {
           if (id === 'pdfModal') _cancelPdf();
           closeModal(id);

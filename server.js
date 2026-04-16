@@ -1718,6 +1718,74 @@ app.post('/api/index/rebuild', (req, res) => {
   buildFullIndex().catch(e => console.error('[index] rebuild error:', e));
 });
 
+const DOC_EXTS = new Set([
+  '.pdf','.txt','.md','.log','.rtf','.doc','.docx','.xls','.xlsx','.ods',
+  '.ppt','.pptx','.pps','.ppsx','.csv','.json','.xml','.html','.htm','.css',
+  '.js','.ts','.jsx','.tsx','.yaml','.yml','.ini','.conf','.sql','.py','.sh',
+  '.bat','.ps1','.rb','.go','.rs','.c','.cpp','.h','.java'
+]);
+
+function getDiskUsage(rootPath) {
+  try {
+    if (typeof fs.statfsSync !== 'function') return null;
+    const stats = fs.statfsSync(rootPath);
+    const blockSize = Number(stats.bsize || stats.frsize || 0);
+    const total = Number(stats.blocks || 0) * blockSize;
+    const free = Number(stats.bavail || stats.bfree || 0) * blockSize;
+    const used = Math.max(0, total - free);
+    return { total, free, used, percentUsed: total ? Math.round((used / total) * 1000) / 10 : 0 };
+  } catch (_) {
+    return null;
+  }
+}
+
+function summarizeVaultStorage() {
+  const categories = {
+    image:     { key: 'image',     label: 'Images',    bytes: 0, count: 0 },
+    video:     { key: 'video',     label: 'Videos',    bytes: 0, count: 0 },
+    audio:     { key: 'audio',     label: 'Audio',     bytes: 0, count: 0 },
+    documents: { key: 'documents', label: 'Documents', bytes: 0, count: 0 },
+    archive:   { key: 'archive',   label: 'Archives',  bytes: 0, count: 0 },
+    apk:       { key: 'apk',       label: 'APKs',      bytes: 0, count: 0 },
+    other:     { key: 'other',     label: 'Other',     bytes: 0, count: 0 },
+  };
+
+  for (const item of idx.files) {
+    const size = Number(item.size || 0);
+    let key = item.category;
+    if (key === 'file') key = DOC_EXTS.has((item.ext || '').toLowerCase()) ? 'documents' : 'other';
+    if (!categories[key]) key = 'other';
+    categories[key].bytes += size;
+    categories[key].count += 1;
+  }
+
+  const vaultBytes = Object.values(categories).reduce((sum, cat) => sum + cat.bytes, 0);
+  return { categories: Object.values(categories), vaultBytes };
+}
+
+app.get('/api/storage', (req, res) => {
+  const disk = getDiskUsage(ROOT_DIR);
+  const summary = summarizeVaultStorage();
+  const systemBytes = disk ? Math.max(0, disk.used - summary.vaultBytes) : 0;
+  const categories = [
+    ...summary.categories,
+    { key: 'system', label: 'System', bytes: systemBytes, count: null },
+  ].map(cat => ({
+    ...cat,
+    percentOfUsed: disk && disk.used ? Math.round((cat.bytes / disk.used) * 1000) / 10 : 0,
+  }));
+
+  res.json({
+    root: ROOT_DIR,
+    indexReady: idx.ready,
+    scannedFiles: idx.files.length,
+    disk,
+    vaultBytes: summary.vaultBytes,
+    categories,
+    updatedAt: Date.now(),
+  });
+});
+
 // ── Server info ────────────────────────────────────────────────────────────
 app.get('/api/info', (req, res) => {
   const ifaces = os.networkInterfaces();

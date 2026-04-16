@@ -64,6 +64,7 @@ ROOT_DIR=/ node server.js
 ## Features
 
 - Browse files and folders under the configured root directory
+- Home page storage summary with a compact used/free bar and a Manage details modal showing Images, Videos, Audio, Documents, Archives, APKs, Other, and System usage
 - Custom Hevi Explorer branding with an SVG app logo, favicon, lock-screen mark, header lockup, and sidebar mark
 - Premium About page with English product copy, privacy-focused storytelling, route-aware animations, and back-button-safe navigation
 - Category filtering for videos, images, audio, files, archives, and APKs
@@ -107,6 +108,7 @@ ROOT_DIR=/ node server.js
 | GET | `/api/info` | Server/runtime info |
 | GET | `/api/index/status` | File index status |
 | POST | `/api/index/rebuild` | Rebuild file index in the background |
+| GET | `/api/storage` | Disk used/free summary and category-wise storage breakdown |
 | GET | `/api/userstate` | Read persistent user state |
 | POST | `/api/userstate/recent` | Add a recent file |
 | DELETE | `/api/userstate/recent` | Clear recent files |

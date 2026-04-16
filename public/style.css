@@ -243,6 +243,62 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .cat-upload { background: linear-gradient(135deg, #12370d, #6cff74); box-shadow: 0 4px 18px rgba(108,255,116,0.26); }
 .cat-apk    { background: linear-gradient(135deg, #421313, #ff5757); box-shadow: 0 4px 18px rgba(255,87,87,0.26); }
 
+/* ── STORAGE BAR ── */
+.storage-section { margin: -6px 0 24px; }
+.storage-card {
+  width: 100%;
+  border-radius: 22px;
+  padding: 15px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(37,244,208,0.16), transparent 34%),
+    linear-gradient(145deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025));
+  border: 1px solid rgba(255,255,255,0.09);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.16);
+  cursor: pointer;
+}
+.storage-card:focus-visible { outline: 2px solid rgba(37,244,208,0.5); outline-offset: 3px; }
+.storage-top, .storage-meta, .storage-row-head, .storage-total-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.storage-title {
+  font-size: 15px;
+  font-weight: 850;
+  color: var(--text);
+}
+.storage-sub, .storage-meta, .storage-row-sub, .storage-root {
+  font-size: 11.5px;
+  color: var(--text3);
+}
+.storage-manage-btn {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(37,244,208,0.11);
+  border: 1px solid rgba(37,244,208,0.2);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+.storage-meter {
+  height: 9px;
+  margin: 12px 0 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.07);
+  overflow: hidden;
+}
+.storage-meter-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #25f4d0, #2f8cff, #a855f7);
+  box-shadow: 0 0 18px rgba(37,244,208,0.32);
+  transition: width 0.35s ease;
+}
+.storage-meter-large { height: 12px; margin: 14px 0 10px; }
+
 /* ── SECTIONS ── */
 .section { margin-bottom: 24px; }
 .section-header {
@@ -893,6 +949,87 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   background: rgba(0,0,0,0.85);
   backdrop-filter: blur(4px);
 }
+
+.storage-modal {
+  position: relative;
+  z-index: 1;
+  width: min(520px, calc(100vw - 26px));
+  max-height: min(720px, calc(100dvh - 34px));
+  border-radius: 26px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(16,27,46,0.98), rgba(7,11,18,0.98));
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 26px 90px rgba(0,0,0,0.5);
+}
+.storage-modal-body {
+  padding: 14px;
+  overflow-y: auto;
+  max-height: calc(100dvh - 110px);
+}
+.storage-total-card {
+  border-radius: 20px;
+  padding: 16px;
+  background: radial-gradient(circle at 0% 0%, rgba(37,244,208,0.14), transparent 36%), rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 12px;
+}
+.storage-total-main strong {
+  font-size: 19px;
+  color: var(--text);
+}
+.storage-total-main span {
+  color: var(--text2);
+  font-size: 13px;
+}
+.storage-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.storage-row {
+  padding: 13px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.storage-row-label {
+  font-size: 13.5px;
+  color: var(--text);
+  font-weight: 800;
+}
+.storage-row strong {
+  font-size: 13px;
+  color: var(--text);
+}
+.storage-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--accent);
+  flex-shrink: 0;
+  box-shadow: 0 0 16px currentColor;
+}
+.storage-row-track {
+  height: 5px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.storage-row-track div {
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+  color: var(--accent);
+}
+.storage-row-image { color: #18b8ff; }
+.storage-row-video { color: #7a3cff; }
+.storage-row-audio { color: #e64dff; }
+.storage-row-documents { color: #ffb84d; }
+.storage-row-archive { color: #25f4d0; }
+.storage-row-apk { color: #ff5757; }
+.storage-row-other { color: #98a8bd; }
+.storage-row-system { color: #64748b; }
 
 /* VIDEO MODAL */
 #videoModal {

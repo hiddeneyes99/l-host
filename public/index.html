@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
     <title>Hevi Explorer — Private Media Vault</title>
-    <link rel="stylesheet" href="/style.css?v=16" />
+    <link rel="stylesheet" href="/style.css?v=17" />
     <meta name="theme-color" content="#0b1220" />
     <link
       rel="icon"
@@ -251,6 +251,25 @@
                 </svg>
               </div>
               <span>APKs</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="storage-section">
+          <div class="storage-card" id="storageCard" role="button" tabindex="0" aria-label="Open storage details">
+            <div class="storage-top">
+              <div>
+                <div class="storage-title">Storage</div>
+                <div class="storage-sub" id="storageSub">Calculating space…</div>
+              </div>
+              <button class="storage-manage-btn" id="storageManageBtn">Manage</button>
+            </div>
+            <div class="storage-meter" aria-hidden="true">
+              <div class="storage-meter-fill" id="storageMeterFill"></div>
+            </div>
+            <div class="storage-meta">
+              <span id="storageUsedText">Used —</span>
+              <span id="storageFreeText">Free —</span>
             </div>
           </div>
         </section>
@@ -926,6 +945,37 @@
         </div>
 
         <audio id="audioPlayer" preload="metadata"></audio>
+      </div>
+    </div>
+
+    <!-- ── STORAGE DETAILS MODAL ── -->
+    <div class="modal hidden" id="storageModal">
+      <div class="modal-backdrop" id="storageBackdrop"></div>
+      <div class="storage-modal">
+        <div class="player-header">
+          <button class="icon-btn" id="storageClose">
+            <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+          <span class="player-title">Storage Details</span>
+          <button class="icon-btn" id="storageRefreshBtn" title="Refresh">
+            <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          </button>
+        </div>
+        <div class="storage-modal-body">
+          <div class="storage-total-card">
+            <div class="storage-total-main">
+              <strong id="storageModalUsed">— used</strong>
+              <span id="storageModalFree">— free</span>
+            </div>
+            <div class="storage-meter storage-meter-large">
+              <div class="storage-meter-fill" id="storageModalMeterFill"></div>
+            </div>
+            <div class="storage-root" id="storageRootText"></div>
+          </div>
+          <div class="storage-breakdown" id="storageBreakdown">
+            <div class="loader-wrap"><div class="loader"></div></div>
+          </div>
+        </div>
       </div>
     </div>
 
