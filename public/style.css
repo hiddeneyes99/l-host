@@ -3526,6 +3526,12 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .sidebar-item:active { background: rgba(255,255,255,0.04); transform: scale(0.98); }
 .sidebar-item.active { color: var(--accent); background: rgba(0,212,200,0.1); }
 .sidebar-item.active svg { opacity: 1; stroke: var(--accent); }
+.sb-cloud-icon {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; overflow: hidden;
+}
+.sb-cloud-icon svg { width: 18px !important; height: 18px !important; flex-shrink: 0; }
 .sidebar-footer {
   padding: 8px 8px 16px;
   border-top: 1px solid var(--border);

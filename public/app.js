@@ -5234,6 +5234,7 @@ async function loadCloudSection() {
   try {
     _cloudAccounts = await fetchJson('/api/cloud/accounts');
     renderCloudCards(_cloudAccounts);
+    renderSidebarCloud(_cloudAccounts);
   } catch (e) {
     const row = $('cloudCardsRow');
     if (row) row.innerHTML = `<div style="font-size:12px;color:var(--text3);padding:4px 0">Unable to load cloud accounts</div>`;
@@ -5274,6 +5275,33 @@ function renderCloudCards(accounts) {
   addCard.innerHTML = `<div class="cloud-card-icon" style="font-size:22px">+</div><span class="cloud-card-label">Add</span>`;
   addCard.addEventListener('click', openCloudPicker);
   row.appendChild(addCard);
+}
+
+function renderSidebarCloud(accounts) {
+  const label = $('sbCloudLabel');
+  const list  = $('sbCloudList');
+  if (!label || !list) return;
+  if (!accounts || !accounts.length) {
+    label.classList.add('hidden');
+    list.innerHTML = '';
+    return;
+  }
+  label.classList.remove('hidden');
+  list.innerHTML = accounts.map(acc => {
+    const meta = cloudProviderMeta(acc.provider);
+    return `<button class="sidebar-item sb-cloud-btn" data-sb-cloud="${escHtml(acc.id)}">
+      <span class="sb-cloud-icon">${meta.icon}</span>
+      ${escHtml(acc.label || meta.name)}
+    </button>`;
+  }).join('');
+  list.querySelectorAll('[data-sb-cloud]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $('sidebarDrawer').classList.remove('open');
+      $('sidebarOverlay').classList.remove('open');
+      const acc = _cloudAccounts.find(a => a.id === btn.dataset.sbCloud);
+      if (acc) openCloudBrowser(acc.id, acc);
+    });
+  });
 }
 
 function escHtml(str) {
@@ -5844,6 +5872,7 @@ async function loadCloudSettings() {
   try {
     const accounts = await fetchJson('/api/cloud/accounts');
     _cloudAccounts = accounts;
+    renderSidebarCloud(accounts);
     if (!accounts.length) {
       list.innerHTML = `<div style="font-size:13px;color:var(--text3);padding:6px 0 2px">No cloud accounts connected yet.</div>`;
       if (sep) sep.style.display = 'none';
