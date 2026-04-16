@@ -6105,3 +6105,251 @@ async function saveCloudShare() {
 
 // Load cloud section on initial home load
 loadCloudSection();
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  TWH CINEMATIC PAGE
+// ═══════════════════════════════════════════════════════════════════════════
+
+(function () {
+  const QUOTE = "I don't wait for tools to exist. I build them.";
+  let _cmOpen = false;
+  let _particleRAF = null;
+  let _particles = [];
+  let _cmAudioCtx = null;
+
+  // ── Sound: cinematic ambient sting ──────────────────────────────────────
+  function playTwhSound() {
+    try {
+      const ctx = _cmAudioCtx || (_cmAudioCtx = new (window.AudioContext || window.webkitAudioContext)());
+      if (ctx.state === 'suspended') ctx.resume();
+      const t = ctx.currentTime;
+
+      // Low cinematic hit
+      const hit = ctx.createOscillator();
+      const hitGain = ctx.createGain();
+      hit.connect(hitGain); hitGain.connect(ctx.destination);
+      hit.type = 'sawtooth';
+      hit.frequency.setValueAtTime(55, t);
+      hit.frequency.exponentialRampToValueAtTime(38, t + 0.9);
+      hitGain.gain.setValueAtTime(0.22, t);
+      hitGain.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+      hit.start(t); hit.stop(t + 1.2);
+
+      // Harmonic tones — cinematic chord
+      [[261.63, .055], [329.63, .04], [196, .035], [523.25, .025]].forEach(([freq, vol], i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine';
+        filter.type = 'lowpass';
+        filter.frequency.value = 1200;
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0, t + i * 0.12);
+        gain.gain.linearRampToValueAtTime(vol, t + 0.4 + i * 0.12);
+        gain.gain.setValueAtTime(vol, t + 1.5);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 4);
+        osc.start(t + i * 0.12);
+        osc.stop(t + 4.5);
+      });
+
+      // High shimmer
+      const shimmer = ctx.createOscillator();
+      const shimGain = ctx.createGain();
+      shimmer.connect(shimGain); shimGain.connect(ctx.destination);
+      shimmer.type = 'sine';
+      shimmer.frequency.setValueAtTime(2200, t + 0.1);
+      shimmer.frequency.exponentialRampToValueAtTime(1800, t + 0.5);
+      shimGain.gain.setValueAtTime(0, t + 0.1);
+      shimGain.gain.linearRampToValueAtTime(0.018, t + 0.25);
+      shimGain.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
+      shimmer.start(t + 0.1); shimmer.stop(t + 2);
+    } catch (_) { /* Audio not available */ }
+  }
+
+  // ── Typewriter effect ───────────────────────────────────────────────────
+  function typeWriter(el, text, delay = 38) {
+    el.textContent = '';
+    el.classList.remove('twh-typed');
+    let i = 0;
+    const timer = setInterval(() => {
+      el.textContent += text[i];
+      i++;
+      if (i >= text.length) {
+        clearInterval(timer);
+        el.classList.add('twh-typed');
+      }
+    }, delay);
+    return timer;
+  }
+
+  // ── Counter animation ───────────────────────────────────────────────────
+  function animateCounters() {
+    document.querySelectorAll('#twhCinematicModal .twh-cm-stat-num[data-target]').forEach(el => {
+      const target = parseInt(el.dataset.target, 10);
+      const suffix = el.dataset.suffix || '';
+      const prefix = el.dataset.prefix || '';
+      if (target === 0) { el.textContent = prefix + '0' + suffix; return; }
+      let current = 0;
+      const increment = Math.ceil(target / 48);
+      const timer = setInterval(() => {
+        current = Math.min(current + increment, target);
+        el.textContent = prefix + current.toLocaleString() + suffix;
+        if (current >= target) clearInterval(timer);
+      }, 28);
+    });
+  }
+
+  // ── Particle canvas ─────────────────────────────────────────────────────
+  function initParticles() {
+    const canvas = document.getElementById('twhParticleCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    _particles = Array.from({ length: 55 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.6 + 0.4,
+      vx: (Math.random() - 0.5) * 0.38,
+      vy: (Math.random() - 0.5) * 0.38,
+      alpha: Math.random() * 0.5 + 0.15,
+      color: Math.random() > 0.55 ? '37,244,208' : Math.random() > 0.5 ? '47,140,255' : '168,85,247'
+    }));
+
+    function tick() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      _particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
+        ctx.fill();
+      });
+      _particleRAF = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function stopParticles() {
+    if (_particleRAF) { cancelAnimationFrame(_particleRAF); _particleRAF = null; }
+  }
+
+  // ── Reveal sections on scroll ───────────────────────────────────────────
+  let _revealObs = null;
+  function setupRevealObserver() {
+    const wrap = document.getElementById('twhCmWrap');
+    if (!wrap) return;
+    const items = wrap.querySelectorAll('.twh-cm-reveal');
+    if ('IntersectionObserver' in window) {
+      _revealObs = new IntersectionObserver(entries => {
+        entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('twh-cm-visible'); });
+      }, { root: wrap, threshold: 0.12 });
+      items.forEach(el => _revealObs.observe(el));
+    } else {
+      items.forEach(el => el.classList.add('twh-cm-visible'));
+    }
+  }
+  function teardownRevealObserver() {
+    if (_revealObs) { _revealObs.disconnect(); _revealObs = null; }
+    document.querySelectorAll('#twhCinematicModal .twh-cm-reveal').forEach(el => el.classList.remove('twh-cm-visible'));
+  }
+
+  // ── Open ────────────────────────────────────────────────────────────────
+  function openTwhCinematic() {
+    if (_cmOpen) return;
+    _cmOpen = true;
+    const modal = document.getElementById('twhCinematicModal');
+    if (!modal) return;
+    const wrap = document.getElementById('twhCmWrap');
+    if (wrap) wrap.scrollTop = 0;
+
+    modal.classList.remove('hidden', 'twh-cm-leaving');
+    modal.classList.add('twh-cm-entering');
+    modal.addEventListener('animationend', () => modal.classList.remove('twh-cm-entering'), { once: true });
+
+    playTwhSound();
+    initParticles();
+
+    // Stagger reveals for first 3 sections immediately
+    setTimeout(() => {
+      const firstItems = modal.querySelectorAll('.twh-cm-reveal');
+      firstItems.forEach((el, i) => {
+        setTimeout(() => el.classList.add('twh-cm-visible'), i * 120);
+      });
+    }, 180);
+
+    // Typewriter
+    const qEl = document.getElementById('twhCmQuote');
+    if (qEl) setTimeout(() => typeWriter(qEl, QUOTE, 36), 450);
+
+    // Counters
+    setTimeout(animateCounters, 900);
+
+    // Scroll-based reveal observer
+    setTimeout(setupRevealObserver, 300);
+
+    document.body.style.overflow = 'hidden';
+  }
+
+  // ── Close ───────────────────────────────────────────────────────────────
+  function closeTwhCinematic() {
+    if (!_cmOpen) return;
+    _cmOpen = false;
+    const modal = document.getElementById('twhCinematicModal');
+    if (!modal) return;
+    modal.classList.remove('twh-cm-entering');
+    modal.classList.add('twh-cm-leaving');
+    modal.addEventListener('animationend', () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('twh-cm-leaving');
+      stopParticles();
+      teardownRevealObserver();
+    }, { once: true });
+    document.body.style.overflow = '';
+  }
+
+  // ── Wire up close button ────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('twhCmClose')?.addEventListener('click', closeTwhCinematic);
+  });
+
+  // ── Wire up ALL TWH / Afsar triggers ────────────────────────────────────
+  function wireTwhTriggers() {
+    const selectors = [
+      '.lock-twh-brand',
+      '.sb-twh-brand',
+      '.st-twh-watermark',
+      '.nav-twh-brand',
+      '.twh-cm-footer',   // footer inside the page itself — noop (already open)
+      '.ab-twh-section',  // TWH section in about accordion
+      '.ab-creator-section', // Creator section in about accordion
+    ];
+    selectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', openTwhCinematic);
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wireTwhTriggers);
+  } else {
+    wireTwhTriggers();
+  }
+
+  // Expose globally so about-page accordion can wire up after init
+  window.openTwhCinematic = openTwhCinematic;
+  window.closeTwhCinematic = closeTwhCinematic;
+
+  // Escape key to close
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _cmOpen) closeTwhCinematic();
+  });
+})();

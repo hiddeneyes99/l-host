@@ -2314,6 +2314,194 @@
       </div>
     </div>
 
+    <!-- ── TWH CINEMATIC PAGE ── -->
+    <div class="twh-cm-modal hidden" id="twhCinematicModal" role="dialog" aria-modal="true" aria-label="About Afsar Ali & Technical White Hat">
+      <!-- Animated background -->
+      <div class="twh-cm-bg" id="twhCmBg">
+        <div class="twh-cm-hero-img"></div>
+        <div class="twh-cm-overlay"></div>
+        <div class="twh-cm-orb twh-cm-orb1" aria-hidden="true"></div>
+        <div class="twh-cm-orb twh-cm-orb2" aria-hidden="true"></div>
+        <div class="twh-cm-orb twh-cm-orb3" aria-hidden="true"></div>
+        <canvas class="twh-cm-canvas" id="twhParticleCanvas" aria-hidden="true"></canvas>
+      </div>
+
+      <!-- Close button -->
+      <button class="twh-cm-close" id="twhCmClose" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <!-- Scrollable content -->
+      <div class="twh-cm-wrap" id="twhCmWrap">
+
+        <!-- 1. OPENING QUOTE — typewriter -->
+        <div class="twh-cm-quote-section twh-cm-reveal">
+          <div class="twh-cm-quote-mark">"</div>
+          <div class="twh-cm-quote-text" id="twhCmQuote"></div>
+          <div class="twh-cm-quote-attr">— Afsar Ali &nbsp;·&nbsp; Founder, Technical White Hat</div>
+        </div>
+
+        <!-- 2. CREATOR IDENTITY CARD -->
+        <div class="twh-cm-identity twh-cm-reveal">
+          <div class="twh-cm-avatar-wrap">
+            <img src="/afsar-avatar.png" alt="Afsar Ali" class="twh-cm-avatar-img" />
+            <div class="twh-cm-avatar-ring" aria-hidden="true"></div>
+            <div class="twh-cm-avatar-pulse" aria-hidden="true"></div>
+          </div>
+          <div class="twh-cm-identity-info">
+            <div class="twh-cm-creator-name">Afsar Ali</div>
+            <div class="twh-cm-creator-titles">
+              <span class="twh-cm-title-badge twh-cm-tb-teal">Developer</span>
+              <span class="twh-cm-title-badge twh-cm-tb-blue">Cybersecurity Educator</span>
+              <span class="twh-cm-title-badge twh-cm-tb-purple">Founder · TWH</span>
+            </div>
+            <div class="twh-cm-creator-loc">📍 Kolkata, India &nbsp;·&nbsp; 21 years old</div>
+          </div>
+        </div>
+
+        <!-- 3. MANIFESTO CARD -->
+        <div class="twh-cm-manifesto twh-cm-reveal">
+          <div class="twh-cm-manifesto-bg" aria-hidden="true"></div>
+          <div class="twh-cm-manifesto-inner">
+            <p>I don't wait for tools to exist. <b>I build them.</b> I didn't choose a degree — I chose mastery. Every line of code I write carries a single message:</p>
+            <div class="twh-cm-manifesto-highlight">knowledge should be free, privacy is a right, and the best teacher is a real problem.</div>
+            <div class="twh-cm-manifesto-tags">
+              <span>🎓 Self-taught</span>
+              <span>💪 Proud dropout</span>
+              <span>🔧 Tool builder</span>
+              <span>🆓 Free education advocate</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. IMPACT STATS — animated counters -->
+        <div class="twh-cm-stats-section twh-cm-reveal">
+          <div class="twh-cm-stats-label">Impact at a Glance</div>
+          <div class="twh-cm-stats-grid">
+            <div class="twh-cm-stat">
+              <div class="twh-cm-stat-num" data-target="3000" data-suffix="+">0</div>
+              <div class="twh-cm-stat-desc">Students taught</div>
+            </div>
+            <div class="twh-cm-stat">
+              <div class="twh-cm-stat-num" data-target="5" data-suffix="+ yrs">0</div>
+              <div class="twh-cm-stat-desc">In cybersecurity</div>
+            </div>
+            <div class="twh-cm-stat">
+              <div class="twh-cm-stat-num" data-target="22" data-suffix=" days">0</div>
+              <div class="twh-cm-stat-desc">Built Hevi Explorer</div>
+            </div>
+            <div class="twh-cm-stat">
+              <div class="twh-cm-stat-num" data-target="0" data-prefix="₹" data-suffix="">₹0</div>
+              <div class="twh-cm-stat-desc">Cost of all TWH content</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. SKILL BADGES -->
+        <div class="twh-cm-skills-section twh-cm-reveal">
+          <div class="twh-cm-skills-label">Skills & Expertise</div>
+          <div class="twh-cm-skills-grid">
+            <span class="twh-cm-skill twh-cm-sk-teal">⚔️ Ethical Hacking</span>
+            <span class="twh-cm-skill twh-cm-sk-blue">🐧 Linux</span>
+            <span class="twh-cm-skill twh-cm-sk-purple">🔍 OSINT</span>
+            <span class="twh-cm-skill twh-cm-sk-green">🐍 Python</span>
+            <span class="twh-cm-skill twh-cm-sk-orange">🛡️ Network Security</span>
+            <span class="twh-cm-skill twh-cm-sk-teal">⚡ Node.js</span>
+            <span class="twh-cm-skill twh-cm-sk-blue">🔐 Cryptography</span>
+            <span class="twh-cm-skill twh-cm-sk-red">🕵️ Cyber Intelligence</span>
+          </div>
+        </div>
+
+        <!-- 6. JOURNEY TIMELINE -->
+        <div class="twh-cm-timeline-section twh-cm-reveal">
+          <div class="twh-cm-timeline-label">The Journey</div>
+          <div class="twh-cm-timeline">
+            <div class="twh-cm-tl-item">
+              <div class="twh-cm-tl-dot"></div>
+              <div class="twh-cm-tl-content">
+                <div class="twh-cm-tl-tag">Day One</div>
+                <div class="twh-cm-tl-text">Opened a terminal for the first time. Saw the cursor blink. Never looked back.</div>
+              </div>
+            </div>
+            <div class="twh-cm-tl-item">
+              <div class="twh-cm-tl-dot"></div>
+              <div class="twh-cm-tl-content">
+                <div class="twh-cm-tl-tag">Deep Dive</div>
+                <div class="twh-cm-tl-text">Years of self-study: ethical hacking, Linux systems, OSINT, network security, Python automation.</div>
+              </div>
+            </div>
+            <div class="twh-cm-tl-item">
+              <div class="twh-cm-tl-dot"></div>
+              <div class="twh-cm-tl-content">
+                <div class="twh-cm-tl-tag">Founded TWH</div>
+                <div class="twh-cm-tl-text">Built Technical White Hat to give others what he never had — free, real-world cybersecurity education.</div>
+              </div>
+            </div>
+            <div class="twh-cm-tl-item">
+              <div class="twh-cm-tl-dot twh-cm-tl-dot-now"></div>
+              <div class="twh-cm-tl-content">
+                <div class="twh-cm-tl-tag twh-cm-tl-tag-now">22 Days · Hevi Explorer</div>
+                <div class="twh-cm-tl-text">Designed, coded, tested, and shipped an entire file manager solo. Zero frameworks. No limits.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. TWH ORG -->
+        <div class="twh-cm-org-section twh-cm-reveal">
+          <div class="twh-cm-org-logo-wrap">
+            <img src="/twh-logo.png" alt="Technical White Hat" class="twh-cm-org-logo" />
+            <div class="twh-cm-org-logo-glow" aria-hidden="true"></div>
+          </div>
+          <div class="twh-cm-org-name">Technical White Hat</div>
+          <div class="twh-cm-org-tagline">Decoding Tech. Empowering Minds. Securing the Future.</div>
+          <div class="twh-cm-org-mission">A movement — not just a channel. Founded by Afsar Ali, TWH exists to democratize cybersecurity education. Every tutorial, every tool, every course: <b>100% free. Always.</b></div>
+        </div>
+
+        <!-- 8. TWH PILLARS -->
+        <div class="twh-cm-pillars twh-cm-reveal">
+          <div class="twh-cm-pillar twh-cm-pl-teal">
+            <span class="twh-cm-pl-icon">⚔️</span>
+            <div class="twh-cm-pl-name">Ethical Hacking</div>
+            <div class="twh-cm-pl-desc">Real-world techniques. Real tools. Real scenarios — not textbook theory.</div>
+          </div>
+          <div class="twh-cm-pillar twh-cm-pl-blue">
+            <span class="twh-cm-pl-icon">🐧</span>
+            <div class="twh-cm-pl-name">Linux Mastery</div>
+            <div class="twh-cm-pl-desc">From zero to root. Kali, Ubuntu, Termux — every flavor, every trick.</div>
+          </div>
+          <div class="twh-cm-pillar twh-cm-pl-purple">
+            <span class="twh-cm-pl-icon">🔍</span>
+            <div class="twh-cm-pl-name">OSINT & Recon</div>
+            <div class="twh-cm-pl-desc">Finding what people think is hidden. Intelligence from open sources.</div>
+          </div>
+          <div class="twh-cm-pillar twh-cm-pl-green">
+            <span class="twh-cm-pl-icon">🛡️</span>
+            <div class="twh-cm-pl-name">Defense & Privacy</div>
+            <div class="twh-cm-pl-desc">Know the attack, master the defense. Privacy is not paranoia — it's power.</div>
+          </div>
+          <div class="twh-cm-pillar twh-cm-pl-orange">
+            <span class="twh-cm-pl-icon">🐍</span>
+            <div class="twh-cm-pl-name">Python & Scripting</div>
+            <div class="twh-cm-pl-desc">Automate everything. Build tools. Script the world.</div>
+          </div>
+          <div class="twh-cm-pillar twh-cm-pl-red">
+            <span class="twh-cm-pl-icon">⚡</span>
+            <div class="twh-cm-pl-name">Tool Building</div>
+            <div class="twh-cm-pl-desc">If the tool doesn't exist, build it. <em>Hevi Explorer is proof.</em></div>
+          </div>
+        </div>
+
+        <!-- 9. CLOSING MARK -->
+        <div class="twh-cm-footer twh-cm-reveal">
+          <img src="/twh-logo.png" alt="TWH" class="twh-cm-footer-logo" />
+          <div class="twh-cm-footer-text">Technical White Hat · by Afsar Ali</div>
+          <div class="twh-cm-footer-sub">Built with purpose. Shared with the world. Free forever.</div>
+        </div>
+
+      </div><!-- /twh-cm-wrap -->
+    </div><!-- /twhCinematicModal -->
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
       if (typeof pdfjsLib !== 'undefined') {
@@ -2322,7 +2510,7 @@
       }
     </script>
     <script src="/iv.js?v=11"></script>
-    <script src="/app.js?v=12"></script>
+    <script src="/app.js?v=13"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js?v=11').then(reg => reg.update()).catch(() => {});
