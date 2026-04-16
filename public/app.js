@@ -5927,7 +5927,9 @@ async function loadCloudShareDevices(currentSw) {
     } else {
       container.innerHTML = others.map(([did, info]) => {
         const checked = Array.isArray(currentSw) && currentSw.includes(did) ? 'checked' : '';
-        return `<label class="cloud-share-device"><input type="checkbox" class="cloud-did-check" data-did="${did}" ${checked}> <span>${escHtml(info.name || did.slice(0,8) + '…')}</span><span style="font-size:10px;color:var(--text3);margin-left:auto">${info.name ? did.slice(0,6) : ''}</span></label>`;
+        const dname = escHtml(info.name || (did.slice(0,8) + '…'));
+        const dsub  = info.name ? `<span class="csd-id">${escHtml(did.slice(0,10))}</span>` : '';
+        return `<label class="cloud-share-device"><input type="checkbox" class="cloud-did-check" data-did="${did}" ${checked}><div class="csd-info"><span class="csd-name">${dname}</span>${dsub}</div></label>`;
       }).join('');
     }
   } catch (_) {}

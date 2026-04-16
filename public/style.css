@@ -1976,6 +1976,8 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   border-radius: 20px;
   padding: 24px;
   border: 1px solid var(--border);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 .folder-dialog h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
 .folder-dialog input {
@@ -5951,15 +5953,47 @@ img.lazy-img:not([src]) {
   gap: 6px;
   max-height: 180px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .cloud-share-device {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  gap: 12px;
+  padding: 10px 14px;
   background: var(--bg3);
-  border-radius: 9px;
+  border-radius: 10px;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  transition: background 0.18s;
+}
+.cloud-share-device:hover { background: rgba(255,255,255,0.07); }
+.cloud-share-device input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.csd-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.csd-name {
   font-size: 13px;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.cloud-share-device input[type="checkbox"] { accent-color: var(--accent); }
+.csd-id {
+  font-size: 10px;
+  color: var(--text3);
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
