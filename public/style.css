@@ -6234,3 +6234,131 @@ img.lazy-img:not([src]) {
   transform: scale(1.06);
   box-shadow: 0 0 16px rgba(0,212,200,0.15);
 }
+
+/* ── TWH WATERMARK (with logo) ── */
+.twh-watermark {
+  position: fixed;
+  bottom: 72px;
+  right: 12px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0,212,200,0.22);
+  border-radius: 20px;
+  padding: 5px 11px 5px 6px;
+  text-decoration: none;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(0,212,200,0.7);
+  transition: all 0.25s;
+  pointer-events: all;
+}
+.twh-wm-logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(0,212,200,0.3);
+  flex-shrink: 0;
+}
+.twh-watermark span { font-weight: 400; opacity: 0.75; }
+.twh-watermark strong { font-weight: 700; color: #00d4c8; letter-spacing: 0.12em; }
+.twh-watermark:hover {
+  background: rgba(0,212,200,0.14);
+  border-color: rgba(0,212,200,0.5);
+  color: #00d4c8;
+  transform: scale(1.05);
+  box-shadow: 0 0 18px rgba(0,212,200,0.18);
+}
+
+/* ── SIDEBAR TWH CREDIT ── */
+.sidebar-twh-credit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  text-decoration: none;
+  margin-top: 6px;
+  background: rgba(0,212,200,0.04);
+  border: 1px solid rgba(0,212,200,0.1);
+  transition: all 0.25s;
+  cursor: pointer;
+}
+.sidebar-twh-credit:hover {
+  background: rgba(0,212,200,0.1);
+  border-color: rgba(0,212,200,0.3);
+  transform: translateX(3px);
+}
+.sidebar-twh-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(0,212,200,0.35);
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(0,212,200,0.15);
+}
+.sidebar-twh-text { flex: 1; min-width: 0; }
+.sidebar-twh-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-twh-sub {
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-twh-credit svg { color: var(--text3); flex-shrink: 0; }
+
+/* ── SETTINGS TWH FOOTER ── */
+.st-twh-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  text-decoration: none;
+  margin: 16px 0 0;
+  background: linear-gradient(135deg, rgba(0,212,200,0.06), rgba(0,212,200,0.02));
+  border: 1px solid rgba(0,212,200,0.14);
+  transition: all 0.25s;
+  cursor: pointer;
+}
+.st-twh-footer:hover {
+  background: linear-gradient(135deg, rgba(0,212,200,0.12), rgba(0,212,200,0.05));
+  border-color: rgba(0,212,200,0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,212,200,0.1);
+}
+.st-twh-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(0,212,200,0.4);
+  flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(0,212,200,0.2);
+}
+.st-twh-info { flex: 1; min-width: 0; }
+.st-twh-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.st-twh-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+.st-twh-footer svg { color: rgba(0,212,200,0.5); flex-shrink: 0; }
