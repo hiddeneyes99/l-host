@@ -4820,37 +4820,60 @@ img.lazy-img:not([src]) {
   font-family: monospace; font-size: 12px; color: var(--accent);
 }
 
-/* ── Data safety list ───────────────────────────────────────────────────── */
-.ab-safety-badge {
-  display: flex; align-items: center; gap: 12px;
-  background: rgba(0,212,200,0.08); border: 1px solid rgba(0,212,200,0.2);
-  border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
-  font-size: 14px; font-weight: 600; color: var(--text2);
-}
-.ab-safety-badge svg { color: var(--accent); flex-shrink: 0; }
-
-.ab-safety-list {
-  display: flex; flex-direction: column; gap: 0;
-}
-.ab-safety-item {
+/* ── Data safety — redesigned card layout ───────────────────────────────── */
+.ab-safety-hero {
   display: flex; align-items: flex-start; gap: 14px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(0,212,200,0.10), rgba(0,145,255,0.07));
+  border: 1.5px solid rgba(0,212,200,0.25);
+  border-radius: 16px; padding: 16px; margin-bottom: 18px;
 }
-.ab-safety-item:last-child { border-bottom: none; }
-.ab-safety-dot {
-  width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; margin-top: 5px;
+.ab-safety-hero-icon {
+  width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+  background: rgba(0,212,200,0.15); border: 1px solid rgba(0,212,200,0.3);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
 }
-.ab-dot-red    { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
-.ab-dot-yellow { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.5); }
-.ab-dot-green  { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+.ab-safety-hero-title {
+  font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 5px;
+}
+.ab-safety-hero-sub {
+  font-size: 13.5px; color: var(--text2); line-height: 1.65;
+}
 
-.ab-safety-item > div { flex: 1; }
-.ab-safety-item strong {
-  display: block; font-size: 15px; font-weight: 700; color: var(--text);
-  margin-bottom: 5px;
+.ab-sc-group { margin-bottom: 18px; }
+.ab-sc-group:last-child { margin-bottom: 0; }
+.ab-sc-label {
+  font-size: 10.5px; font-weight: 800; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--text3);
+  margin-bottom: 9px; padding-left: 2px;
 }
-.ab-safety-item p {
+.ab-sc-card {
+  display: flex; align-items: flex-start; gap: 13px;
+  border-radius: 14px; padding: 14px 15px;
+  border-left-width: 3px; border-left-style: solid;
+  margin-bottom: 8px;
+}
+.ab-sc-card:last-child { margin-bottom: 0; }
+.ab-sc-red    { background: rgba(239,68,68,0.07);  border-left-color: #ef4444; border: 1px solid rgba(239,68,68,0.18); border-left: 3px solid #ef4444; }
+.ab-sc-yellow { background: rgba(245,158,11,0.07); border-left-color: #f59e0b; border: 1px solid rgba(245,158,11,0.18); border-left: 3px solid #f59e0b; }
+.ab-sc-green  { background: rgba(34,197,94,0.07);  border-left-color: #22c55e; border: 1px solid rgba(34,197,94,0.18);  border-left: 3px solid #22c55e; }
+
+.ab-sc-icon-wrap {
+  width: 36px; height: 36px; border-radius: 10px; font-size: 18px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.ab-sc-icon-red    { background: rgba(239,68,68,0.15); }
+.ab-sc-icon-yellow { background: rgba(245,158,11,0.15); }
+.ab-sc-icon-green  { background: rgba(34,197,94,0.15); }
+
+.ab-sc-content { flex: 1; }
+.ab-sc-content strong {
+  display: block; font-size: 15px; font-weight: 700; margin-bottom: 5px;
+}
+.ab-sc-red    .ab-sc-content strong { color: #f87171; }
+.ab-sc-yellow .ab-sc-content strong { color: #fbbf24; }
+.ab-sc-green  .ab-sc-content strong { color: #4ade80; }
+.ab-sc-content p {
   font-size: 13.5px; color: var(--text2); line-height: 1.65; margin: 0;
 }
 
@@ -4925,12 +4948,14 @@ img.lazy-img:not([src]) {
 .ab-twh-header {
   display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
 }
-.ab-twh-avatar {
-  width: 54px; height: 54px; border-radius: 15px; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--accent), #0091ff);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 900; color: #0b1220; letter-spacing: 0.5px;
-  box-shadow: 0 6px 20px rgba(0,212,200,0.28);
+.ab-twh-logo-wrap {
+  width: 60px; height: 60px; border-radius: 16px; flex-shrink: 0;
+  overflow: hidden;
+  border: 2px solid rgba(0,212,200,0.3);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+.ab-twh-logo-wrap img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .ab-twh-name    { font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 3px; }
 .ab-twh-tagline { font-size: 13px; color: var(--text2); font-style: italic; }

@@ -1410,34 +1410,67 @@
                   <p class="ab-section-sub">Your files never leave your device. Here is exactly what we collect and what we do not.</p>
                 </div>
               </div>
-              <div class="ab-safety-badge">
-                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span>Every single file you browse, stream, or transfer stays entirely on the device running the server. Nothing is ever uploaded to any external server by Hevi Explorer itself.</span>
+              <div class="ab-safety-hero">
+                <div class="ab-safety-hero-icon">
+                  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <div>
+                  <div class="ab-safety-hero-title">100% Local — Your files never leave your device</div>
+                  <div class="ab-safety-hero-sub">Every file you browse, stream, or transfer stays entirely on the device running the server. Nothing is ever uploaded to any external server by Hevi Explorer itself.</div>
+                </div>
               </div>
-              <div class="ab-safety-list">
-                <div class="ab-safety-item ab-safety-no">
-                  <div class="ab-safety-dot ab-dot-red"></div>
-                  <div><strong>We do NOT collect your files</strong><p>Your photos, videos, documents, and any other files you browse or stream through Hevi Explorer are never uploaded, copied, or sent anywhere. They stay on your device at all times.</p></div>
+
+              <div class="ab-sc-group">
+                <div class="ab-sc-label">What we do NOT do</div>
+                <div class="ab-sc-card ab-sc-red">
+                  <div class="ab-sc-icon-wrap ab-sc-icon-red">🚫</div>
+                  <div class="ab-sc-content">
+                    <strong>We do NOT collect your files</strong>
+                    <p>Your photos, videos, documents, and any other files you browse or stream through Hevi Explorer are never uploaded, copied, or sent anywhere. They stay on your device at all times.</p>
+                  </div>
                 </div>
-                <div class="ab-safety-item ab-safety-no">
-                  <div class="ab-safety-dot ab-dot-red"></div>
-                  <div><strong>We do NOT require an account</strong><p>There is no sign-up, no login service, no email address, and no user profile of any kind. You run the app, you use it — that is all.</p></div>
+                <div class="ab-sc-card ab-sc-red">
+                  <div class="ab-sc-icon-wrap ab-sc-icon-red">🔐</div>
+                  <div class="ab-sc-content">
+                    <strong>We do NOT require an account</strong>
+                    <p>There is no sign-up, no login service, no email address, and no user profile of any kind. You run the app, you use it — that is all.</p>
+                  </div>
                 </div>
-                <div class="ab-safety-item ab-safety-no">
-                  <div class="ab-safety-dot ab-dot-red"></div>
-                  <div><strong>We do NOT sync to the cloud</strong><p>Hevi Explorer is fully local. There is no automatic cloud backup, no sync service, and no third-party storage integration. Your files never leave your device unless you explicitly create a WAN tunnel.</p></div>
+                <div class="ab-sc-card ab-sc-red">
+                  <div class="ab-sc-icon-wrap ab-sc-icon-red">☁️</div>
+                  <div class="ab-sc-content">
+                    <strong>We do NOT sync to the cloud</strong>
+                    <p>Hevi Explorer is fully local. There is no automatic cloud backup, no sync service, and no third-party storage integration. Your files never leave your device unless you explicitly choose to create a WAN tunnel.</p>
+                  </div>
                 </div>
-                <div class="ab-safety-item ab-safety-warn">
-                  <div class="ab-safety-dot ab-dot-yellow"></div>
-                  <div><strong>Minimal anonymous analytics (optional)</strong><p>We may collect very small anonymous data: total download count, total user count, and device/platform type (e.g., "Android" or "Windows") — purely to understand compatibility issues and improve the app. No file names, no file contents, and no personal information is ever collected.</p></div>
+              </div>
+
+              <div class="ab-sc-group">
+                <div class="ab-sc-label">What we may collect</div>
+                <div class="ab-sc-card ab-sc-yellow">
+                  <div class="ab-sc-icon-wrap ab-sc-icon-yellow">📊</div>
+                  <div class="ab-sc-content">
+                    <strong>Minimal anonymous analytics only</strong>
+                    <p>We may collect very small anonymous data: total download count, total user count, and device/platform type (e.g., "Android" or "Windows") — purely to understand which devices have issues and improve compatibility. No file names, no file contents, and no personal information is ever collected.</p>
+                  </div>
                 </div>
-                <div class="ab-safety-item ab-safety-yes">
-                  <div class="ab-safety-dot ab-dot-green"></div>
-                  <div><strong>You control who can access the vault</strong><p>By default the vault is only accessible on your local network. You can optionally add a password lock, or create a temporary WAN tunnel link that you can stop at any time. You are always in full control of access.</p></div>
+              </div>
+
+              <div class="ab-sc-group">
+                <div class="ab-sc-label">What you control</div>
+                <div class="ab-sc-card ab-sc-green">
+                  <div class="ab-sc-icon-wrap ab-sc-icon-green">🛡️</div>
+                  <div class="ab-sc-content">
+                    <strong>You control who can access the vault</strong>
+                    <p>By default the vault is only accessible on your local network. You can optionally add a password lock, or create a temporary WAN tunnel link that you can stop at any time. You are always in full control of who can access your files.</p>
+                  </div>
                 </div>
-                <div class="ab-safety-item ab-safety-yes">
-                  <div class="ab-safety-dot ab-dot-green"></div>
-                  <div><strong>WAN tunnel is opt-in and temporary</strong><p>Cloudflare Tunnel is only activated when you tap "Start Tunnel" in settings. It creates a temporary public HTTPS URL. Stop it at any time to immediately remove outside access. The tunnel does not persist between server restarts.</p></div>
+                <div class="ab-sc-card ab-sc-green">
+                  <div class="ab-sc-icon-wrap ab-sc-icon-green">🔗</div>
+                  <div class="ab-sc-content">
+                    <strong>WAN tunnel is opt-in and temporary</strong>
+                    <p>Cloudflare Tunnel is only activated when you tap "Start Tunnel" in settings. It creates a temporary public HTTPS URL. Stop it at any time to immediately remove outside access. The tunnel does not persist between server restarts.</p>
+                  </div>
                 </div>
               </div>
             </section>
@@ -1548,7 +1581,9 @@
             <!-- 10 TWH -->
             <section class="ab-section ab-twh-section ab-reveal">
               <div class="ab-twh-header">
-                <div class="ab-twh-avatar">TWH</div>
+                <div class="ab-twh-logo-wrap">
+                  <img src="/twh-logo.png" alt="Technical White Hat logo" />
+                </div>
                 <div>
                   <div class="ab-twh-name">Technical White Hat</div>
                   <div class="ab-twh-tagline">Decoding Tech. Empowering Minds. Securing the Future.</div>
