@@ -2721,12 +2721,13 @@ app.get('/api/cloud/:accountId/ls', async (req, res) => {
       oauth2.setCredentials({ access_token: token, refresh_token: ownerAcc.refreshToken ? decryptField(ownerAcc.refreshToken) : null, expiry_date: ownerAcc.tokenExpiry });
       const drive = google.drive({ version: 'v3', auth: oauth2 });
       const parentId = folderPath || 'root';
-      const r = await drive.files.list({ q: `'${parentId}' in parents and trashed = false`, fields: 'files(id,name,mimeType,size,modifiedTime)', pageSize: 200 });
+      const r = await drive.files.list({ q: `'${parentId}' in parents and trashed = false`, fields: 'files(id,name,mimeType,size,modifiedTime,thumbnailLink)', pageSize: 200 });
       const items = (r.data.files || []).map(f => ({
         id: f.id, name: f.name,
         type: f.mimeType === 'application/vnd.google-apps.folder' ? 'dir' : 'file',
         size: parseInt(f.size || 0), mtime: new Date(f.modifiedTime).getTime(),
-        mimeType: f.mimeType, ext: f.name.includes('.') ? '.' + f.name.split('.').pop().toLowerCase() : ''
+        mimeType: f.mimeType, ext: f.name.includes('.') ? '.' + f.name.split('.').pop().toLowerCase() : '',
+        thumbnailLink: f.thumbnailLink || null
       }));
       res.json({ items, path: folderPath });
 
@@ -2780,6 +2781,112 @@ app.get('/api/cloud/:accountId/ls', async (req, res) => {
       res.status(400).json({ error: 'Unknown provider' });
     }
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/cloud/:accountId/thumb ──────────────────────────────────────
+app.get('/api/cloud/:accountId/thumb', async (req, res) => {
+  const did = getDeviceId(req, res);
+  const { accountId } = req.params;
+  const filePath = req.query.path || '';
+  const thumbUrl = req.query.url || '';
+  const accounts = getAccessibleAccounts(did);
+  const acc = accounts.find(a => a.id === accountId);
+  if (!acc) return res.status(404).json({ error: 'Account not found' });
+  const ownerDid = acc._own ? did : acc._ownerDid;
+  const ownerCreds = loadCloudCreds(ownerDid);
+  const ownerAcc = ownerCreds.accounts.find(a => a.id === accountId);
+  if (!ownerAcc) return res.status(404).json({ error: 'Account data not found' });
+
+  try {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Content-Type', 'image/jpeg');
+
+    if (ownerAcc.provider === 'gdrive') {
+      // Use provided thumbnailLink (smaller Google CDN image) or fall back to Drive API
+      const url = thumbUrl || null;
+      if (url) {
+        // Proxy the Google CDN thumbnail — no auth needed, just fetch and pipe
+        const parsed = new URL(url);
+        const proxyReq = https.request({ hostname: parsed.hostname, path: parsed.pathname + parsed.search, method: 'GET' }, proxyRes => {
+          if (proxyRes.statusCode !== 200) return res.status(404).end();
+          res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'image/jpeg');
+          proxyRes.pipe(res);
+        });
+        proxyReq.on('error', () => res.status(500).end());
+        proxyReq.end();
+      } else {
+        // Fall back to Drive thumbnail via API
+        const token = await getValidToken(ownerAcc, ownerDid);
+        const gUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(filePath)}?alt=media`;
+        const parsed = new URL(gUrl);
+        const proxyReq = https.request({ hostname: parsed.hostname, path: parsed.pathname + parsed.search, method: 'GET', headers: { Authorization: `Bearer ${token}` } }, proxyRes => {
+          if (proxyRes.statusCode !== 200) return res.status(404).end();
+          res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'image/jpeg');
+          proxyRes.pipe(res);
+        });
+        proxyReq.on('error', () => res.status(500).end());
+        proxyReq.end();
+      }
+
+    } else if (ownerAcc.provider === 'dropbox') {
+      // Dropbox thumbnail API — returns a much smaller image than the full file
+      const token = await getValidToken(ownerAcc, ownerDid);
+      const arg = JSON.stringify({ path: filePath, format: 'jpeg', size: 'w480h320' });
+      const thumbReq = https.request({
+        hostname: 'content.dropboxapi.com',
+        path: '/2/files/get_thumbnail',
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Dropbox-API-Arg': arg, 'Content-Type': 'application/octet-stream', 'Content-Length': 0 }
+      }, proxyRes => {
+        if (proxyRes.statusCode !== 200) return res.status(404).end();
+        res.setHeader('Content-Type', 'image/jpeg');
+        proxyRes.pipe(res);
+      });
+      thumbReq.on('error', () => res.status(500).end());
+      thumbReq.end();
+
+    } else if (ownerAcc.provider === 'onedrive') {
+      // OneDrive thumbnails API
+      const token = await getValidToken(ownerAcc, ownerDid);
+      const meta = await cloudHttpsGetJson(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(filePath)}/thumbnails/0/large`, { Authorization: `Bearer ${token}` });
+      const dlUrl = meta && meta.url;
+      if (!dlUrl) return res.status(404).end();
+      const parsed = new URL(dlUrl);
+      const proxyReq = https.request({ hostname: parsed.hostname, path: parsed.pathname + parsed.search, method: 'GET' }, proxyRes => {
+        if (proxyRes.statusCode !== 200) return res.status(404).end();
+        res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'image/jpeg');
+        proxyRes.pipe(res);
+      });
+      proxyReq.on('error', () => res.status(500).end());
+      proxyReq.end();
+
+    } else {
+      res.status(400).end();
+    }
+  } catch (e) { res.status(500).end(); }
+});
+
+// ── POST /api/bulk-delete ─────────────────────────────────────────────────
+app.post('/api/bulk-delete', express.json(), async (req, res) => {
+  const paths = Array.isArray(req.body?.paths) ? req.body.paths : [];
+  if (!paths.length) return res.status(400).json({ error: 'No paths provided' });
+  const deleted = [], failed = [];
+  for (const relPath of paths) {
+    if (!relPath || !relPath.trim()) { failed.push(relPath); continue; }
+    const absPath = safePath(relPath);
+    if (!absPath) { failed.push(relPath); continue; }
+    try {
+      const stat = safeStatSync(absPath);
+      if (!stat) { failed.push(relPath); continue; }
+      const parentDir = path.dirname(absPath);
+      if (stat.isDirectory()) fs.rmSync(absPath, { recursive: true, force: true });
+      else fs.unlinkSync(absPath);
+      indexRemovePath(relPath);
+      incrementalUpdateDir(parentDir).catch(() => {});
+      deleted.push(relPath);
+    } catch (_) { failed.push(relPath); }
+  }
+  res.json({ deleted, failed });
 });
 
 // ── GET /api/cloud/:accountId/file ────────────────────────────────────────

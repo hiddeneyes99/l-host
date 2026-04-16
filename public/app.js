@@ -19,6 +19,8 @@ const state = {
   uploadCancelled: false,
   uploadXhr: null,
   uploadReader: null,
+  selectMode: false,
+  selectedItems: new Set(),
 };
 
 // ── Persistent preferences (localStorage) ──────────────────────────────────
@@ -3194,6 +3196,7 @@ async function navigate(relPath = '') {
   state.currentPath = relPath;
   updateBreadcrumb(relPath);
   state.uploadPath = relPath;
+  if (state.selectMode) exitSelectMode();
 
   const grid = $('fileGrid');
   pgReset('browser', relPath, grid);
@@ -3301,6 +3304,7 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
   const isFavItem = _cachedFavorites.some(f => f.path === item.path);
   el.innerHTML = `${thumbHtml}
     ${isFavItem ? '<span class="fav-star-badge">★</span>' : ''}
+    <div class="sel-check" aria-hidden="true"></div>
     <div class="item-info">
       <div class="item-name">${item.name}</div>
       <div class="item-size">${item.sizeStr}</div>
@@ -3331,6 +3335,11 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
 
   el.addEventListener('click', e => {
     if (e.target.closest('[data-more]')) { showCtxMenu(e, item); return; }
+    // In selection mode every click toggles selection (no opening files)
+    if (state.selectMode) {
+      if (item.type !== 'dir') toggleItemSelect(item, el);
+      return;
+    }
     if (isDir && _pinPickMode) {
       exitPinPickMode();
       pinFolder(item);
@@ -3933,49 +3942,50 @@ async function handleUpload() {
   for (const file of files) {
     const row = document.createElement('div');
     row.className = 'upload-file-row';
-    row.innerHTML = `<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${file.name}</span>
-      <div style="width:80px"><div class="upload-progress"><div class="upload-progress-bar" style="width:0%"></div></div></div>`;
+    row.innerHTML = `<div class="upload-file-info">
+        <span class="upload-file-name">${file.name}</span>
+        <span class="upload-file-size">${fmtBytes(file.size)}</span>
+      </div>
+      <div class="upload-progress-wrap"><div class="upload-progress"><div class="upload-progress-bar" style="width:0%"></div></div>
+      <span class="upload-pct">0%</span></div>`;
     list.appendChild(row);
   }
   for (let i = 0; i < files.length; i++) {
     if (state.uploadCancelled) break;
     const file = files[i];
-    const bar  = list.children[i].querySelector('.upload-progress-bar');
+    const row  = list.children[i];
+    const bar  = row.querySelector('.upload-progress-bar');
+    const pct  = row.querySelector('.upload-pct');
     await new Promise(resolve => {
       if (state.uploadCancelled) { resolve(); return; }
       const xhr = new XMLHttpRequest();
       state.uploadXhr = xhr;
       xhr.open('POST', `/api/upload?path=${encodeURIComponent(state.uploadPath)}`);
-      xhr.upload.onprogress = e => { if (e.lengthComputable) bar.style.width = (e.loaded / e.total * 100) + '%'; };
-      xhr.onload  = () => {
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          const p = Math.round(e.loaded / e.total * 100);
+          bar.style.width = p + '%';
+          if (pct) pct.textContent = p + '%';
+        }
+      };
+      xhr.onload = () => {
         if (!state.uploadCancelled) {
+          const ok = xhr.status >= 200 && xhr.status < 300;
           bar.style.width = '100%';
-          bar.style.background = xhr.status >= 200 && xhr.status < 300 ? 'var(--success)' : 'var(--danger)';
+          bar.style.background = ok ? 'var(--success)' : 'var(--danger)';
+          if (pct) pct.textContent = ok ? '✓' : '✗';
         }
         state.uploadXhr = null;
         resolve();
       };
-      xhr.onerror = () => { bar.style.background = 'var(--danger)'; state.uploadXhr = null; resolve(); };
-      xhr.onabort = () => { bar.style.background = 'var(--danger)'; state.uploadXhr = null; resolve(); };
-      const reader = new FileReader();
-      state.uploadReader = reader;
-      reader.onload = () => {
-        if (state.uploadCancelled) { resolve(); return; }
-        const boundary = '----lhostboundary' + Math.random().toString(16).slice(2);
-        const head = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\nContent-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`;
-        const tail = `\r\n--${boundary}--\r\n`;
-        const hb = new TextEncoder().encode(head), tb = new TextEncoder().encode(tail);
-        const body = new Uint8Array(hb.length + reader.result.byteLength + tb.length);
-        body.set(hb, 0); body.set(new Uint8Array(reader.result), hb.length); body.set(tb, hb.length + reader.result.byteLength);
-        xhr.setRequestHeader('Content-Type', `multipart/form-data; boundary=${boundary}`);
-        xhr.send(body.buffer);
-      };
-      reader.onerror = () => { bar.style.background = 'var(--danger)'; state.uploadReader = null; resolve(); };
-      reader.onabort = () => { bar.style.background = 'var(--danger)'; state.uploadReader = null; resolve(); };
-      reader.readAsArrayBuffer(file);
+      xhr.onerror = () => { bar.style.background = 'var(--danger)'; if (pct) pct.textContent = '✗'; state.uploadXhr = null; resolve(); };
+      xhr.onabort = () => { bar.style.background = 'var(--danger)'; if (pct) pct.textContent = '✗'; state.uploadXhr = null; resolve(); };
+      // Use FormData — browser streams the file directly, progress starts immediately
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      xhr.send(fd);
     });
   }
-  state.uploadReader = null;
   state.uploadXhr = null;
   setUploadBusy(false);
   if (state.uploadCancelled) return;
@@ -4283,6 +4293,78 @@ async function deleteItem(item) {
     else if (state.currentView === 'cat') loadCategory(item.category);
     else loadHome();
   } catch (e) { toast(e.message, 'error'); }
+}
+
+// ── Multi-select / Bulk operations ─────────────────────────────────────────
+function enterSelectMode() {
+  state.selectMode = true;
+  state.selectedItems.clear();
+  document.body.classList.add('select-mode');
+  $('selectModeBtn')?.classList.add('active');
+  updateBulkBar();
+}
+
+function exitSelectMode() {
+  state.selectMode = false;
+  state.selectedItems.clear();
+  document.body.classList.remove('select-mode');
+  $('selectModeBtn')?.classList.remove('active');
+  document.querySelectorAll('.file-item.selected').forEach(el => el.classList.remove('selected'));
+  updateBulkBar();
+}
+
+function toggleItemSelect(item, el) {
+  const key = item.path;
+  if (state.selectedItems.has(key)) {
+    state.selectedItems.delete(key);
+    el.classList.remove('selected');
+  } else {
+    state.selectedItems.add(key);
+    el.classList.add('selected');
+  }
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = $('bulkBar');
+  if (!bar) return;
+  const count = state.selectedItems.size;
+  if (state.selectMode) {
+    bar.classList.remove('hidden');
+    $('bulkCount').textContent = count ? `${count} selected` : 'Tap files to select';
+    $('bulkDeleteBtn').disabled = count === 0;
+    $('bulkDownloadBtn').disabled = count === 0;
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+async function bulkDelete() {
+  const paths = [...state.selectedItems];
+  if (!paths.length) return;
+  if (!confirm(`Delete ${paths.length} item(s)? This cannot be undone.`)) return;
+  try {
+    const r = await fetch('/api/bulk-delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paths }) });
+    const d = await r.json();
+    const deletedCount = (d.deleted || []).length;
+    const failedCount  = (d.failed  || []).length;
+    toast(`Deleted ${deletedCount} item(s)${failedCount ? `, ${failedCount} failed` : ''}`, deletedCount ? 'success' : 'error');
+    exitSelectMode();
+    if (state.currentView === 'browser') navigate(state.currentPath);
+    else loadHome();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function bulkDownload() {
+  const paths = [...state.selectedItems];
+  if (!paths.length) return;
+  paths.forEach(p => {
+    const a = document.createElement('a');
+    a.href = `/file?path=${encodeURIComponent(p)}&dl=1`;
+    a.download = p.split('/').pop();
+    a.click();
+  });
+  toast(`Downloading ${paths.length} file(s)…`);
 }
 
 // ── Rename ─────────────────────────────────────────────────────────────────
@@ -4899,6 +4981,11 @@ document.addEventListener('DOMContentLoaded', () => {
   $('uploadBtn').addEventListener('click', openUploadModal);
   $('gridViewBtn').addEventListener('click', () => setListMode('grid'));
   $('listViewBtn').addEventListener('click', () => setListMode('list'));
+  $('selectModeBtn')?.addEventListener('click', () => { if (state.selectMode) exitSelectMode(); else enterSelectMode(); });
+  $('bulkDeleteBtn')?.addEventListener('click', bulkDelete);
+  $('bulkDownloadBtn')?.addEventListener('click', bulkDownload);
+  $('bulkCancelBtn')?.addEventListener('click', exitSelectMode);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.selectMode) exitSelectMode(); });
 
   // Bottom nav
   $('navFiles').addEventListener('click', loadHome);
@@ -5656,11 +5743,18 @@ function renderCloudGrid(accountId, items) {
         ${sizeStr ? `<div class="fc-meta">${sizeStr}</div>` : ''}
       </div>`;
 
-    // Show image thumbnail for image files
+    // Show image thumbnail for image files (use /thumb endpoint — much smaller than full file)
     const itemExt = (item.ext || '').toLowerCase();
     const isImageFile = item.mimeType ? item.mimeType.startsWith('image/') : ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.avif'].includes(itemExt);
     if (!isFolder && isImageFile) {
-      const thumbUrl = `/api/cloud/${encodeURIComponent(accountId)}/file?path=${encodeURIComponent(item.id)}`;
+      let thumbUrl;
+      if (item.thumbnailLink) {
+        // Google Drive provides a pre-built small thumbnail URL — proxy it through server to avoid CORS
+        thumbUrl = `/api/cloud/${encodeURIComponent(accountId)}/thumb?path=${encodeURIComponent(item.id)}&url=${encodeURIComponent(item.thumbnailLink)}`;
+      } else {
+        // Dropbox/OneDrive: use dedicated thumbnail endpoint (much smaller than full file)
+        thumbUrl = `/api/cloud/${encodeURIComponent(accountId)}/thumb?path=${encodeURIComponent(item.id)}`;
+      }
       const fcThumb = card.querySelector('.fc-thumb');
       if (fcThumb) {
         const img = document.createElement('img');

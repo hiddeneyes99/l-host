@@ -477,6 +477,76 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   contain-intrinsic-size: 0 220px;
 }
 .file-item:active { transform: scale(0.94); }
+
+/* ── Selection mode ─────────────────────────────────────────────────── */
+.file-item .sel-check {
+  display: none;
+  position: absolute;
+  top: 7px; left: 7px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.8);
+  background: rgba(0,0,0,0.35);
+  z-index: 10;
+  pointer-events: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.select-mode .file-item .sel-check { display: block; }
+.select-mode .file-item.selected .sel-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.select-mode .file-item.selected .sel-check::after {
+  content: '';
+  display: block;
+  width: 5px; height: 9px;
+  border: 2px solid #000;
+  border-top: none; border-left: none;
+  transform: rotate(45deg);
+  margin: 3px auto 0;
+}
+.select-mode .file-item.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.select-mode .file-item:active { transform: none; }
+.select-mode .file-item.dir-item { opacity: 0.45; pointer-events: none; }
+
+/* ── Bulk action bar ──────────────────────────────────────────────────── */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  animation: slideDown 0.18s ease;
+}
+@keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  flex: 1;
+}
+.bulk-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.bulk-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 7px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  border: none;
+}
+.bulk-btn:disabled { opacity: 0.4; pointer-events: none; }
+.bulk-btn svg { width: 14px; height: 14px; }
+.bulk-btn-dl { background: var(--accent); color: #000; }
+.bulk-btn-del { background: var(--danger, #e53935); color: #fff; }
+.bulk-btn-cancel { background: var(--bg3); color: var(--text2); }
+
 .file-item .thumb {
   aspect-ratio: 1;
   display: flex; align-items: center; justify-content: center;
@@ -1751,25 +1821,57 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 }
 .upload-file-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 5px;
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
 }
 .upload-file-row:last-child { border-bottom: none; }
+.upload-file-info {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.upload-file-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.upload-file-size {
+  font-size: 11px;
+  color: var(--text3);
+  flex-shrink: 0;
+}
+.upload-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.upload-progress-wrap .upload-progress {
+  flex: 1;
+}
+.upload-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  min-width: 28px;
+  text-align: right;
+}
 .upload-progress {
-  height: 3px;
+  height: 5px;
   background: var(--bg4);
-  border-radius: 2px;
-  margin-top: 4px;
+  border-radius: 3px;
   overflow: hidden;
 }
 .upload-progress-bar {
   height: 100%;
   background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.3s;
+  border-radius: 3px;
+  transition: width 0.25s;
 }
 .upload-actions {
   display: flex;

@@ -360,7 +360,28 @@
                   <line x1="3" y1="18" x2="3.01" y2="18" />
                 </svg>
               </button>
+              <button class="icon-btn" id="selectModeBtn" title="Select">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><polyline points="7 7 9 9 13 5"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+              </button>
             </div>
+          </div>
+        </div>
+        <!-- Bulk action bar — visible only in select mode -->
+        <div class="bulk-bar hidden" id="bulkBar">
+          <span class="bulk-count" id="bulkCount">Tap files to select</span>
+          <div class="bulk-actions">
+            <button class="bulk-btn bulk-btn-dl" id="bulkDownloadBtn" disabled>
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download
+            </button>
+            <button class="bulk-btn bulk-btn-del" id="bulkDeleteBtn" disabled>
+              <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              Delete
+            </button>
+            <button class="bulk-btn bulk-btn-cancel" id="bulkCancelBtn">
+              <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Cancel
+            </button>
           </div>
         </div>
         <div class="file-grid" id="fileGrid"></div>
