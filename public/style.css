@@ -4367,10 +4367,31 @@ img.lazy-img:not([src]) {
 .st-row-label { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; }
 .st-row-sub { font-size: 12px; color: var(--text2); }
 .st-setting-desc {
-  font-size: 12.5px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 13px;
+  background: rgba(0,212,200,0.05);
+  border: 1px solid rgba(0,212,200,0.12);
+  border-left: 2.5px solid rgba(0,212,200,0.5);
+  border-radius: 0 10px 10px 0;
+  margin-bottom: 12px;
+  font-size: 12px;
   color: var(--text2);
-  line-height: 1.55;
-  padding: 0 4px 2px;
+  line-height: 1.6;
+}
+.st-setting-desc::before {
+  content: 'ℹ';
+  font-size: 14px;
+  color: var(--accent);
+  flex-shrink: 0;
+  line-height: 1.35;
+  font-style: normal;
+}
+[data-theme="light"] .st-setting-desc {
+  background: rgba(0,180,170,0.06);
+  border-color: rgba(0,150,140,0.18);
+  border-left-color: rgba(0,150,140,0.55);
 }
 
 /* ── Theme dedicated row (below label row) ───────────────────────── */
