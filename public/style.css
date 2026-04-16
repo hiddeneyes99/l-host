@@ -6196,3 +6196,41 @@ img.lazy-img:not([src]) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ── TWH WATERMARK ── */
+.twh-watermark {
+  position: fixed;
+  bottom: 72px;
+  right: 12px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(0,212,200,0.22);
+  border-radius: 20px;
+  padding: 5px 11px;
+  text-decoration: none;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(0,212,200,0.65);
+  transition: all 0.25s;
+  pointer-events: all;
+}
+.twh-watermark span {
+  font-weight: 400;
+  opacity: 0.7;
+}
+.twh-watermark strong {
+  font-weight: 700;
+  color: #00d4c8;
+  letter-spacing: 0.12em;
+}
+.twh-watermark:hover {
+  background: rgba(0,212,200,0.12);
+  border-color: rgba(0,212,200,0.5);
+  color: #00d4c8;
+  transform: scale(1.06);
+  box-shadow: 0 0 16px rgba(0,212,200,0.15);
+}

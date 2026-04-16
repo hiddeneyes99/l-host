@@ -1,0 +1,26 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "NrrfN8nAjfYPQbXIWanCJ"
+uri = "file://public/creator/space-bg.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "R9erYq2jr-kiYxESxn3VZ"
+uri = "file://public/creator/afsar-avatar.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "SXFLvuGpiY_6mycHQxqXs"
+uri = "file://public/creator/twh-logo.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "TPGBFs6Je4PqBTm1Uu3yu"
+uri = "file://public/creator/title-bg.png"
+type = "image"
+title = "generated_image"
