@@ -987,6 +987,91 @@
       </div>
     </div>
 
+    <!-- ── WAN TUNNEL QUICK PANEL ── -->
+    <div class="modal hidden" id="wanQuickModal">
+      <div class="modal-backdrop" id="wanQuickBackdrop"></div>
+      <div class="wan-quick-modal">
+        <div class="player-header">
+          <button class="icon-btn" id="wanQuickClose">
+            <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+          <span class="player-title">WAN Tunnel</span>
+          <button class="icon-btn" id="quickWanRefreshBtn" title="Refresh">
+            <svg viewBox="0 0 24 24" id="quickWanRefreshIcon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
+        </div>
+        <div class="wan-quick-body">
+          <div class="wan-quick-hero">
+            <div class="wan-quick-icon">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg>
+            </div>
+            <div>
+              <div class="wan-quick-title">Remote access control</div>
+              <div class="wan-quick-sub">Start a temporary public HTTPS link, copy it, scan QR, or stop access from here.</div>
+            </div>
+            <div class="st-status-dot" id="quickWanDot"></div>
+          </div>
+
+          <div class="wan-quick-status">
+            <span id="quickWanStatusTxt">Checking…</span>
+          </div>
+
+          <div class="st-inset-box hidden" id="quickWanNoInstall">
+            <div class="st-inset-icon">⚠️</div>
+            <div class="st-inset-body">
+              <div class="st-inset-title">cloudflared not installed</div>
+              <div class="st-inset-sub" id="quickWanInstallPlatformTxt">Detecting platform…</div>
+              <button class="st-action-btn" id="quickWanInstallBtn">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Install cloudflared Automatically
+              </button>
+              <button class="st-mini-btn" id="quickWanInstallLogBtn" style="margin-top:6px;display:none">View Log</button>
+              <div class="hidden" id="quickWanInstallLogWrap">
+                <pre id="quickWanInstallLog" class="st-log-box"></pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="st-inset-box hidden" id="quickWanNoInternet">
+            <div class="st-inset-icon">📡</div>
+            <div class="st-inset-body">
+              <div class="st-inset-title">No internet connection</div>
+              <div class="st-inset-sub">Connect to internet to start WAN tunnel</div>
+            </div>
+          </div>
+
+          <div class="wan-url-box hidden" id="quickWanUrlBox">
+            <div class="st-url-row">
+              <svg viewBox="0 0 24 24" width="14" height="14" style="flex-shrink:0;color:var(--accent)"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span class="st-url-val" id="quickWanUrlVal"></span>
+              <button class="st-mini-btn" id="quickWanCopyBtn">Copy</button>
+            </div>
+            <button class="st-mini-btn" id="quickWanQrBtn" style="margin-top:8px">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              Show QR Code
+            </button>
+            <div class="lan-qr-collapse hidden" id="quickWanQrCollapse">
+              <div class="st-qr-wrap" style="margin-top:10px">
+                <img id="quickWanQrImg" class="st-qr-img" alt="WAN QR" />
+                <div class="st-qr-label">Scan to access from anywhere</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="wan-quick-actions">
+            <button class="st-action-btn" id="quickWanStartBtn">
+              <svg viewBox="0 0 24 24" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/></svg>
+              Start Tunnel
+            </button>
+            <button class="st-action-btn st-action-danger hidden" id="quickWanStopBtn">
+              <svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" stroke="none"/></svg>
+              Stop Tunnel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── UPLOAD MODAL ── -->
     <div class="modal hidden" id="uploadModal">
       <div class="modal-backdrop" id="uploadBackdrop"></div>

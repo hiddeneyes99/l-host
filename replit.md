@@ -65,7 +65,7 @@ ROOT_DIR=/ node server.js
 
 - Browse files and folders under the configured root directory
 - Home page storage summary with a compact used/free bar and a Manage details modal showing Images, Videos, Audio, Documents, Archives, APKs, Other, and System usage
-- Bottom navigation includes a right-side WAN shortcut that opens and highlights Cloudflare Tunnel controls for start/stop, public URL copy, QR code, refresh, and install flow
+- Bottom navigation includes a right-side WAN shortcut that opens a standalone Cloudflare Tunnel control panel for start/stop, public URL copy, QR code, refresh, and install flow
 - Custom Hevi Explorer branding with an SVG app logo, favicon, lock-screen mark, header lockup, and sidebar mark
 - Premium About page with English product copy, privacy-focused storytelling, route-aware animations, and back-button-safe navigation
 - Category filtering for videos, images, audio, files, archives, and APKs

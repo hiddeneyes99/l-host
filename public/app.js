@@ -3814,11 +3814,29 @@ function focusWanTunnelSection() {
 
 function openWanTunnelPanel() {
   setNavActive('navWan');
-  showSettings({ focusWan: true });
+  history.pushState({ lhost: true }, '');
+  openModal('wanQuickModal');
+  wanSyncUI();
 }
 
 // ── WAN Tunnel ─────────────────────────────────────────────────────────────
 let _wanPollTimer = null;
+
+function wanEls(baseId) {
+  return [$(baseId), $('quick' + baseId.charAt(0).toUpperCase() + baseId.slice(1))].filter(Boolean);
+}
+
+function setAllWanText(baseId, text) {
+  wanEls(baseId).forEach(el => { el.textContent = text; });
+}
+
+function toggleAllWan(baseId, hidden) {
+  wanEls(baseId).forEach(el => el.classList.toggle('hidden', hidden));
+}
+
+function setAllWanDisabled(baseId, disabled) {
+  wanEls(baseId).forEach(el => { el.disabled = disabled; });
+}
 
 function wanSyncUI() {
   fetch('/api/wan/status').then(r => r.json()).then(d => {
@@ -3828,15 +3846,9 @@ function wanSyncUI() {
 }
 
 function _wanApplyState(d) {
-  const dot      = $('wanDot');
-  const txt      = $('wanStatusTxt');
-  const urlBox   = $('wanUrlBox');
-  const startBtn = $('wanStartBtn');
-  const stopBtn  = $('wanStopBtn');
   const iconWrap = $('wanIconWrap');
-  if (!dot) return;
 
-  dot.className = 'wan-dot wan-dot-' + d.status;
+  wanEls('wanDot').forEach(dot => { dot.className = 'st-status-dot wan-dot-' + d.status; });
 
   const iconColors = { stopped:'s-icon-green', starting:'s-icon-teal', running:'s-icon-green', error:'s-icon-red' };
   if (iconWrap) {
@@ -3844,32 +3856,31 @@ function _wanApplyState(d) {
   }
 
   if (d.status === 'stopped') {
-    txt.textContent = 'Not running';
-    if (urlBox) urlBox.classList.add('hidden');
-    if (startBtn) { startBtn.classList.remove('hidden'); startBtn.disabled = false; }
-    if (stopBtn) stopBtn.classList.add('hidden');
+    setAllWanText('wanStatusTxt', 'Not running');
+    toggleAllWan('wanUrlBox', true);
+    toggleAllWan('wanStartBtn', false);
+    setAllWanDisabled('wanStartBtn', false);
+    toggleAllWan('wanStopBtn', true);
     clearInterval(_wanPollTimer); _wanPollTimer = null;
   } else if (d.status === 'starting') {
-    txt.textContent = 'Starting tunnel…';
-    if (urlBox) urlBox.classList.add('hidden');
-    if (startBtn) startBtn.classList.add('hidden');
-    if (stopBtn) stopBtn.classList.remove('hidden');
+    setAllWanText('wanStatusTxt', 'Starting tunnel…');
+    toggleAllWan('wanUrlBox', true);
+    toggleAllWan('wanStartBtn', true);
+    toggleAllWan('wanStopBtn', false);
   } else if (d.status === 'running') {
-    txt.textContent = 'Active — tunnel is live';
-    const urlVal = $('wanUrlVal');
-    if (urlVal) urlVal.textContent = d.url;
-    if (urlBox) {
-      urlBox.classList.remove('hidden');
-      anime({ targets: '#wanUrlBox', opacity: [0,1], translateY: [-6,0], duration: 400, easing: 'easeOutQuad' });
-    }
-    if (startBtn) startBtn.classList.add('hidden');
-    if (stopBtn) stopBtn.classList.remove('hidden');
+    setAllWanText('wanStatusTxt', 'Active — tunnel is live');
+    wanEls('wanUrlVal').forEach(el => { el.textContent = d.url; });
+    toggleAllWan('wanUrlBox', false);
+    anime({ targets: '#wanUrlBox,#quickWanUrlBox', opacity: [0,1], translateY: [-6,0], duration: 400, easing: 'easeOutQuad' });
+    toggleAllWan('wanStartBtn', true);
+    toggleAllWan('wanStopBtn', false);
     clearInterval(_wanPollTimer); _wanPollTimer = null;
   } else if (d.status === 'error') {
-    txt.textContent = '⚠️ ' + (d.error || 'Error starting tunnel');
-    if (urlBox) urlBox.classList.add('hidden');
-    if (startBtn) { startBtn.classList.remove('hidden'); startBtn.disabled = false; }
-    if (stopBtn) stopBtn.classList.add('hidden');
+    setAllWanText('wanStatusTxt', '⚠️ ' + (d.error || 'Error starting tunnel'));
+    toggleAllWan('wanUrlBox', true);
+    toggleAllWan('wanStartBtn', false);
+    setAllWanDisabled('wanStartBtn', false);
+    toggleAllWan('wanStopBtn', true);
     clearInterval(_wanPollTimer); _wanPollTimer = null;
     toast(d.error || 'Tunnel error', 'error');
   }
@@ -3888,27 +3899,21 @@ const _platformLabels = {
 async function wanCheck() {
   try {
     const d = await fetchJson('/api/wan/check');
-    const noInstall = $('wanNoInstall');
-    const noInternet = $('wanNoInternet');
-    const startBtn = $('wanStartBtn');
-    if (noInstall) noInstall.classList.toggle('hidden', d.cloudflaredInstalled);
-    if (noInternet) noInternet.classList.toggle('hidden', !d.cloudflaredInstalled || d.internetAvailable);
-    if (startBtn) startBtn.disabled = !d.cloudflaredInstalled || !d.internetAvailable;
+    toggleAllWan('wanNoInstall', d.cloudflaredInstalled);
+    toggleAllWan('wanNoInternet', !d.cloudflaredInstalled || d.internetAvailable);
+    setAllWanDisabled('wanStartBtn', !d.cloudflaredInstalled || !d.internetAvailable);
 
     // Update install platform text
     if (!d.cloudflaredInstalled && d.platform) {
       const pl = _platformLabels[d.platform] || _platformLabels.unknown;
-      const ptxt = $('wanInstallPlatformTxt');
-      if (ptxt) ptxt.innerHTML = `Detected: <strong>${pl.name}</strong><br>Tap <em>Install cloudflared</em> to set up automatically.`;
-      // Hide install button for macOS/windows (not auto-supported)
-      const installBtn = $('wanInstallBtn');
-      if (installBtn) {
-        const canAuto = ['termux','kali','debian','linux'].includes(d.platform);
+      const canAuto = ['termux','kali','debian','linux'].includes(d.platform);
+      wanEls('wanInstallPlatformTxt').forEach(ptxt => {
+        ptxt.innerHTML = `Detected: <strong>${pl.name}</strong><br>Tap <em>Install cloudflared</em> to set up automatically.`;
+        if (!canAuto) ptxt.innerHTML += `<br><code>${pl.cmd}</code>`;
+      });
+      wanEls('wanInstallBtn').forEach(installBtn => {
         installBtn.style.display = canAuto ? '' : 'none';
-        if (!canAuto) {
-          if (ptxt) ptxt.innerHTML += `<br><code>${pl.cmd}</code>`;
-        }
-      }
+      });
     }
 
     return d;
@@ -3916,21 +3921,20 @@ async function wanCheck() {
 }
 
 async function wanStart() {
-  const btn = $('wanStartBtn');
-  btn.disabled = true;
+  setAllWanDisabled('wanStartBtn', true);
   const chk = await wanCheck();
   if (!chk.cloudflaredInstalled) {
     toast('cloudflared not installed. Install via: pkg install cloudflared', 'error');
-    btn.disabled = false; return;
+    setAllWanDisabled('wanStartBtn', false); return;
   }
   if (!chk.internetAvailable) {
     toast('No internet connection. Please connect to the internet first.', 'error');
-    btn.disabled = false; return;
+    setAllWanDisabled('wanStartBtn', false); return;
   }
   try {
     const r = await fetch('/api/wan/start', { method: 'POST' });
     const d = await r.json();
-    if (!d.ok) { toast(d.error || 'Failed to start tunnel', 'error'); btn.disabled = false; return; }
+    if (!d.ok) { toast(d.error || 'Failed to start tunnel', 'error'); setAllWanDisabled('wanStartBtn', false); return; }
     _wanApplyState({ status: 'starting' });
     _wanPollTimer = setInterval(() => {
       fetch('/api/wan/status').then(r => r.json()).then(d => {
@@ -3938,18 +3942,17 @@ async function wanStart() {
       }).catch(() => {});
     }, 1500);
   } catch (e) { toast(e.message, 'error'); }
-  btn.disabled = false;
+  setAllWanDisabled('wanStartBtn', false);
 }
 
 async function wanStop() {
-  const btn = $('wanStopBtn');
-  btn.disabled = true;
+  setAllWanDisabled('wanStopBtn', true);
   try {
     await fetch('/api/wan/stop', { method: 'POST' });
-    anime({ targets: ['#wanUrlBox','#wanQrWrap'], opacity: [1,0], translateY: [0,-8], duration: 300, easing: 'easeInQuad',
+    anime({ targets: ['#wanUrlBox','#quickWanUrlBox'], opacity: [1,0], translateY: [0,-8], duration: 300, easing: 'easeInQuad',
       complete: () => { _wanApplyState({ status: 'stopped' }); } });
   } catch (e) { toast(e.message, 'error'); }
-  btn.disabled = false;
+  setAllWanDisabled('wanStopBtn', false);
 }
 
 // ── Update Checker ─────────────────────────────────────────────────────────
@@ -4267,34 +4270,48 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── WAN Tunnel ─────────────────────────────────────────────────────────
   $('wanStartBtn').addEventListener('click', wanStart);
   $('wanStopBtn').addEventListener('click', wanStop);
+  $('quickWanStartBtn') && $('quickWanStartBtn').addEventListener('click', wanStart);
+  $('quickWanStopBtn') && $('quickWanStopBtn').addEventListener('click', wanStop);
   $('wanRefreshBtn').addEventListener('click', () => {
     anime({ targets: '#wanRefreshIcon', rotate: '360deg', duration: 600, easing: 'easeInOutQuad' });
     setTimeout(() => { if ($('wanRefreshIcon')) $('wanRefreshIcon').style.transform = ''; }, 700);
     wanSyncUI();
   });
-  $('wanCopyBtn').addEventListener('click', () => {
-    const url = ($('wanUrlVal') || {}).textContent || '';
+  $('quickWanRefreshBtn') && $('quickWanRefreshBtn').addEventListener('click', () => {
+    anime({ targets: '#quickWanRefreshIcon', rotate: '360deg', duration: 600, easing: 'easeInOutQuad' });
+    setTimeout(() => { if ($('quickWanRefreshIcon')) $('quickWanRefreshIcon').style.transform = ''; }, 700);
+    wanSyncUI();
+  });
+  const copyWanUrl = () => {
+    const url = (($('quickWanUrlVal') || {}).textContent || ($('wanUrlVal') || {}).textContent || '').trim();
     if (!url) return;
     navigator.clipboard.writeText(url).then(() => toast('Link copied!', 'success')).catch(() => {
       const ta = document.createElement('textarea');
       ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
       toast('Link copied!', 'success');
     });
-  });
-  $('wanQrBtn') && $('wanQrBtn').addEventListener('click', () => {
-    const collapse = $('wanQrCollapse');
+  };
+  $('wanCopyBtn').addEventListener('click', copyWanUrl);
+  $('quickWanCopyBtn') && $('quickWanCopyBtn').addEventListener('click', copyWanUrl);
+  const toggleWanQr = (collapseId, imgId, btnId) => {
+    const collapse = $(collapseId);
+    const img = $(imgId);
+    const btn = $(btnId);
+    if (!collapse || !img || !btn) return;
     const isHidden = collapse.classList.contains('hidden');
     if (isHidden) {
-      $('wanQrImg').src = '/api/wan/qr?' + Date.now();
+      img.src = '/api/wan/qr?' + Date.now();
       collapse.classList.remove('hidden');
-      anime({ targets: '#wanQrCollapse', opacity:[0,1], translateY:[-10,0], duration:400, easing:'easeOutQuad' });
-      $('wanQrBtn').textContent = '🔼 Hide QR Code';
+      anime({ targets: '#' + collapseId, opacity:[0,1], translateY:[-10,0], duration:400, easing:'easeOutQuad' });
+      btn.textContent = '🔼 Hide QR Code';
     } else {
-      anime({ targets: '#wanQrCollapse', opacity:[1,0], translateY:[0,-10], duration:300, easing:'easeInQuad',
+      anime({ targets: '#' + collapseId, opacity:[1,0], translateY:[0,-10], duration:300, easing:'easeInQuad',
         complete: () => collapse.classList.add('hidden') });
-      $('wanQrBtn').innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Show QR Code';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Show QR Code';
     }
-  });
+  };
+  $('wanQrBtn') && $('wanQrBtn').addEventListener('click', () => toggleWanQr('wanQrCollapse', 'wanQrImg', 'wanQrBtn'));
+  $('quickWanQrBtn') && $('quickWanQrBtn').addEventListener('click', () => toggleWanQr('quickWanQrCollapse', 'quickWanQrImg', 'quickWanQrBtn'));
 
   // ── About Page Navigation ─────────────────────────────────────────────────
   let _aboutAnimFrame = null;
@@ -4375,43 +4392,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── WAN Install Button ───────────────────────────────────────────────────
   let _wanInstallPoll = null;
-  $('wanInstallBtn') && $('wanInstallBtn').addEventListener('click', async () => {
-    const btn = $('wanInstallBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Installing…';
-    const logWrap = $('wanInstallLogWrap');
-    const logEl = $('wanInstallLog');
-    const logBtn = $('wanInstallLogBtn');
-    logWrap.classList.remove('hidden');
-    if (logEl) logEl.textContent = 'Starting install…\n';
-    if (logBtn) logBtn.style.display = '';
+  const startWanInstall = async () => {
+    wanEls('wanInstallBtn').forEach(btn => {
+      btn.disabled = true;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Installing…';
+    });
+    wanEls('wanInstallLogWrap').forEach(el => el.classList.remove('hidden'));
+    wanEls('wanInstallLog').forEach(el => { el.textContent = 'Starting install…\n'; });
+    wanEls('wanInstallLogBtn').forEach(el => { el.style.display = ''; });
     try {
       const r = await fetch('/api/wan/install', { method:'POST' });
       const d = await r.json();
-      if (!d.ok) { toast(d.error || 'Install failed', 'error'); btn.disabled = false; btn.innerHTML = '↓ Install cloudflared'; return; }
-    } catch(e) { toast('Could not start install: ' + e.message, 'error'); btn.disabled = false; return; }
+      if (!d.ok) {
+        toast(d.error || 'Install failed', 'error');
+        wanEls('wanInstallBtn').forEach(btn => { btn.disabled = false; btn.innerHTML = '↓ Install cloudflared'; });
+        return;
+      }
+    } catch(e) {
+      toast('Could not start install: ' + e.message, 'error');
+      wanEls('wanInstallBtn').forEach(btn => { btn.disabled = false; });
+      return;
+    }
     clearInterval(_wanInstallPoll);
     _wanInstallPoll = setInterval(async () => {
       try {
         const s = await fetchJson('/api/wan/install-status');
-        if (logEl) { logEl.textContent = s.log || ''; logEl.scrollTop = logEl.scrollHeight; }
+        wanEls('wanInstallLog').forEach(logEl => {
+          logEl.textContent = s.log || '';
+          logEl.scrollTop = logEl.scrollHeight;
+        });
         if (s.state === 'done') {
           clearInterval(_wanInstallPoll); _wanInstallPoll = null;
-          btn.innerHTML = '✓ Installed!';
+          wanEls('wanInstallBtn').forEach(btn => { btn.innerHTML = '✓ Installed!'; btn.disabled = false; });
           toast('cloudflared installed! Starting WAN check…', 'success');
           setTimeout(() => {
-            $('wanNoInstall').classList.add('hidden');
+            toggleAllWan('wanNoInstall', true);
             wanCheck();
           }, 1500);
         } else if (s.state === 'error') {
           clearInterval(_wanInstallPoll); _wanInstallPoll = null;
-          btn.disabled = false;
-          btn.innerHTML = '↓ Retry Install';
+          wanEls('wanInstallBtn').forEach(btn => {
+            btn.disabled = false;
+            btn.innerHTML = '↓ Retry Install';
+          });
           toast('Install error: ' + (s.error || 'Unknown'), 'error');
         }
       } catch(_) {}
     }, 1000);
-  });
+  };
+  $('wanInstallBtn') && $('wanInstallBtn').addEventListener('click', startWanInstall);
+  $('quickWanInstallBtn') && $('quickWanInstallBtn').addEventListener('click', startWanInstall);
+  $('wanInstallLogBtn') && $('wanInstallLogBtn').addEventListener('click', () => $('wanInstallLogWrap').classList.toggle('hidden'));
+  $('quickWanInstallLogBtn') && $('quickWanInstallLogBtn').addEventListener('click', () => $('quickWanInstallLogWrap').classList.toggle('hidden'));
 
   // ── LAN QR Toggle ───────────────────────────────────────────────────────
   $('lanQrBtn') && $('lanQrBtn').addEventListener('click', () => {
@@ -4455,7 +4487,7 @@ document.addEventListener('DOMContentLoaded', () => {
       history.replaceState({ lhost: true }, '');
       return;
     }
-    const modals = ['textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal'];
+    const modals = ['textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal','wanQuickModal'];
     for (const id of modals) {
       if (!$(id).classList.contains('hidden')) {
         closeModal(id);
@@ -4597,17 +4629,17 @@ document.addEventListener('DOMContentLoaded', () => {
   $('navWan').addEventListener('click', openWanTunnelPanel);
 
    // Non-video modals close (image viewer handled by ivInit)
-  ['audio','text','settings','upload','pdf','archive','storage'].forEach(name => {
+  ['audio','text','settings','upload','pdf','archive','storage','wanQuick'].forEach(name => {
     $(`${name}Close`).addEventListener('click', () => {
       if (name === 'pdf') _cancelPdf();
       closeModal(`${name}Modal`);
-      if (name === 'settings') history.back();
+      if (name === 'settings' || name === 'wanQuick') history.back();
     });
     const bd = $(`${name}Backdrop`);
     if (bd) bd.addEventListener('click', () => {
       if (name === 'pdf') _cancelPdf();
       closeModal(`${name}Modal`);
-      if (name === 'settings') history.back();
+      if (name === 'settings' || name === 'wanQuick') history.back();
     });
   });
 
@@ -4757,7 +4789,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (e.key === 'Escape') {
       if (videoOpen) { closeVideo(); return; }
-      ['audioModal','textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal'].forEach(id => {
+      ['audioModal','textModal','settingsModal','uploadModal','folderModal','pdfModal','archiveModal','storageModal','wanQuickModal'].forEach(id => {
         if (!$(id).classList.contains('hidden')) {
           if (id === 'pdfModal') _cancelPdf();
           closeModal(id);
