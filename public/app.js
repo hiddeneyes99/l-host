@@ -4696,6 +4696,55 @@ document.addEventListener('DOMContentLoaded', () => {
     _aboutAnimFrame = requestAnimationFrame(tick);
   }
 
+  // Sections open by default (0-indexed among .ab-section elements)
+  // 2 = Core Features, 5 = Cloud Storage, 9 = Creator, 10 = TWH
+  const ABOUT_OPEN_DEFAULT = new Set([2, 5, 9, 10]);
+
+  function initAboutAccordion() {
+    const page = $('stAboutPage');
+    if (!page || page.dataset.accInit) return;
+    page.dataset.accInit = '1';
+
+    const chevronSVG = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+    page.querySelectorAll('.ab-section').forEach((section, idx) => {
+      const head = section.querySelector('.ab-section-head');
+      if (!head) return;
+
+      // Collect all children that come after the head
+      const allChildren = Array.from(section.childNodes);
+      const headIdx = allChildren.indexOf(head);
+      const bodyNodes = allChildren.slice(headIdx + 1).filter(n => !(n.nodeType === 3 && !n.textContent.trim()));
+
+      // Wrap body in accordion shell
+      const inner = document.createElement('div');
+      inner.className = 'ab-acc-inner';
+      bodyNodes.forEach(n => inner.appendChild(n));
+
+      const body = document.createElement('div');
+      body.className = 'ab-acc-body';
+      body.appendChild(inner);
+      section.appendChild(body);
+
+      // Add chevron to head
+      const chev = document.createElement('span');
+      chev.className = 'ab-acc-chevron';
+      chev.innerHTML = chevronSVG;
+      head.appendChild(chev);
+      head.classList.add('ab-acc-trigger');
+
+      // Apply default open/collapsed state
+      if (ABOUT_OPEN_DEFAULT.has(idx)) {
+        section.classList.add('ab-acc-open');
+      }
+
+      // Toggle on click
+      head.addEventListener('click', () => {
+        section.classList.toggle('ab-acc-open');
+      });
+    });
+  }
+
   function openAboutPage(pushHistory = true) {
     const page = $('stAboutPage');
     if (!page) return;
@@ -4706,6 +4755,7 @@ document.addEventListener('DOMContentLoaded', () => {
       history.pushState({ lhost: true, modal: 'settingsModal', subpage: 'about' }, '');
       _aboutHistoryOpen = true;
     }
+    initAboutAccordion();
     page.classList.remove('hidden', 'slide-out');
     requestAnimationFrame(() => {
       page.classList.add('active');

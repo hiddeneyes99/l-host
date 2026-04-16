@@ -5500,6 +5500,49 @@ img.lazy-img:not([src]) {
   line-height: 1.55;
 }
 
+/* ── ABOUT ACCORDION ───────────────────────────────────────────────────── */
+.ab-acc-trigger {
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0 !important;
+  transition: opacity .15s;
+}
+.ab-acc-trigger:active { opacity: .75; }
+
+.ab-acc-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text3);
+  transition: transform .38s cubic-bezier(.16,1,.3,1), color .2s;
+}
+.ab-acc-open .ab-acc-chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+/* Grid trick — smooth collapse with no JS height measurement */
+.ab-acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .4s cubic-bezier(.16,1,.3,1), padding .4s cubic-bezier(.16,1,.3,1);
+  padding-top: 0;
+}
+.ab-acc-open .ab-acc-body {
+  grid-template-rows: 1fr;
+  padding-top: 13px;
+}
+.ab-acc-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Section head hover ring when it's a trigger */
+.ab-section .ab-acc-trigger:hover .ab-section-icon {
+  box-shadow: 0 0 0 3px rgba(37,244,208,.18);
+}
+
 [data-theme="light"] .ab-cloud-prov  { background: rgba(255,255,255,.7); }
 [data-theme="light"] .ab-cp-google   { background: rgba(66,133,244,.1); }
 [data-theme="light"] .ab-cp-dropbox  { background: rgba(0,97,252,.1); }
