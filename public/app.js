@@ -5703,15 +5703,27 @@ function renderCloudBreadcrumb(accountId) {
   });
 }
 
+function cloudItemCategory(item) {
+  const ext = (item.ext || '').toLowerCase();
+  if (item.type === 'dir') return 'dir';
+  if (item.mimeType) {
+    if (item.mimeType.startsWith('image/')) return 'image';
+    if (item.mimeType.startsWith('video/')) return 'video';
+    if (item.mimeType.startsWith('audio/')) return 'audio';
+  }
+  if (['.jpg','.jpeg','.png','.gif','.webp','.bmp','.avif','.svg','.heic','.heif'].includes(ext)) return 'image';
+  if (['.mp4','.mkv','.avi','.mov','.webm','.m4v','.ts','.flv','.wmv'].includes(ext)) return 'video';
+  if (['.mp3','.flac','.wav','.aac','.m4a','.ogg','.opus','.wma'].includes(ext)) return 'audio';
+  if (['.zip','.rar','.7z','.tar','.gz','.tgz','.bz2','.xz'].includes(ext)) return 'archive';
+  return 'file';
+}
+
 function renderCloudGrid(accountId, items) {
   const grid = $('cloudGrid');
   if (!items.length) {
     grid.innerHTML = `<div class="empty-state"><p>This folder is empty</p></div>`;
     return;
   }
-
-  const acc = _cloudAccounts.find(a => a.id === accountId);
-  const provider = acc ? acc.provider : '';
 
   const sorted = [...items].sort((a, b) => {
     if (a.type === 'dir' && b.type !== 'dir') return -1;
@@ -5721,63 +5733,60 @@ function renderCloudGrid(accountId, items) {
 
   grid.innerHTML = '';
   for (const item of sorted) {
-    const card = document.createElement('div');
-    const isFolder = item.type === 'dir';
-    const ext = (item.ext || '').toLowerCase();
-    const visual = isFolder ? { icon: '📁', className: 'file-type-folder' } : fileVisual(item);
+    const el    = document.createElement('div');
+    const isDir = item.type === 'dir';
+    const ext   = (item.ext || '').toLowerCase();
+    const cat   = cloudItemCategory(item);
 
-    card.className = `file-card ${visual.className || ''}`;
-    card.dataset.cloudItemId = item.id;
-    card.dataset.cloudItemName = item.name;
-    card.dataset.cloudItemType = item.type;
+    // Build a local-compatible fake item so fileThumbHtml / fileVisual work correctly
+    const fakeItem = { name: item.name, ext, category: cat, type: item.type, path: '' };
 
-    const sizeStr = (!isFolder && item.size) ? fmtBytes(item.size) : '';
+    el.className = 'file-item' + (isDir ? ' dir-item' : '');
+    el.dataset.cloudItemId = item.id;
 
-    card.innerHTML = `
-      <div class="fc-thumb">
-        <div class="fc-icon">${visual.icon || '📄'}</div>
-        ${visual.label ? `<div class="fc-type-badge">${visual.label}</div>` : ''}
-      </div>
-      <div class="fc-info">
-        <div class="fc-name">${escHtml(item.name)}</div>
-        ${sizeStr ? `<div class="fc-meta">${sizeStr}</div>` : ''}
+    // Thumbnail HTML — identical structure to createItemEl
+    let thumbHtml;
+    if (isDir) {
+      thumbHtml = `<div class="thumb"><span class="dir-icon">📁</span></div>`;
+    } else if (cat === 'image') {
+      // Placeholder — real thumbnail injected below
+      thumbHtml = `<div class="thumb" style="background:var(--bg3)"></div>`;
+    } else {
+      thumbHtml = fileThumbHtml(fakeItem);
+    }
+
+    const sizeStr = (!isDir && item.size) ? fmtBytes(item.size) : '';
+
+    el.innerHTML = `${thumbHtml}
+      <div class="item-info">
+        <div class="item-name">${escHtml(item.name)}</div>
+        <div class="item-size">${sizeStr}</div>
       </div>`;
 
-    // Show image thumbnail for image files (use /thumb endpoint — much smaller than full file)
-    const itemExt = (item.ext || '').toLowerCase();
-    const isImageFile = item.mimeType ? item.mimeType.startsWith('image/') : ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.avif'].includes(itemExt);
-    if (!isFolder && isImageFile) {
-      let thumbUrl;
-      if (item.thumbnailLink) {
-        // Google Drive provides a pre-built small thumbnail URL — proxy it through server to avoid CORS
-        thumbUrl = `/api/cloud/${encodeURIComponent(accountId)}/thumb?path=${encodeURIComponent(item.id)}&url=${encodeURIComponent(item.thumbnailLink)}`;
-      } else {
-        // Dropbox/OneDrive: use dedicated thumbnail endpoint (much smaller than full file)
-        thumbUrl = `/api/cloud/${encodeURIComponent(accountId)}/thumb?path=${encodeURIComponent(item.id)}`;
-      }
-      const fcThumb = card.querySelector('.fc-thumb');
-      if (fcThumb) {
+    // Inject thumbnail image for image files (uses /thumb — much smaller than full file)
+    if (!isDir && cat === 'image') {
+      const thumbUrl = item.thumbnailLink
+        ? `/api/cloud/${encodeURIComponent(accountId)}/thumb?path=${encodeURIComponent(item.id)}&url=${encodeURIComponent(item.thumbnailLink)}`
+        : `/api/cloud/${encodeURIComponent(accountId)}/thumb?path=${encodeURIComponent(item.id)}`;
+      const thumbDiv = el.querySelector('.thumb');
+      if (thumbDiv) {
         const img = document.createElement('img');
-        img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;opacity:0;transition:opacity .25s';
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .25s';
         img.decoding = 'async';
         img.loading = 'lazy';
-        img.onload = () => { img.style.opacity = '1'; };
+        img.onload  = () => { img.style.opacity = '1'; };
         img.onerror = () => { img.remove(); };
         img.src = thumbUrl;
-        fcThumb.style.position = 'relative';
-        fcThumb.style.overflow = 'hidden';
-        fcThumb.appendChild(img);
+        thumbDiv.appendChild(img);
       }
     }
 
-    card.addEventListener('click', () => {
-      if (isFolder) {
-        loadCloudFiles(accountId, item.id, item.name);
-      } else {
-        openCloudFile(accountId, item);
-      }
+    el.addEventListener('click', () => {
+      if (isDir) loadCloudFiles(accountId, item.id, item.name);
+      else openCloudFile(accountId, item);
     });
-    grid.appendChild(card);
+
+    grid.appendChild(el);
   }
 }
 

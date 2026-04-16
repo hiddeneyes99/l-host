@@ -1,0 +1,15 @@
+{
+  "accounts": [
+    {
+      "id": "d809d079-04f8-4085-b784-2d4f76839182",
+      "provider": "gdrive",
+      "label": "my",
+      "clientId": "860644858506-6v7610qi8j8jocec1jn0muveh9sb183u.apps.googleusercontent.com",
+      "clientSecret": "{\"iv\":\"SXZ4Gd1Xy/hsydVg\",\"tag\":\"jG/sBxBYbM7U5XSeDMrBNw==\",\"data\":\"nIh05EoEZnEpIiyOH9DIWiZx7ws0hU34gM66m0XGL2Qiwiw=\"}",
+      "accessToken": "{\"iv\":\"jv/zNKJGP+LsEweG\",\"tag\":\"GavaMiMk0ROuPfX9C5ZV8w==\",\"data\":\"77qAQnqZiNrFkFW9sFe9cRogMMAzOB0oPk/fIlKK+W9EW9HssmMSc0c/kNG3uiPydSgPlh9o2dvFCr4BBgP64BNgYPKHaZInj0cvuWmqvokevqG4qXvIXBWqQykmIx1G+ICo3lNgjsJDrC/XogU22odRgpKrd4Xo2Sdf4w5uk5pCYQs+5qpeiAnJ0fcfJNgkvWjJIlIOoI6CAu3S2ZH4vsW5Dv11CIAe/RngVSk4Vm2HNG9GouxGWItq1TAO+PvPQneJJYDt+6FOM5zXGwe6+RMlO8qbtnrTVKpIOs1+7iz9jtt31H2iY0gnKiY8VrZogUhgRZXfnclwRjwtsw==\"}",
+      "refreshToken": "{\"iv\":\"oLJcHohveMwZdREi\",\"tag\":\"hfORhhpbGhpbQhoG6M0O9w==\",\"data\":\"QVokrOK3hzprwOR7mm+WgxdVfXI5pvOD/ni1cS8gRR7ftw+zNOD1NTVvh0xaOE0IUvml2OjgnMq2sKmrNGNm7735Y1DKEcKhUmC9ge50mRtPj4wZq64v3oJxHiZIlUWXR4VyIlT/nw==\"}",
+      "tokenExpiry": 1776341895294,
+      "sharedWith": "none"
+    }
+  ]
+}
