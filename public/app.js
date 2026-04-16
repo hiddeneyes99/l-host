@@ -6107,249 +6107,593 @@ async function saveCloudShare() {
 loadCloudSection();
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  TWH CINEMATIC PAGE
+//  TWH CINEMATIC PAGE — SPACE THEME
 // ═══════════════════════════════════════════════════════════════════════════
 
 (function () {
+  'use strict';
+
+  // ── Constants ─────────────────────────────────────────────────────────────
   const QUOTE = "I don't wait for tools to exist. I build them.";
-  let _cmOpen = false;
-  let _particleRAF = null;
-  let _particles = [];
-  let _cmAudioCtx = null;
 
-  // ── Sound: cinematic ambient sting ──────────────────────────────────────
-  function playTwhSound() {
-    try {
-      const ctx = _cmAudioCtx || (_cmAudioCtx = new (window.AudioContext || window.webkitAudioContext)());
-      if (ctx.state === 'suspended') ctx.resume();
-      const t = ctx.currentTime;
+  // ── State ──────────────────────────────────────────────────────────────────
+  let _open = false;
+  let _starRAF = null;
+  let _stars = [];
+  let _shootingStar = null;
+  let _starBursts = [];
+  let _bangParticles = [];
+  let _bangRAF = null;
+  let _logoParticles = [];
+  let _logoRAF = null;
+  let _revealObs = null;
+  let _musicMuted = false;
+  let _sceneQuoteDone = false;
 
-      // Low cinematic hit
-      const hit = ctx.createOscillator();
-      const hitGain = ctx.createGain();
-      hit.connect(hitGain); hitGain.connect(ctx.destination);
-      hit.type = 'sawtooth';
-      hit.frequency.setValueAtTime(55, t);
-      hit.frequency.exponentialRampToValueAtTime(38, t + 0.9);
-      hitGain.gain.setValueAtTime(0.22, t);
-      hitGain.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
-      hit.start(t); hit.stop(t + 1.2);
+  // ── DOM helpers ────────────────────────────────────────────────────────────
+  const q = id => document.getElementById(id);
 
-      // Harmonic tones — cinematic chord
-      [[261.63, .055], [329.63, .04], [196, .035], [523.25, .025]].forEach(([freq, vol], i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
-        osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
-        osc.type = 'sine';
-        filter.type = 'lowpass';
-        filter.frequency.value = 1200;
-        osc.frequency.setValueAtTime(freq, t);
-        gain.gain.setValueAtTime(0, t + i * 0.12);
-        gain.gain.linearRampToValueAtTime(vol, t + 0.4 + i * 0.12);
-        gain.gain.setValueAtTime(vol, t + 1.5);
-        gain.gain.exponentialRampToValueAtTime(0.001, t + 4);
-        osc.start(t + i * 0.12);
-        osc.stop(t + 4.5);
-      });
-
-      // High shimmer
-      const shimmer = ctx.createOscillator();
-      const shimGain = ctx.createGain();
-      shimmer.connect(shimGain); shimGain.connect(ctx.destination);
-      shimmer.type = 'sine';
-      shimmer.frequency.setValueAtTime(2200, t + 0.1);
-      shimmer.frequency.exponentialRampToValueAtTime(1800, t + 0.5);
-      shimGain.gain.setValueAtTime(0, t + 0.1);
-      shimGain.gain.linearRampToValueAtTime(0.018, t + 0.25);
-      shimGain.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
-      shimmer.start(t + 0.1); shimmer.stop(t + 2);
-    } catch (_) { /* Audio not available */ }
-  }
-
-  // ── Typewriter effect ───────────────────────────────────────────────────
-  function typeWriter(el, text, delay = 38) {
-    el.textContent = '';
-    el.classList.remove('twh-typed');
-    let i = 0;
-    const timer = setInterval(() => {
-      el.textContent += text[i];
-      i++;
-      if (i >= text.length) {
-        clearInterval(timer);
-        el.classList.add('twh-typed');
-      }
-    }, delay);
-    return timer;
-  }
-
-  // ── Counter animation ───────────────────────────────────────────────────
-  function animateCounters() {
-    document.querySelectorAll('#twhCinematicModal .twh-cm-stat-num[data-target]').forEach(el => {
-      const target = parseInt(el.dataset.target, 10);
-      const suffix = el.dataset.suffix || '';
-      const prefix = el.dataset.prefix || '';
-      if (target === 0) { el.textContent = prefix + '0' + suffix; return; }
-      let current = 0;
-      const increment = Math.ceil(target / 48);
-      const timer = setInterval(() => {
-        current = Math.min(current + increment, target);
-        el.textContent = prefix + current.toLocaleString() + suffix;
-        if (current >= target) clearInterval(timer);
-      }, 28);
-    });
-  }
-
-  // ── Particle canvas ─────────────────────────────────────────────────────
-  function initParticles() {
-    const canvas = document.getElementById('twhParticleCanvas');
+  // ── Star Field ─────────────────────────────────────────────────────────────
+  function initStars() {
+    const canvas = q('twhStarCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    _particles = Array.from({ length: 55 }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      r: Math.random() * 1.6 + 0.4,
-      vx: (Math.random() - 0.5) * 0.38,
-      vy: (Math.random() - 0.5) * 0.38,
-      alpha: Math.random() * 0.5 + 0.15,
-      color: Math.random() > 0.55 ? '37,244,208' : Math.random() > 0.5 ? '47,140,255' : '168,85,247'
+    const W = canvas.width, H = canvas.height;
+    const COLORS = ['255,255,255', '180,230,255', '200,255,245', '255,220,180'];
+
+    _stars = Array.from({ length: 130 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.4 + 0.3,
+      alpha: Math.random() * 0.7 + 0.2,
+      speed: Math.random() * 0.015 + 0.005,
+      phase: Math.random() * Math.PI * 2,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)]
     }));
 
-    function tick() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      _particles.forEach(p => {
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x = canvas.width;
-        if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height;
-        if (p.y > canvas.height) p.y = 0;
+    let lastShoot = 0;
+    let nextShootDelay = 3000 + Math.random() * 5000;
+
+    function spawnShootingStar() {
+      const side = Math.random();
+      let sx, sy, angle;
+      if (side < 0.5) { sx = Math.random() * W * 0.6; sy = 0; angle = Math.PI / 4 + Math.random() * 0.3; }
+      else            { sx = W; sy = Math.random() * H * 0.5; angle = Math.PI + 0.4 + Math.random() * 0.3; }
+      _shootingStar = { x: sx, y: sy, vx: Math.cos(angle) * 9, vy: Math.sin(angle) * 9, len: 80 + Math.random() * 60, alpha: 1, color: '180,240,255', life: 1 };
+    }
+
+    function tick(ts) {
+      ctx.clearRect(0, 0, W, H);
+
+      // Twinkling stars
+      _stars.forEach(s => {
+        s.phase += s.speed;
+        const a = s.alpha * (0.5 + 0.5 * Math.sin(s.phase));
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${s.color},${a})`;
         ctx.fill();
       });
-      _particleRAF = requestAnimationFrame(tick);
+
+      // Shooting star
+      if (!_shootingStar) {
+        if (ts - lastShoot > nextShootDelay) {
+          spawnShootingStar();
+          lastShoot = ts;
+          nextShootDelay = 3500 + Math.random() * 6000;
+        }
+      } else {
+        const ss = _shootingStar;
+        ss.x += ss.vx; ss.y += ss.vy; ss.life -= 0.025;
+        if (ss.life <= 0 || ss.x > W + 50 || ss.y > H + 50 || ss.x < -50) {
+          _shootingStar = null;
+        } else {
+          const grad = ctx.createLinearGradient(ss.x, ss.y, ss.x - ss.vx * 8, ss.y - ss.vy * 8);
+          grad.addColorStop(0, `rgba(${ss.color},${ss.life * .9})`);
+          grad.addColorStop(1, `rgba(${ss.color},0)`);
+          ctx.beginPath(); ctx.moveTo(ss.x, ss.y);
+          ctx.lineTo(ss.x - ss.vx * (ss.len / 9), ss.y - ss.vy * (ss.len / 9));
+          ctx.strokeStyle = grad; ctx.lineWidth = ss.r || 1.5; ctx.stroke();
+          // Head dot
+          ctx.beginPath(); ctx.arc(ss.x, ss.y, 1.8, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,255,255,${ss.life})`;
+          ctx.fill();
+        }
+      }
+
+      // Star bursts from clicks/taps
+      _starBursts = _starBursts.filter(b => b.life > 0);
+      _starBursts.forEach(b => {
+        b.life -= 0.04;
+        b.particles.forEach(p => {
+          p.x += p.vx; p.y += p.vy; p.vy += 0.05;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r * b.life, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${p.color},${b.life * .8})`; ctx.fill();
+        });
+      });
+
+      _starRAF = requestAnimationFrame(tick);
     }
-    tick();
+    _starRAF = requestAnimationFrame(tick);
+
+    // Star tap/click
+    canvas.addEventListener('click', e => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left, y = e.clientY - rect.top;
+      spawnStarBurst(x, y);
+    });
+    canvas.addEventListener('touchend', e => {
+      const rect = canvas.getBoundingClientRect();
+      const t = e.changedTouches[0];
+      spawnStarBurst(t.clientX - rect.left, t.clientY - rect.top);
+    }, { passive: true });
   }
 
-  function stopParticles() {
-    if (_particleRAF) { cancelAnimationFrame(_particleRAF); _particleRAF = null; }
+  function spawnStarBurst(x, y) {
+    const COLS = ['255,255,255', '37,244,208', '180,220,255', '255,230,100'];
+    const burst = {
+      life: 1,
+      particles: Array.from({ length: 10 }, () => {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1.5 + Math.random() * 3;
+        return { x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                 r: 1 + Math.random() * 1.5, color: COLS[Math.floor(Math.random() * COLS.length)] };
+      })
+    };
+    _starBursts.push(burst);
   }
 
-  // ── Reveal sections on scroll ───────────────────────────────────────────
-  let _revealObs = null;
-  function setupRevealObserver() {
-    const wrap = document.getElementById('twhCmWrap');
-    if (!wrap) return;
-    const items = wrap.querySelectorAll('.twh-cm-reveal');
+  function stopStars() {
+    if (_starRAF) { cancelAnimationFrame(_starRAF); _starRAF = null; }
+  }
+
+  // ── Parallax ────────────────────────────────────────────────────────────────
+  function initParallax() {
+    const canvas = q('twhStarCanvas');
+    if (!canvas) return;
+    let tx = 0, ty = 0;
+
+    function onMouseMove(e) {
+      const cx = e.clientX / window.innerWidth - 0.5;
+      const cy = e.clientY / window.innerHeight - 0.5;
+      tx = cx * 28; ty = cy * 16;
+      canvas.style.transform = `translate(${tx}px, ${ty}px)`;
+    }
+    function onDeviceOrientation(e) {
+      const gx = Math.max(-20, Math.min(20, e.gamma || 0));
+      const gy = Math.max(-20, Math.min(20, e.beta || 0));
+      tx = (gx / 20) * 20; ty = (gy / 20) * 12;
+      canvas.style.transform = `translate(${tx}px, ${ty}px)`;
+    }
+    document.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('deviceorientation', onDeviceOrientation);
+
+    // Store for cleanup
+    canvas._onMouseMove = onMouseMove;
+    canvas._onDeviceOrientation = onDeviceOrientation;
+  }
+  function tearParallax() {
+    const canvas = q('twhStarCanvas');
+    if (!canvas) return;
+    if (canvas._onMouseMove) document.removeEventListener('mousemove', canvas._onMouseMove);
+    if (canvas._onDeviceOrientation) window.removeEventListener('deviceorientation', canvas._onDeviceOrientation);
+    canvas.style.transform = '';
+  }
+
+  // ── Music ───────────────────────────────────────────────────────────────────
+  function playMusic() {
+    const audio = q('twhSpAudio');
+    if (!audio) return;
+    audio.volume = 0;
+    const p = audio.play();
+    if (p) p.catch(() => {});
+    // Fade in
+    let vol = 0;
+    const fade = setInterval(() => {
+      vol = Math.min(vol + 0.03, 0.45);
+      audio.volume = vol;
+      if (vol >= 0.45) clearInterval(fade);
+    }, 120);
+  }
+  function stopMusic(instant) {
+    const audio = q('twhSpAudio');
+    if (!audio) return;
+    if (instant) { audio.pause(); audio.currentTime = 0; return; }
+    let vol = audio.volume;
+    const fade = setInterval(() => {
+      vol = Math.max(vol - 0.04, 0);
+      audio.volume = vol;
+      if (vol <= 0) { clearInterval(fade); audio.pause(); audio.currentTime = 0; }
+    }, 100);
+  }
+  function toggleMusic() {
+    const audio = q('twhSpAudio');
+    const btn = q('twhSpMusicBtn');
+    const icon = q('twhSpMusicIcon');
+    if (!audio) return;
+    _musicMuted = !_musicMuted;
+    if (_musicMuted) {
+      audio.volume = 0;
+      if (icon) icon.textContent = '🔇';
+      if (btn) btn.classList.add('muted');
+    } else {
+      audio.volume = 0.45;
+      if (icon) icon.textContent = '🔊';
+      if (btn) btn.classList.remove('muted');
+    }
+  }
+
+  // ── Typewriter ──────────────────────────────────────────────────────────────
+  function typeWriter(el, text, delay, onDone) {
+    el.textContent = '';
+    el.classList.remove('twh-typed');
+    let i = 0;
+    const t = setInterval(() => {
+      el.textContent += text[i++];
+      if (i >= text.length) {
+        clearInterval(t);
+        el.classList.add('twh-typed');
+        if (onDone) onDone();
+      }
+    }, delay);
+  }
+
+  // ── Big Bang ─────────────────────────────────────────────────────────────────
+  function triggerBigBang(onComplete) {
+    const canvas = q('twhBangCanvas');
+    if (!canvas) { if (onComplete) onComplete(); return; }
+    canvas.classList.remove('hidden');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+
+    const COLS = ['37,244,208', '47,140,255', '168,85,247', '255,255,255', '255,230,80', '239,68,68', '249,115,22'];
+    _bangParticles = Array.from({ length: 320 }, () => {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 12;
+      const color = COLS[Math.floor(Math.random() * COLS.length)];
+      return { x: cx, y: cy, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+               r: 1 + Math.random() * 4, color, alpha: 1, life: 0.98 + Math.random() * 0.02,
+               decay: 0.014 + Math.random() * 0.012 };
+    });
+
+    let shockwave = { r: 0, alpha: 1 };
+    let flash = 1;
+    let done = false;
+
+    function bangTick() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Flash
+      if (flash > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${flash * 0.85})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        flash -= 0.06;
+      }
+
+      // Shockwave ring
+      if (shockwave.alpha > 0) {
+        ctx.beginPath(); ctx.arc(cx, cy, shockwave.r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(37,244,208,${shockwave.alpha})`;
+        ctx.lineWidth = 3 * shockwave.alpha;
+        ctx.stroke();
+        shockwave.r += 14; shockwave.alpha -= 0.028;
+      }
+
+      // Particles
+      let alive = 0;
+      _bangParticles.forEach(p => {
+        if (p.alpha <= 0) return;
+        p.x += p.vx; p.y += p.vy;
+        p.vx *= 0.97; p.vy *= 0.97;
+        p.vy += 0.03;
+        p.alpha -= p.decay;
+        if (p.alpha < 0) p.alpha = 0;
+        else alive++;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${p.color},${p.alpha})`; ctx.fill();
+      });
+
+      if (alive > 0 || flash > 0 || shockwave.alpha > 0) {
+        _bangRAF = requestAnimationFrame(bangTick);
+      } else if (!done) {
+        done = true;
+        canvas.classList.add('hidden');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (onComplete) onComplete();
+      }
+    }
+    _bangRAF = requestAnimationFrame(bangTick);
+  }
+
+  // ── Logo Firework ────────────────────────────────────────────────────────────
+  function triggerLogoFirework() {
+    const burst = q('twhLogoBurst');
+    const logoBtn = q('twhLogoBtn');
+    if (!burst || !logoBtn) return;
+    burst.classList.remove('hidden');
+    burst.width = window.innerWidth;
+    burst.height = window.innerHeight;
+    const ctx = burst.getContext('2d');
+    const rect = logoBtn.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+
+    const COLS = ['37,244,208', '47,140,255', '168,85,247', '255,255,255', '255,230,80'];
+    _logoParticles = Array.from({ length: 160 }, () => {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 8;
+      return { x: cx, y: cy, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+               r: 1.5 + Math.random() * 3, color: COLS[Math.floor(Math.random() * COLS.length)],
+               alpha: 1, decay: 0.022 + Math.random() * 0.018 };
+    });
+
+    function logoTick() {
+      ctx.clearRect(0, 0, burst.width, burst.height);
+      let alive = 0;
+      _logoParticles.forEach(p => {
+        if (p.alpha <= 0) return;
+        p.x += p.vx; p.y += p.vy; p.vy += 0.08;
+        p.vx *= 0.96; p.alpha -= p.decay; alive++;
+        if (p.alpha < 0) p.alpha = 0;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.alpha, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${p.color},${p.alpha})`; ctx.fill();
+      });
+      if (alive > 0) {
+        _logoRAF = requestAnimationFrame(logoTick);
+      } else {
+        burst.classList.add('hidden');
+        ctx.clearRect(0, 0, burst.width, burst.height);
+      }
+    }
+    if (_logoRAF) cancelAnimationFrame(_logoRAF);
+    _logoRAF = requestAnimationFrame(logoTick);
+  }
+
+  // ── Counter animations ───────────────────────────────────────────────────────
+  function animateCounters() {
+    document.querySelectorAll('#twhCinematicModal .twh-sp-planet-num[data-target]').forEach(el => {
+      const target = parseInt(el.dataset.target, 10);
+      const suffix = el.dataset.suffix || '';
+      if (target === 0) return;
+      let cur = 0;
+      const inc = Math.ceil(target / 50);
+      const t = setInterval(() => {
+        cur = Math.min(cur + inc, target);
+        el.textContent = cur.toLocaleString() + suffix;
+        if (cur >= target) clearInterval(t);
+      }, 28);
+    });
+  }
+
+  // ── Scroll reveal ─────────────────────────────────────────────────────────────
+  function setupReveal() {
+    const content = q('twhSpContent');
+    if (!content) return;
+    const items = content.querySelectorAll('.twh-sp-reveal');
     if ('IntersectionObserver' in window) {
       _revealObs = new IntersectionObserver(entries => {
-        entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('twh-cm-visible'); });
-      }, { root: wrap, threshold: 0.12 });
+        entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('twh-sp-visible'); });
+      }, { root: content, threshold: 0.1 });
       items.forEach(el => _revealObs.observe(el));
     } else {
-      items.forEach(el => el.classList.add('twh-cm-visible'));
+      items.forEach(el => el.classList.add('twh-sp-visible'));
     }
   }
-  function teardownRevealObserver() {
+  function tearReveal() {
     if (_revealObs) { _revealObs.disconnect(); _revealObs = null; }
-    document.querySelectorAll('#twhCinematicModal .twh-cm-reveal').forEach(el => el.classList.remove('twh-cm-visible'));
+    document.querySelectorAll('#twhCinematicModal .twh-sp-reveal').forEach(el => el.classList.remove('twh-sp-visible'));
   }
 
-  // ── Open ────────────────────────────────────────────────────────────────
-  function openTwhCinematic() {
-    if (_cmOpen) return;
-    _cmOpen = true;
-    const modal = document.getElementById('twhCinematicModal');
-    if (!modal) return;
-    const wrap = document.getElementById('twhCmWrap');
-    if (wrap) wrap.scrollTop = 0;
+  // ── Scene management ──────────────────────────────────────────────────────────
+  function runOpeningScene() {
+    _sceneQuoteDone = false;
+    const quoteEl = q('twhTypeQuote');
+    const attr = q('twhQuoteAttr');
+    const btn = q('twhBigBangBtn');
+    if (!quoteEl) return;
 
-    modal.classList.remove('hidden', 'twh-cm-leaving');
-    modal.classList.add('twh-cm-entering');
-    modal.addEventListener('animationend', () => modal.classList.remove('twh-cm-entering'), { once: true });
-
-    playTwhSound();
-    initParticles();
-
-    // Stagger reveals for first 3 sections immediately
+    // Start typing after short delay
     setTimeout(() => {
-      const firstItems = modal.querySelectorAll('.twh-cm-reveal');
-      firstItems.forEach((el, i) => {
-        setTimeout(() => el.classList.add('twh-cm-visible'), i * 120);
+      typeWriter(quoteEl, QUOTE, 40, () => {
+        // Fade in attr
+        if (attr) { setTimeout(() => attr.classList.remove('twh-sp-attr-hidden'), 400); }
+        // Show enter button
+        if (btn) { setTimeout(() => btn.classList.add('twh-sp-btn-visible'), 800); }
+        _sceneQuoteDone = true;
       });
-    }, 180);
+    }, 600);
+  }
 
-    // Typewriter
-    const qEl = document.getElementById('twhCmQuote');
-    if (qEl) setTimeout(() => typeWriter(qEl, QUOTE, 36), 450);
+  function runBigBangAndReveal() {
+    const sceneQuote = q('twhSceneQuote');
+    const content = q('twhSpContent');
 
-    // Counters
-    setTimeout(animateCounters, 900);
+    // Exit quote scene
+    if (sceneQuote) sceneQuote.classList.add('twh-sp-sq-exit');
 
-    // Scroll-based reveal observer
-    setTimeout(setupRevealObserver, 300);
+    // Trigger Big Bang
+    setTimeout(() => {
+      triggerBigBang(() => {
+        // Show scrollable content
+        if (content) {
+          content.classList.remove('hidden');
+          content.scrollTop = 0;
+          // Reveal all sections
+          setupReveal();
+          // Force reveal first section immediately
+          setTimeout(() => {
+            content.querySelectorAll('.twh-sp-reveal').forEach((el, i) => {
+              setTimeout(() => el.classList.add('twh-sp-visible'), i * 150);
+            });
+          }, 100);
+          // Animate counters
+          setTimeout(animateCounters, 600);
+        }
+      });
+    }, 200);
+  }
+
+  // ── Wire flip cards ────────────────────────────────────────────────────────────
+  function wireFlipCards() {
+    document.querySelectorAll('#twhCinematicModal .twh-sp-flip').forEach(card => {
+      function toggle() { card.classList.toggle('flipped'); }
+      card.addEventListener('click', toggle);
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+    });
+  }
+
+  // ── Wire planet popups ─────────────────────────────────────────────────────────
+  function wirePlanets() {
+    const popup = q('twhPlanetPopup');
+    const popupText = q('twhPopupText');
+    const popupClose = q('twhPopupClose');
+
+    document.querySelectorAll('#twhCinematicModal .twh-sp-planet-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const detail = card.dataset.detail;
+        if (!detail || !popup) return;
+        // Deselect others
+        document.querySelectorAll('#twhCinematicModal .twh-sp-planet-card').forEach(c => c.classList.remove('twh-sp-pc-active'));
+        card.classList.add('twh-sp-pc-active');
+        if (popupText) popupText.innerHTML = detail;
+        popup.classList.remove('hidden');
+        popup.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
+    if (popupClose && popup) {
+      popupClose.addEventListener('click', () => {
+        popup.classList.add('hidden');
+        document.querySelectorAll('#twhCinematicModal .twh-sp-planet-card').forEach(c => c.classList.remove('twh-sp-pc-active'));
+      });
+    }
+  }
+
+  // ── Open ───────────────────────────────────────────────────────────────────────
+  function openTwhCinematic() {
+    if (_open) return;
+    _open = true;
+    const modal = q('twhCinematicModal');
+    if (!modal) return;
+
+    // Reset state
+    const content = q('twhSpContent');
+    if (content) { content.classList.add('hidden'); content.scrollTop = 0; }
+    const sceneQuote = q('twhSceneQuote');
+    if (sceneQuote) sceneQuote.classList.remove('twh-sp-sq-exit');
+    const quoteEl = q('twhTypeQuote');
+    if (quoteEl) { quoteEl.textContent = ''; quoteEl.classList.remove('twh-typed'); }
+    const attr = q('twhQuoteAttr');
+    if (attr) attr.classList.add('twh-sp-attr-hidden');
+    const btn = q('twhBigBangBtn');
+    if (btn) btn.classList.remove('twh-sp-btn-visible');
+    // Reset flip cards
+    document.querySelectorAll('#twhCinematicModal .twh-sp-flip').forEach(c => c.classList.remove('flipped'));
+    // Reset planet popup
+    const popup = q('twhPlanetPopup');
+    if (popup) popup.classList.add('hidden');
+    // Reset planet counters
+    document.querySelectorAll('#twhCinematicModal .twh-sp-planet-num[data-target]').forEach(el => {
+      const suffix = el.dataset.suffix || '';
+      el.textContent = '0' + suffix;
+    });
+
+    modal.classList.remove('hidden', 'twh-sp-leaving');
+    modal.classList.add('twh-sp-entering');
+    modal.addEventListener('animationend', () => modal.classList.remove('twh-sp-entering'), { once: true });
 
     document.body.style.overflow = 'hidden';
+    initStars();
+    initParallax();
+    playMusic();
+    runOpeningScene();
+
+    // Wire interact once
+    if (!modal._wired) {
+      modal._wired = true;
+      wireFlipCards();
+      wirePlanets();
+      // Big Bang button
+      const bangBtn = q('twhBigBangBtn');
+      if (bangBtn) bangBtn.addEventListener('click', runBigBangAndReveal);
+      // Music toggle
+      const musicBtn = q('twhSpMusicBtn');
+      if (musicBtn) musicBtn.addEventListener('click', toggleMusic);
+      // Logo firework
+      const logoBtn = q('twhLogoBtn');
+      if (logoBtn) logoBtn.addEventListener('click', triggerLogoFirework);
+      // Replay
+      const replayBtn = q('twhReplayBtn');
+      if (replayBtn) replayBtn.addEventListener('click', () => {
+        const content = q('twhSpContent');
+        if (content) { content.classList.add('hidden'); content.scrollTop = 0; }
+        tearReveal();
+        const sceneQ = q('twhSceneQuote');
+        if (sceneQ) sceneQ.classList.remove('twh-sp-sq-exit');
+        const qEl = q('twhTypeQuote');
+        if (qEl) { qEl.textContent = ''; qEl.classList.remove('twh-typed'); }
+        const qAttr = q('twhQuoteAttr');
+        if (qAttr) qAttr.classList.add('twh-sp-attr-hidden');
+        const enterBtn = q('twhBigBangBtn');
+        if (enterBtn) enterBtn.classList.remove('twh-sp-btn-visible');
+        document.querySelectorAll('#twhCinematicModal .twh-sp-flip').forEach(c => c.classList.remove('flipped'));
+        const pp = q('twhPlanetPopup');
+        if (pp) pp.classList.add('hidden');
+        document.querySelectorAll('#twhCinematicModal .twh-sp-planet-num[data-target]').forEach(el => {
+          el.textContent = '0' + (el.dataset.suffix || '');
+        });
+        runOpeningScene();
+      });
+    }
   }
 
-  // ── Close ───────────────────────────────────────────────────────────────
+  // ── Close ──────────────────────────────────────────────────────────────────────
   function closeTwhCinematic() {
-    if (!_cmOpen) return;
-    _cmOpen = false;
-    const modal = document.getElementById('twhCinematicModal');
+    if (!_open) return;
+    _open = false;
+    const modal = q('twhCinematicModal');
     if (!modal) return;
-    modal.classList.remove('twh-cm-entering');
-    modal.classList.add('twh-cm-leaving');
+
+    modal.classList.remove('twh-sp-entering');
+    modal.classList.add('twh-sp-leaving');
     modal.addEventListener('animationend', () => {
       modal.classList.add('hidden');
-      modal.classList.remove('twh-cm-leaving');
-      stopParticles();
-      teardownRevealObserver();
+      modal.classList.remove('twh-sp-leaving');
+      stopStars();
+      tearParallax();
+      tearReveal();
+      stopMusic(false);
+      if (_bangRAF) { cancelAnimationFrame(_bangRAF); _bangRAF = null; }
+      if (_logoRAF) { cancelAnimationFrame(_logoRAF); _logoRAF = null; }
     }, { once: true });
     document.body.style.overflow = '';
   }
 
-  // ── Wire up close button ────────────────────────────────────────────────
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('twhCmClose')?.addEventListener('click', closeTwhCinematic);
-  });
-
-  // ── Wire up ALL TWH / Afsar triggers ────────────────────────────────────
-  function wireTwhTriggers() {
-    const selectors = [
-      '.lock-twh-brand',
-      '.sb-twh-brand',
-      '.st-twh-watermark',
-      '.nav-twh-brand',
-      '.twh-cm-footer',   // footer inside the page itself — noop (already open)
-      '.ab-twh-section',  // TWH section in about accordion
-      '.ab-creator-section', // Creator section in about accordion
-    ];
-    selectors.forEach(sel => {
+  // ── Wire up all triggers ────────────────────────────────────────────────────────
+  function wireTriggers() {
+    ['.lock-twh-brand', '.sb-twh-brand', '.st-twh-watermark', '.nav-twh-brand'].forEach(sel => {
       document.querySelectorAll(sel).forEach(el => {
         el.style.cursor = 'pointer';
         el.addEventListener('click', openTwhCinematic);
       });
     });
+    // Close button
+    const closeBtn = q('twhCmClose');
+    if (closeBtn) closeBtn.addEventListener('click', closeTwhCinematic);
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', wireTwhTriggers);
+    document.addEventListener('DOMContentLoaded', wireTriggers);
   } else {
-    wireTwhTriggers();
+    wireTriggers();
   }
 
-  // Expose globally so about-page accordion can wire up after init
-  window.openTwhCinematic = openTwhCinematic;
-  window.closeTwhCinematic = closeTwhCinematic;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && _open) closeTwhCinematic(); });
 
-  // Escape key to close
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && _cmOpen) closeTwhCinematic();
-  });
+  // Expose globally
+  window.openTwhCinematic  = openTwhCinematic;
+  window.closeTwhCinematic = closeTwhCinematic;
 })();
