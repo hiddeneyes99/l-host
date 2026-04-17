@@ -1264,26 +1264,34 @@ app.get('/api/heic-preview', async (req, res) => {
   const etag = `"heicprev-${stat.mtime.getTime().toString(16)}-${stat.size.toString(16)}"`;
   if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
 
+  const heicCachePath = path.join(THUMB_DIR, 'heic_' + crypto.createHash('md5').update(absPath + stat.mtime.getTime()).digest('hex') + '.jpg');
+
   try {
-    const buf = await new Promise((resolve, reject) => {
-      const chunks = [];
-      let settled = false;
-      const done = (fn, val) => { if (!settled) { settled = true; fn(val); } };
-      const args = ['-i', absPath, '-f', 'image2', '-vcodec', 'mjpeg', '-q:v', '3', 'pipe:1'];
-      const proc = require('child_process').spawn(FFMPEG_PATH, args, { stdio: ['ignore','pipe','ignore'] });
-      proc.stdout.on('data', c => chunks.push(c));
-      proc.on('close', code => {
-        const b = Buffer.concat(chunks);
-        if (code !== 0 || b.length < 100) return done(reject, new Error('ffmpeg failed'));
-        done(resolve, b);
+    let buf;
+    if (fs.existsSync(heicCachePath)) {
+      buf = fs.readFileSync(heicCachePath);
+    } else {
+      buf = await new Promise((resolve, reject) => {
+        const chunks = [];
+        let settled = false;
+        const done = (fn, val) => { if (!settled) { settled = true; fn(val); } };
+        const args = ['-i', absPath, '-f', 'image2', '-vcodec', 'mjpeg', '-q:v', '3', 'pipe:1'];
+        const proc = require('child_process').spawn(FFMPEG_PATH, args, { stdio: ['ignore','pipe','ignore'] });
+        proc.stdout.on('data', c => chunks.push(c));
+        proc.on('close', code => {
+          const b = Buffer.concat(chunks);
+          if (code !== 0 || b.length < 100) return done(reject, new Error('ffmpeg failed'));
+          done(resolve, b);
+        });
+        proc.on('error', err => done(reject, err));
+        setTimeout(() => { try { proc.kill('SIGKILL'); } catch(_) {} done(reject, new Error('timeout')); }, 20000);
       });
-      proc.on('error', err => done(reject, err));
-      setTimeout(() => { try { proc.kill('SIGKILL'); } catch(_) {} done(reject, new Error('timeout')); }, 20000);
-    });
+      try { fs.writeFileSync(heicCachePath, buf); } catch (_) {}
+    }
     res.writeHead(200, {
       'Content-Type': 'image/jpeg',
       'Content-Length': buf.length,
-      'Cache-Control': 'public, max-age=86400',
+      'Cache-Control': 'public, max-age=604800',
       'ETag': etag,
     });
     res.end(buf);
@@ -1393,6 +1401,9 @@ app.post('/api/upload', (req, res) => {
   const chunks = [];
   let received = 0;
   let tooLarge = false;
+  let responded = false;
+  const respond = (fn) => { if (!responded) { responded = true; fn(); } };
+
   req.on('data', c => {
     received += c.length;
     if (received > MAX_UPLOAD_BYTES) {
@@ -1430,14 +1441,13 @@ app.post('/api/upload', (req, res) => {
         }
         start = ce;
       }
-      res.json({ saved });
-      // Update index for the destination directory
+      respond(() => res.json({ saved }));
       incrementalUpdateDir(destDir).catch(() => {});
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { respond(() => res.status(500).json({ error: e.message })); }
   });
-  req.on('error', e => {
-    if (tooLarge) return res.status(413).json({ error: 'Upload too large' });
-    res.status(500).json({ error: e.message });
+  req.on('error', () => {
+    if (tooLarge) respond(() => res.status(413).json({ error: 'Upload too large' }));
+    else respond(() => res.status(500).json({ error: 'Upload error' }));
   });
 });
 
@@ -2436,19 +2446,28 @@ function cloudHttpsPost(url, params, extraHeaders = {}) {
   });
 }
 
-function cloudHttpsGetJson(url, headers = {}) {
+function cloudHttpsGetJson(url, headers = {}, _retries = 3) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const options = { hostname: u.hostname, path: u.pathname + u.search, method: 'GET', headers: { Accept: 'application/json', ...headers } };
     const req = https.request(options, r => {
       if ((r.statusCode === 301 || r.statusCode === 302) && r.headers.location) {
-        return cloudHttpsGetJson(r.headers.location, headers).then(resolve).catch(reject);
+        return cloudHttpsGetJson(r.headers.location, headers, _retries).then(resolve).catch(reject);
+      }
+      if (r.statusCode === 429 && _retries > 0) {
+        const retryAfter = parseInt(r.headers['retry-after'] || '2', 10) * 1000;
+        r.resume();
+        return setTimeout(() => cloudHttpsGetJson(url, headers, _retries - 1).then(resolve).catch(reject), retryAfter);
       }
       const chunks = [];
       r.on('data', c => chunks.push(c));
       r.on('end', () => { const t = Buffer.concat(chunks).toString(); try { resolve(JSON.parse(t)); } catch (_) { resolve(t); } });
     });
-    req.on('error', reject); req.end();
+    req.on('error', err => {
+      if (_retries > 0) return setTimeout(() => cloudHttpsGetJson(url, headers, _retries - 1).then(resolve).catch(reject), 1000);
+      reject(err);
+    });
+    req.end();
   });
 }
 

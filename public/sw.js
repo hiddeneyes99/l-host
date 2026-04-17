@@ -8,8 +8,8 @@
 //   • Everything else            → Network-first
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_SHELL   = 'lhost-shell-v11';
-const CACHE_THUMBS  = 'lhost-thumbs-v11';
+const CACHE_SHELL   = 'lhost-shell-v12';
+const CACHE_THUMBS  = 'lhost-thumbs-v12';
 
 const SHELL_ASSETS = [
   '/',
@@ -18,9 +18,13 @@ const SHELL_ASSETS = [
   '/index.html',
 ];
 
-// ── Install: skip waiting so new SW activates immediately ────────────────────
+// ── Install: precache shell assets and skip waiting ───────────────────────────
 self.addEventListener('install', e => {
-  e.waitUntil(self.skipWaiting());
+  e.waitUntil(
+    caches.open(CACHE_SHELL)
+      .then(cache => cache.addAll(SHELL_ASSETS).catch(() => {}))
+      .then(() => self.skipWaiting())
+  );
 });
 
 // ── Activate: delete ALL old caches, claim clients immediately ───────────────
@@ -76,6 +80,10 @@ async function cacheFirst(cacheName, request) {
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
+    if (response.ok && request.method === 'GET') {
+      const cache = await caches.open(CACHE_SHELL);
+      cache.put(request, response.clone());
+    }
     return response;
   } catch (_) {
     const cached = await caches.match(request);
