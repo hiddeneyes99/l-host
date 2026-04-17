@@ -436,7 +436,7 @@ const memObserver = typeof IntersectionObserver !== 'undefined'
           }
         }
       });
-    }, { rootMargin: '500% 0px' })
+    }, { rootMargin: '3000% 0px' })
   : null;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -806,16 +806,27 @@ function mpLoadTrack(idx) {
   mpUpdateMediaSession(item);
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
 
+  const _targetVol = mp.muted ? 0 : mp.volume;
   audio.src = trackUrl;
   audio.playbackRate = mp.speed;
-  audio.volume = mp.muted ? 0 : mp.volume;
+  audio.volume = 0;
   $('mpProgressFill').style.width = '0%';
   $('mpProgressDot').style.left = '0%';
   $('mpCurrentTime').textContent = '0:00';
   $('mpDuration').textContent = '0:00';
 
   mpInitAudioContext();
-  audio.play().then(() => { mp.trackChanging = false; mpSetPlaying(true); }).catch(() => { mp.trackChanging = false; });
+  audio.play().then(() => {
+    mp.trackChanging = false;
+    mpSetPlaying(true);
+    let _fv = 0;
+    const _fadeIn = () => {
+      _fv = Math.min(_fv + 0.06, _targetVol);
+      audio.volume = _fv;
+      if (_fv < _targetVol) requestAnimationFrame(_fadeIn);
+    };
+    requestAnimationFrame(_fadeIn);
+  }).catch(() => { mp.trackChanging = false; audio.volume = _targetVol; });
   mpRenderQueue();
 
   // Apply marquee for long titles
@@ -987,7 +998,17 @@ function mpSeekFromEvent(e) {
 function _mpApplyPendingSeek() {
   if (_mpSeekPending !== null) {
     const audio = mpGetAudio();
-    if (audio.duration) audio.currentTime = _mpSeekPending * audio.duration;
+    if (audio.duration) {
+      const wasPlaying = !audio.paused;
+      if (wasPlaying) audio.pause();
+      audio.currentTime = _mpSeekPending * audio.duration;
+      if (wasPlaying) {
+        setTimeout(() => {
+          audio.play().catch(() => {});
+          if (mp.audioCtx && mp.audioCtx.state === 'suspended') mp.audioCtx.resume();
+        }, 80);
+      }
+    }
     _mpSeekPending = null;
   }
   mp.progressDragging = false;
@@ -3567,7 +3588,10 @@ let _pdfZoom = 1;
 function _pdfSetZoom(z) {
   _pdfZoom = Math.max(0.5, Math.min(4, z));
   const inner = $('pdfZoomInner');
-  if (inner) inner.style.transform = `scale(${_pdfZoom})`;
+  if (inner) {
+    inner.style.transform = '';
+    inner.style.zoom = String(_pdfZoom);
+  }
   const lbl = $('pdfZoomLabel');
   if (lbl) lbl.textContent = Math.round(_pdfZoom * 100) + '%';
 }
@@ -4410,6 +4434,7 @@ function enterSelectMode() {
   state.selectedItems.clear();
   document.body.classList.add('select-mode');
   $('selectModeBtn')?.classList.add('active');
+  history.pushState({ lhost: true }, '');
   updateBulkBar();
 }
 
@@ -4970,6 +4995,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── History-based back navigation ──────────────────────────────────────
   history.replaceState({ lhost: true }, '');
   window.addEventListener('popstate', () => {
+    if (state.selectMode) {
+      exitSelectMode();
+      history.replaceState({ lhost: true }, '');
+      return;
+    }
     const aboutPage = $('stAboutPage');
     if (aboutPage && !aboutPage.classList.contains('hidden') && aboutPage.classList.contains('active')) {
       closeAboutPage(false);
@@ -5170,6 +5200,11 @@ document.addEventListener('DOMContentLoaded', () => {
   $('bulkDownloadBtn')?.addEventListener('click', bulkDownload);
   $('bulkCancelBtn')?.addEventListener('click', exitSelectMode);
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.selectMode) exitSelectMode(); });
+  document.addEventListener('click', e => {
+    if (!state.selectMode) return;
+    if (e.target.closest('.file-item') || e.target.closest('.bulk-bar') || e.target.closest('#selectModeBtn')) return;
+    exitSelectMode();
+  });
 
   // Bottom nav
   $('navFiles').addEventListener('click', loadHome);

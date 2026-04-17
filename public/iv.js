@@ -16,7 +16,7 @@ const CLOSE_VEL      = 0.40;
 const OPEN_INFO_PX   = -90;
 const OPEN_INFO_VEL  = -0.40;
 const FRICTION       = 0.84;
-const ZOOM_CYCLE     = [1, 2, 4];
+const ZOOM_CYCLE     = [1, 2];
 
 const IV_DEMO = [
   { name: 'Mountain Vista',  url: 'https://picsum.photos/seed/iv-mountain-vista/1400/900',  thumb: 'https://picsum.photos/seed/iv-mountain-vista/400/260',  _demo: true, type: 'file', category: 'image', meta: { Name:'Mountain_Vista.jpg', Size:'4.2 MB', Resolution:'4032×2688', Type:'JPEG', Date:'Jan 15 2024', Camera:'Sony α7 IV', ISO:'400', Location:'Himalayas, India', Path:'/demo/images/', Folder:'/demo/images' } },

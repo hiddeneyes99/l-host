@@ -3599,8 +3599,7 @@ img.lazy-img:not([src]) {
   text-align: center;
 }
 .pdf-zoom-inner {
-  transform-origin: top center;
-  transition: transform 0.15s ease;
+  transform-origin: top left;
 }
 .pdf-page-wrap {
   margin: 0 auto 10px;
