@@ -1474,6 +1474,69 @@ if(location.hash==='#skip'){ intro.classList.add('gone'); showMain(); setTimeout
 else setTimeout(runIntro, 400);
 
 
+// ══════════════════════════════════════════════════════ PILLAR SCROLL FLIP
+function initPillarScrollFlip(){
+  const pillars = Array.from(document.querySelectorAll('.pillar[data-flip-index]'));
+  if(!pillars.length) return;
+
+  const isMobile = ()=> window.innerWidth < 768;
+
+  // ── DESKTOP: all three flip together with stagger when grid enters view ──
+  if(!isMobile()){
+    const grid = document.getElementById('pillarGrid');
+    if(!grid) return;
+    let done = false;
+    const deskObs = new IntersectionObserver(entries=>{
+      if(entries[0].isIntersecting && !done){
+        done = true;
+        deskObs.disconnect();
+        pillars.forEach((p, i)=> setTimeout(()=> p.classList.add('flipped'), i * 200));
+      }
+    }, { threshold: 0.4 });
+    deskObs.observe(grid);
+    return;
+  }
+
+  // ── MOBILE: one card at a time — closest to center flips, rest close ──
+  let ticking  = false;
+  let lastActive = null;
+
+  function update(){
+    const vh         = window.innerHeight;
+    const zoneTop    = vh * 0.15;
+    const zoneBottom = vh * 0.85;
+    const zoneCenter = vh * 0.50;
+
+    let bestPillar = null;
+    let bestDist   = Infinity;
+
+    pillars.forEach(p => {
+      const r   = p.getBoundingClientRect();
+      const mid = r.top + r.height / 2;
+      const dist = Math.abs(mid - zoneCenter);
+      if(r.bottom > zoneTop && r.top < zoneBottom && dist < bestDist){
+        bestDist   = dist;
+        bestPillar = p;
+      }
+    });
+
+    if(bestPillar !== lastActive){
+      lastActive = bestPillar;
+      pillars.forEach(p => {
+        if(p === bestPillar) p.classList.add('flipped');
+        else                 p.classList.remove('flipped');
+      });
+    }
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', ()=>{
+    if(!ticking){ requestAnimationFrame(update); ticking = true; }
+  }, { passive: true });
+
+  setTimeout(update, 120);
+}
+
 // ══════════════════════════════════════════════════════ SCROLL REVEAL
 function initReveal(){
   const io = new IntersectionObserver((entries)=>{
@@ -1502,19 +1565,8 @@ function initReveal(){
     stackObserver.observe(stack);
   }
 
-  // Scroll-triggered pillar flip — each card flips automatically when scrolled to
-  const pillars = document.querySelectorAll('.pillar[data-flip-index]');
-  pillars.forEach((pillar)=>{
-    const flipObserver = new IntersectionObserver((entries)=>{
-      entries.forEach(e=>{
-        if(e.isIntersecting){
-          pillar.classList.add('flipped');
-          flipObserver.unobserve(pillar);
-        }
-      });
-    }, { threshold: 0.5 });
-    flipObserver.observe(pillar);
-  });
+  // Pillar scroll flip — ek waqt mein sirf ek card flipped
+  initPillarScrollFlip();
 }
 
 
