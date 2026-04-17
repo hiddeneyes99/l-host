@@ -586,17 +586,24 @@ function thumbDiskKey(etag, cat) {
 const FFMPEG_PATH = (() => {
   const candidates = [
     process.env.FFMPEG_PATH,
-    // Replit
+    // Replit (NixOS)
     '/nix/store/s41bqqrym7dlk8m3nk74fx26kgrx0kv8-replit-runtime-path/bin/ffmpeg',
     // Termux (Android)
+    process.env.TERMUX_PREFIX ? path.join(process.env.TERMUX_PREFIX, 'bin', 'ffmpeg') : null,
     '/data/data/com.termux/files/usr/bin/ffmpeg',
     '/data/data/com.termux/files/usr/local/bin/ffmpeg',
     // Standard Linux / macOS
     '/usr/bin/ffmpeg',
     '/usr/local/bin/ffmpeg',
     '/opt/homebrew/bin/ffmpeg',
-    // Kali / Debian
+    // User-local (common after manual install)
+    path.join(os.homedir(), '.local', 'bin', 'ffmpeg'),
+    // Kali / Debian avconv fallback
     '/usr/bin/avconv',
+    // Windows — common install locations
+    'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
+    'C:\\ffmpeg\\bin\\ffmpeg.exe',
+    path.join(os.homedir(), 'ffmpeg', 'bin', 'ffmpeg.exe'),
   ].filter(Boolean);
   for (const p of candidates) {
     try { fs.accessSync(p, fs.constants.X_OK); return p; } catch (_) {}
@@ -615,8 +622,10 @@ setImmediate(() => {
   execFile(FFMPEG_PATH, ['-version'], { timeout: 5000 }, (err, stdout) => {
     if (err) {
       console.log('[thumbs] ⚠️  FFmpeg not found — video thumbnails disabled');
-      if (IS_TERMUX) console.log('[thumbs]    Run: pkg install ffmpeg');
-      else           console.log('[thumbs]    Run: apt install ffmpeg  (or brew install ffmpeg)');
+      if (IS_TERMUX)                     console.log('[thumbs]    Run: pkg install ffmpeg');
+      else if (process.platform === 'win32') console.log('[thumbs]    Download from: https://ffmpeg.org/download.html  or  winget install ffmpeg');
+      else if (process.platform === 'darwin') console.log('[thumbs]    Run: brew install ffmpeg');
+      else                               console.log('[thumbs]    Run: apt install ffmpeg  (or: yum install ffmpeg)');
     } else {
       const ver = (stdout || '').split('\n')[0].replace('ffmpeg version ', '').split(' ')[0];
       console.log(`[thumbs] ✓ FFmpeg ${ver} — video thumbnails enabled`);
@@ -1354,11 +1363,18 @@ app.get('/api/archive-list', async (req, res) => {
       return res.json({ type: 'tar', entries, total: entries.length });
     }
 
-    // Try 7z for rar/7z
+    // Try 7z for rar/7z — Termux uses '7za', standard Linux/Windows use '7z'
     if (['.rar', '.7z'].includes(ext)) {
+      const sevenZipBin = (() => {
+        const bins = IS_TERMUX
+          ? [path.join(process.env.TERMUX_PREFIX || '/data/data/com.termux/files/usr', 'bin', '7za'), '7za', '7z']
+          : ['7z', '7za', '7zz'];
+        for (const b of bins) { try { fs.accessSync(b, fs.constants.X_OK); return b; } catch (_) {} }
+        return '7z';
+      })();
       const lines = await new Promise((resolve, reject) => {
         const { spawn } = require('child_process');
-        const proc = spawn('7z', ['l', '-ba', absPath], { stdio: ['ignore','pipe','ignore'] });
+        const proc = spawn(sevenZipBin, ['l', '-ba', absPath], { stdio: ['ignore','pipe','ignore'] });
         const out = [];
         proc.stdout.on('data', d => out.push(d));
         proc.on('close', code => {
@@ -1878,11 +1894,21 @@ app.get('/api/qr', async (req, res) => {
 // Resolve the actual cloudflared binary path — checks common install locations
 // before falling back to PATH so it works after user-local installs.
 const CF_SEARCH_PATHS = [
+  // Termux (Android)
+  process.env.TERMUX_PREFIX ? path.join(process.env.TERMUX_PREFIX, 'bin', 'cloudflared') : null,
+  '/data/data/com.termux/files/usr/bin/cloudflared',
+  // User-local (Replit + manual Linux install)
   path.join(os.homedir(), '.local', 'bin', 'cloudflared'),
+  // System-wide Linux / macOS
   '/usr/local/bin/cloudflared',
   '/usr/bin/cloudflared',
   '/opt/homebrew/bin/cloudflared',
-];
+  // Windows — Chocolatey / winget / manual
+  'C:\\ProgramData\\chocolatey\\bin\\cloudflared.exe',
+  'C:\\Program Files\\cloudflared\\cloudflared.exe',
+  path.join(os.homedir(), 'AppData', 'Local', 'cloudflared', 'cloudflared.exe'),
+].filter(Boolean);
+
 function resolveCfBinary() {
   for (const p of CF_SEARCH_PATHS) {
     try { if (fs.existsSync(p)) return p; } catch (_) {}
@@ -1967,25 +1993,30 @@ app.post('/api/wan/install', (req, res) => {
     // Always use binary download — works on Kali, Debian, Ubuntu, NixOS, any Linux
     cmd = 'bash';
     args = ['-c', `
+TMPFILE="${os.tmpdir().replace(/\\/g, '/')}/cloudflared-download"
 echo "[1/3] Downloading cloudflared (${cfArch})..."
-curl -fsSL --output /tmp/cloudflared "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cfArch}"
+curl -fsSL --output "$TMPFILE" "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cfArch}"
 if [ $? -ne 0 ]; then echo "Download failed"; exit 1; fi
 echo "[2/3] Setting permissions..."
-chmod +x /tmp/cloudflared
+chmod +x "$TMPFILE"
 echo "[3/3] Installing..."
-if mv /tmp/cloudflared /usr/local/bin/cloudflared 2>/dev/null; then
+if mv "$TMPFILE" /usr/local/bin/cloudflared 2>/dev/null; then
   echo "Installed to /usr/local/bin/cloudflared"
 else
   mkdir -p "$HOME/.local/bin"
-  mv /tmp/cloudflared "$HOME/.local/bin/cloudflared"
+  mv "$TMPFILE" "$HOME/.local/bin/cloudflared"
   echo "Installed to $HOME/.local/bin/cloudflared"
 fi
 CF_BIN=$(command -v cloudflared 2>/dev/null || echo "$HOME/.local/bin/cloudflared")
 echo "Done! $($CF_BIN --version 2>/dev/null)"
 `];
     platform = 'linux';
+  } else if (process.platform === 'darwin') {
+    return res.json({ ok: false, error: 'Run: brew install cloudflared\n(or download from: https://github.com/cloudflare/cloudflared/releases)' });
+  } else if (process.platform === 'win32') {
+    return res.json({ ok: false, error: 'Run in PowerShell: winget install Cloudflare.cloudflared\n(or: choco install cloudflared)\n(or download .exe from: https://github.com/cloudflare/cloudflared/releases)' });
   } else {
-    return res.json({ ok: false, error: 'Auto-install not supported on this platform. Download from: https://github.com/cloudflare/cloudflared/releases' });
+    return res.json({ ok: false, error: 'Download cloudflared from: https://github.com/cloudflare/cloudflared/releases' });
   }
 
   _cfInstallStatus = { state: 'running', log: `Installing cloudflared (${platform})...\n`, error: '' };
