@@ -1875,6 +1875,21 @@ app.get('/api/qr', async (req, res) => {
 //  WAN TUNNEL — Cloudflare tunnel via cloudflared
 // ══════════════════════════════════════════════════════════════════════════
 
+// Resolve the actual cloudflared binary path — checks common install locations
+// before falling back to PATH so it works after user-local installs.
+const CF_SEARCH_PATHS = [
+  path.join(os.homedir(), '.local', 'bin', 'cloudflared'),
+  '/usr/local/bin/cloudflared',
+  '/usr/bin/cloudflared',
+  '/opt/homebrew/bin/cloudflared',
+];
+function resolveCfBinary() {
+  for (const p of CF_SEARCH_PATHS) {
+    try { if (fs.existsSync(p)) return p; } catch (_) {}
+  }
+  return 'cloudflared'; // fallback: rely on PATH
+}
+
 let wanProc   = null;
 let wanUrl    = null;
 let wanStatus = 'stopped'; // 'stopped' | 'starting' | 'running' | 'error'
@@ -1889,8 +1904,9 @@ app.get('/api/wan/check', async (req, res) => {
   let internetAvailable    = false;
 
   try {
+    const cfBin = resolveCfBinary();
     await new Promise((resolve, reject) => {
-      execFile('cloudflared', ['--version'], { timeout: 4000 }, (err) => {
+      execFile(cfBin, ['--version'], { timeout: 4000 }, (err) => {
         if (err) reject(err); else resolve();
       });
     });
@@ -1950,14 +1966,23 @@ app.post('/api/wan/install', (req, res) => {
   } else if (process.platform === 'linux') {
     // Always use binary download — works on Kali, Debian, Ubuntu, NixOS, any Linux
     cmd = 'bash';
-    args = ['-c', `set -e
+    args = ['-c', `
 echo "[1/3] Downloading cloudflared (${cfArch})..."
 curl -fsSL --output /tmp/cloudflared "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cfArch}"
+if [ $? -ne 0 ]; then echo "Download failed"; exit 1; fi
 echo "[2/3] Setting permissions..."
 chmod +x /tmp/cloudflared
-echo "[3/3] Moving to /usr/local/bin/..."
-mv /tmp/cloudflared /usr/local/bin/cloudflared || (mkdir -p $HOME/.local/bin && mv /tmp/cloudflared $HOME/.local/bin/cloudflared && export PATH=$HOME/.local/bin:$PATH)
-echo "Done! cloudflared version: $(cloudflared --version 2>/dev/null || $HOME/.local/bin/cloudflared --version)"`];
+echo "[3/3] Installing..."
+if mv /tmp/cloudflared /usr/local/bin/cloudflared 2>/dev/null; then
+  echo "Installed to /usr/local/bin/cloudflared"
+else
+  mkdir -p "$HOME/.local/bin"
+  mv /tmp/cloudflared "$HOME/.local/bin/cloudflared"
+  echo "Installed to $HOME/.local/bin/cloudflared"
+fi
+CF_BIN=$(command -v cloudflared 2>/dev/null || echo "$HOME/.local/bin/cloudflared")
+echo "Done! $($CF_BIN --version 2>/dev/null)"
+`];
     platform = 'linux';
   } else {
     return res.json({ ok: false, error: 'Auto-install not supported on this platform. Download from: https://github.com/cloudflare/cloudflared/releases' });
@@ -1992,7 +2017,8 @@ app.post('/api/wan/start', (req, res) => {
   wanUrl    = null;
   wanError  = '';
 
-  wanProc = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${ACTIVE_PORT}`], {
+  const cfBin = resolveCfBinary();
+  wanProc = spawn(cfBin, ['tunnel', '--url', `http://localhost:${ACTIVE_PORT}`], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
