@@ -3914,8 +3914,6 @@ img.lazy-img:not([src]) {
   opacity: 0.7;
 }
 .mp-vol-slider {
-  -webkit-appearance: slider-vertical;
-  appearance: slider-vertical;
   writing-mode: vertical-lr;
   direction: rtl;
   width: 4px;

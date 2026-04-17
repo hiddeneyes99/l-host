@@ -576,6 +576,35 @@ Object.values(CAT_THUMB).forEach(d => fs.mkdirSync(d, { recursive: true }));
 fs.mkdirSync(THUMB_DIR,   { recursive: true });
 fs.mkdirSync(PREVIEW_DIR, { recursive: true });
 
+// ── Cache cleanup — remove stale thumbnails/previews older than 30 days ───────
+function runCacheCleanup() {
+  const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+  const now = Date.now();
+  const cacheDirs = [
+    THUMB_DIR,
+    PREVIEW_DIR,
+    ...Object.values(CAT_THUMB),
+  ];
+  let removed = 0;
+  for (const dir of cacheDirs) {
+    let files;
+    try { files = fs.readdirSync(dir); } catch (_) { continue; }
+    for (const f of files) {
+      const fp = path.join(dir, f);
+      try {
+        const st = fs.statSync(fp);
+        if (st.isFile() && (now - st.mtimeMs) > MAX_AGE_MS) {
+          fs.unlinkSync(fp);
+          removed++;
+        }
+      } catch (_) {}
+    }
+  }
+  if (removed > 0) console.log(`[cache] cleaned up ${removed} stale cache file(s)`);
+}
+// Run cleanup once on startup (after 60 s delay) then every 24 h
+setTimeout(() => { runCacheCleanup(); setInterval(runCacheCleanup, 24 * 60 * 60 * 1000); }, 60_000);
+
 // cat = 'image' | 'video' — writes to category-specific thumbs/
 function thumbDiskKey(etag, cat) {
   const dir = CAT_THUMB[cat] || THUMB_DIR;
@@ -1400,8 +1429,8 @@ app.get('/api/archive-list', async (req, res) => {
   }
 });
 
-// ── Upload ─────────────────────────────────────────────────────────────────
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+// ── Upload — streaming via busboy (no full-body RAM buffering) ──────────────
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB per file
 
 app.post('/api/upload', (req, res) => {
   const relPath = decodeURIComponent(req.query.path || '');
@@ -1410,61 +1439,50 @@ app.post('/api/upload', (req, res) => {
   if (!canRead(destDir)) return res.status(403).json({ error: 'Permission denied on destination' });
 
   const ct = req.headers['content-type'] || '';
-  const bm = ct.match(/boundary=(.+)/);
-  if (!bm) return res.status(400).json({ error: 'No boundary' });
-  const boundary = bm[1];
+  if (!ct.includes('multipart/form-data')) return res.status(400).json({ error: 'multipart/form-data required' });
 
-  const chunks = [];
-  let received = 0;
-  let tooLarge = false;
   let responded = false;
   const respond = (fn) => { if (!responded) { responded = true; fn(); } };
 
-  req.on('data', c => {
-    received += c.length;
-    if (received > MAX_UPLOAD_BYTES) {
-      tooLarge = true;
-      req.destroy();
-      return;
-    }
-    chunks.push(c);
+  let Busboy;
+  try { Busboy = require('busboy'); } catch (_) { return res.status(500).json({ error: 'busboy not installed' }); }
+
+  const bb = Busboy({ headers: req.headers, limits: { fileSize: MAX_UPLOAD_BYTES } });
+  const saved = [];
+  const pending = [];
+  let bbFinished = false;
+
+  bb.on('file', (fieldname, fileStream, info) => {
+    const filename = path.basename(info.filename || '');
+    if (!filename) { fileStream.resume(); return; }
+    const destFile = path.join(destDir, filename);
+    const ws = fs.createWriteStream(destFile);
+    const p = new Promise((resolve) => {
+      fileStream.on('limit', () => {
+        ws.destroy();
+        try { fs.unlinkSync(destFile); } catch (_) {}
+        respond(() => res.status(413).json({ error: `File "${filename}" exceeds 2 GB limit` }));
+        resolve();
+      });
+      ws.on('finish', () => { saved.push(filename); resolve(); });
+      ws.on('error', () => resolve());
+      fileStream.pipe(ws);
+    });
+    pending.push(p);
   });
-  req.on('end', () => {
-    if (tooLarge) return;
-    try {
-      const body   = Buffer.concat(chunks);
-      const bBuf   = Buffer.from('--' + boundary);
-      let   start  = 0;
-      const saved  = [];
-      while (start < body.length) {
-        const bi = body.indexOf(bBuf, start);
-        if (bi === -1) break;
-        const cs = bi + bBuf.length;
-        if (body[cs] === 45 && body[cs + 1] === 45) break;
-        const le = body.indexOf('\r\n\r\n', cs);
-        if (le === -1) break;
-        const headers = body.slice(cs + 2, le).toString();
-        const ce      = body.indexOf(Buffer.from('\r\n--' + boundary), le);
-        if (ce === -1) break;
-        const content = body.slice(le + 4, ce);
-        const fnMatch = headers.match(/filename="([^"]+)"/);
-        if (fnMatch) {
-          const filename = path.basename(fnMatch[1]);
-          try {
-            fs.writeFileSync(path.join(destDir, filename), content);
-            saved.push(filename);
-          } catch (writeErr) { /* Protocol 4: skip unwritable */ }
-        }
-        start = ce;
-      }
+
+  bb.on('finish', () => {
+    bbFinished = true;
+    Promise.all(pending).then(() => {
       respond(() => res.json({ saved }));
       incrementalUpdateDir(destDir).catch(() => {});
-    } catch (e) { respond(() => res.status(500).json({ error: e.message })); }
+    });
   });
-  req.on('error', () => {
-    if (tooLarge) respond(() => res.status(413).json({ error: 'Upload too large' }));
-    else respond(() => res.status(500).json({ error: 'Upload error' }));
-  });
+
+  bb.on('error', (e) => respond(() => res.status(500).json({ error: e.message })));
+  req.on('error', (e) => respond(() => res.status(500).json({ error: e.message })));
+
+  req.pipe(bb);
 });
 
 // ── Create folder ──────────────────────────────────────────────────────────
