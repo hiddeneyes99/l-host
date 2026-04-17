@@ -828,6 +828,19 @@ function mpLoadTrack(idx) {
   if ($('miniPlayer').classList.contains('active')) {
     mpUpdateMiniInfo(mp.queue[mp.index]);
   }
+
+  // Update EQ badge: only currently playing item gets .eq-active
+  mpUpdateEqBadge();
+}
+
+function mpUpdateEqBadge() {
+  // Remove .eq-active from all file-item elements
+  qsa('.file-item.eq-active').forEach(el => el.classList.remove('eq-active'));
+  const cur = mp.queue[mp.index];
+  if (!cur) return;
+  // Find the matching file-item in the grid by path
+  const match = document.querySelector(`.file-item[data-path="${CSS.escape(cur.path)}"]`);
+  if (match) match.classList.add('eq-active');
 }
 
 function mpInitAudioContext() {
@@ -941,29 +954,43 @@ function mpToggleRepeat() {
   }
 }
 
+let _mpProgressRaf = null;
 function mpUpdateProgress() {
   if (mp.progressDragging) return;
-  const audio = mpGetAudio();
-  if (!audio.duration) return;
-  const pct = (audio.currentTime / audio.duration) * 100;
-  $('mpProgressFill').style.width = pct + '%';
-  $('mpProgressDot').style.left = pct + '%';
-  $('mpCurrentTime').textContent = fmtTime(audio.currentTime);
-  $('miniProgressFill').style.width = pct + '%';
+  if (_mpProgressRaf) return;
+  _mpProgressRaf = requestAnimationFrame(() => {
+    _mpProgressRaf = null;
+    const audio = mpGetAudio();
+    if (!audio.duration) return;
+    const pct = (audio.currentTime / audio.duration) * 100;
+    $('mpProgressFill').style.width = pct + '%';
+    $('mpProgressDot').style.left = pct + '%';
+    $('mpCurrentTime').textContent = fmtTime(audio.currentTime);
+    $('miniProgressFill').style.width = pct + '%';
+  });
 }
 
+let _mpSeekPending = null;
 function mpSeekFromEvent(e) {
   const bar = $('mpProgressBar');
   const rect = bar.getBoundingClientRect();
-  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const touch = e.touches && e.touches[0] ? e.touches[0] : (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0] : null);
+  const clientX = touch ? touch.clientX : e.clientX;
   const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-  const audio = mpGetAudio();
-  if (audio.duration) {
-    audio.currentTime = pct * audio.duration;
-    $('mpProgressFill').style.width = (pct * 100) + '%';
-    $('mpProgressDot').style.left = (pct * 100) + '%';
-    $('mpCurrentTime').textContent = fmtTime(audio.currentTime);
+  // Update visual immediately for smooth feedback
+  $('mpProgressFill').style.width = (pct * 100) + '%';
+  $('mpProgressDot').style.left = (pct * 100) + '%';
+  $('mpCurrentTime').textContent = fmtTime(pct * (mpGetAudio().duration || 0));
+  // Buffer the actual seek — applied on release to avoid audio glitch while dragging
+  _mpSeekPending = pct;
+}
+function _mpApplyPendingSeek() {
+  if (_mpSeekPending !== null) {
+    const audio = mpGetAudio();
+    if (audio.duration) audio.currentTime = _mpSeekPending * audio.duration;
+    _mpSeekPending = null;
   }
+  mp.progressDragging = false;
 }
 
 function mpRenderQueue() {
@@ -1916,6 +1943,25 @@ function mpInitEvents() {
   });
   $('mpMorePopup') && $('mpMorePopup').addEventListener('click', e => e.stopPropagation());
 
+  // Delete current track from queue
+  $('mpDeleteTrackBtn') && $('mpDeleteTrackBtn').addEventListener('click', () => {
+    if (!mp.queue.length) return;
+    $('mpMorePopup') && $('mpMorePopup').classList.remove('open');
+    const idx = mp.index;
+    mp.queue.splice(idx, 1);
+    if (!mp.queue.length) {
+      $('mpContainer').classList.remove('open');
+      $('miniPlayer').classList.remove('active');
+      mpGetAudio().pause();
+      mpGetAudio().src = '';
+      return;
+    }
+    const nextIdx = Math.min(idx, mp.queue.length - 1);
+    mp.index = -1;
+    mpLoadTrack(nextIdx);
+    mpRenderQueue();
+  });
+
   // Visualizer mode buttons — stay open, reset 6-second auto-close on each pick
   qsa('.mp-viz-mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2001,9 +2047,9 @@ function mpInitEvents() {
   bar.addEventListener('mousedown', e => { mp.progressDragging = true; mpSeekFromEvent(e); });
   bar.addEventListener('touchstart', e => { mp.progressDragging = true; mpSeekFromEvent(e); }, { passive: true });
   document.addEventListener('mousemove', e => { if (mp.progressDragging) mpSeekFromEvent(e); });
-  document.addEventListener('touchmove', e => { if (mp.progressDragging) mpSeekFromEvent(e); }, { passive: true });
-  document.addEventListener('mouseup',   () => { mp.progressDragging = false; });
-  document.addEventListener('touchend',  () => { mp.progressDragging = false; });
+  document.addEventListener('touchmove', e => { if (mp.progressDragging) { e.preventDefault(); mpSeekFromEvent(e); } }, { passive: false });
+  document.addEventListener('mouseup',   () => { if (mp.progressDragging) _mpApplyPendingSeek(); });
+  document.addEventListener('touchend',  e => { if (mp.progressDragging) { mpSeekFromEvent(e); _mpApplyPendingSeek(); } }, { passive: true });
 
   // Restore saved preferences
   const savedVol = parseFloat(localStorage.getItem('lhost_mp_vol') ?? '1');
@@ -3355,6 +3401,26 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
     }
   });
   el.addEventListener('contextmenu', e => { e.preventDefault(); showCtxMenu(e, item); });
+
+  // Long-press → enter select mode (works anywhere on website)
+  let _lpHold = null;
+  el.addEventListener('touchstart', e => {
+    if (e.target.closest('[data-more]')) return;
+    const t = e.touches[0];
+    let startX = t.clientX, startY = t.clientY;
+    _lpHold = setTimeout(() => {
+      _lpHold = null;
+      if (!state.selectMode) enterSelectMode();
+      if (item.type !== 'dir') toggleItemSelect(item, el);
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 450);
+    const cancelLP = () => { clearTimeout(_lpHold); _lpHold = null; };
+    const moveLP = ev => { if (Math.abs(ev.touches[0].clientX - startX) > 8 || Math.abs(ev.touches[0].clientY - startY) > 8) cancelLP(); };
+    el.addEventListener('touchend',  cancelLP, { once: true, passive: true });
+    el.addEventListener('touchcancel', cancelLP, { once: true, passive: true });
+    el.addEventListener('touchmove',  moveLP,  { once: true, passive: true });
+  }, { passive: true });
+
   return el;
 }
 
@@ -3481,6 +3547,8 @@ function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
     openAudio(item, url, audioSet);
   } else if (item.ext === '.pdf') {
     openPdf(item, url);
+  } else if (['.pptx','.ppt','.ppsx','.pps'].includes(item.ext)) {
+    openPptx(item, url);
   } else if (cat === 'archive' || cat === 'apk' || ['.zip','.tar','.gz','.tgz','.rar','.7z','.z7','.bz2','.xz','.lz','.lzma','.zst','.apk','.jar'].includes(item.ext)) {
     openArchive(item, url);
   } else if (['.txt','.md','.log','.json','.xml','.html','.css','.js','.ts','.py','.sh','.c','.cpp','.h','.java','.yaml','.yml','.ini','.conf','.csv','.sql','.bat','.ps1','.rb','.go','.rs'].includes(item.ext)) {
@@ -3495,21 +3563,61 @@ function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
 
 // ── PDF Viewer (PDF.js canvas renderer — works on mobile) ──────────────────
 let _pdfLoadTask = null;
+let _pdfZoom = 1;
+function _pdfSetZoom(z) {
+  _pdfZoom = Math.max(0.5, Math.min(4, z));
+  const inner = $('pdfZoomInner');
+  if (inner) inner.style.transform = `scale(${_pdfZoom})`;
+  const lbl = $('pdfZoomLabel');
+  if (lbl) lbl.textContent = Math.round(_pdfZoom * 100) + '%';
+}
+
 function _cancelPdf() {
   if (_pdfLoadTask) { try { _pdfLoadTask.destroy(); } catch(_) {} _pdfLoadTask = null; }
-  $('pdfCanvasWrap').innerHTML = '';
+  requestAnimationFrame(() => {
+    const inner = $('pdfZoomInner');
+    if (inner) inner.innerHTML = '';
+    else { const w=$('pdfCanvasWrap'); if(w) w.innerHTML=''; }
+  });
 }
 
 async function openPdf(item, url) {
   $('pdfTitle').textContent = item.name;
   $('pdfDl').href = url + '&dl=1';
   $('pdfDl').download = item.name;
+  _pdfSetZoom(1);
   openModal('pdfModal');
   await _renderPdfPages(url);
 }
 
+async function openPptx(item, url) {
+  $('pdfTitle').textContent = item.name;
+  $('pdfDl').href = url + '&dl=1';
+  $('pdfDl').download = item.name;
+  _pdfSetZoom(1);
+  openModal('pdfModal');
+  const wrap = $('pdfZoomInner') || $('pdfCanvasWrap');
+  wrap.innerHTML = `<div class="pdf-loading"><div class="pdf-spinner"></div><span>Converting PPTX…</span></div>`;
+  try {
+    const r = await fetch(`/api/pptx-preview?path=${encodeURIComponent(item.path)}`);
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      wrap.innerHTML = `<div class="pdf-error">⚠️ ${d.error || 'PPTX preview unavailable'}<br>
+        <a class="vp-fallback-dl-btn" href="${url}&dl=1" download="${item.name}" style="margin-top:12px">Download File</a></div>`;
+      return;
+    }
+    const blob = await r.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    await _renderPdfPages(blobUrl);
+    URL.revokeObjectURL(blobUrl);
+  } catch(e) {
+    wrap.innerHTML = `<div class="pdf-error">⚠️ ${e.message}<br>
+      <a class="vp-fallback-dl-btn" href="${url}&dl=1" download="${item.name}" style="margin-top:12px">Download File</a></div>`;
+  }
+}
+
 async function _renderPdfPages(url) {
-  const wrap = $('pdfCanvasWrap');
+  const wrap = $('pdfZoomInner') || $('pdfCanvasWrap');
   wrap.innerHTML = `<div class="pdf-loading"><div class="pdf-spinner"></div><span>Loading PDF…</span></div>`;
 
   // Cancel any previous load
@@ -3529,13 +3637,14 @@ async function _renderPdfPages(url) {
     const pdf = await task.promise;
     wrap.innerHTML = '';
 
+    const canvasWrap = $('pdfCanvasWrap');
     const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap at 2× for memory
-    const containerW = wrap.clientWidth || window.innerWidth;
+    const containerW = (canvasWrap ? canvasWrap.clientWidth : window.innerWidth) || window.innerWidth;
 
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       const page = await pdf.getPage(pageNum);
       const baseVP  = page.getViewport({ scale: 1 });
-      const scale   = (containerW / baseVP.width) * dpr;
+      const scale   = ((containerW - 24) / baseVP.width) * dpr;
       const viewport = page.getViewport({ scale });
 
       const pageWrap = document.createElement('div');
@@ -4917,6 +5026,31 @@ document.addEventListener('DOMContentLoaded', () => {
   $('aliasCancelBtn')  && $('aliasCancelBtn').addEventListener('click', () => closeModal('aliasModal'));
   $('aliasBackdrop')   && $('aliasBackdrop').addEventListener('click', () => closeModal('aliasModal'));
   $('aliasInput') && $('aliasInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveAlias(); });
+
+  // PDF close + zoom buttons
+  $('pdfClose') && $('pdfClose').addEventListener('click', () => { _cancelPdf(); closeModal('pdfModal'); });
+  $('pdfZoomIn')  && $('pdfZoomIn').addEventListener('click',  () => _pdfSetZoom(_pdfZoom + 0.25));
+  $('pdfZoomOut') && $('pdfZoomOut').addEventListener('click', () => _pdfSetZoom(_pdfZoom - 0.25));
+  // Pinch-to-zoom on PDF canvas wrapper
+  (() => {
+    const cw = $('pdfCanvasWrap');
+    if (!cw) return;
+    let _pz0 = 0, _pzBase = 1;
+    cw.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) {
+        _pz0 = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        _pzBase = _pdfZoom;
+      }
+    }, { passive: true });
+    cw.addEventListener('touchmove', e => {
+      if (e.touches.length === 2 && _pz0 > 0) {
+        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        _pdfSetZoom(_pzBase * (d / _pz0));
+      }
+    }, { passive: true });
+    cw.addEventListener('touchend', () => { _pz0 = 0; }, { passive: true });
+  })();
+
   $('mpFavBtn') && $('mpFavBtn').addEventListener('click', () => {
     const item = mp.queue && mp.queue[mp.index];
     if (item) toggleFavorite(item);

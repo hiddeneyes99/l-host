@@ -606,7 +606,7 @@ function ivCommitNext() {
   // Snap track to center (no slide animation)
   const track = $('ivTrack'); const w = iv.stageW || stageSize().w;
   if (track) { track.style.transition='none'; track.style.transform=`translateX(${-w}px)`; }
-  setTimeout(() => _ivAfterNav('next'), 150);
+  setTimeout(() => _ivAfterNav('next'), 80);
 }
 function ivCommitPrev() {
   if (iv.list.length <= 1) { ivApplyTrack(0, false); return; }
@@ -618,7 +618,7 @@ function ivCommitPrev() {
   }
   const track = $('ivTrack'); const w = iv.stageW || stageSize().w;
   if (track) { track.style.transition='none'; track.style.transform=`translateX(${-w}px)`; }
-  setTimeout(() => _ivAfterNav('prev'), 150);
+  setTimeout(() => _ivAfterNav('prev'), 80);
 }
 function ivPrev() { ivCommitPrev(); }
 function ivNext() { ivCommitNext(); }
@@ -678,7 +678,7 @@ async function ivToggleMeta() {
     $('ivMetaBody').innerHTML = renderRows(base);
     modal.classList.remove('hidden');
     if (typeof anime !== 'undefined') {
-      anime({ targets: modal, opacity: [0,1], translateY: [24,0], duration: 280, easing: 'easeOutExpo' });
+      anime({ targets: modal, opacity: [0,1], translateY: [24,0], duration: 200, easing: 'easeOutExpo' });
     }
     // Fetch EXIF and update
     const exif = await ivFetchExif(item);
@@ -688,7 +688,7 @@ async function ivToggleMeta() {
     }
   } else {
     if (typeof anime !== 'undefined') {
-      anime({ targets: modal, opacity: [1,0], translateY: [0,16], duration: 200, easing:'easeInQuad', complete: () => modal.classList.add('hidden') });
+      anime({ targets: modal, opacity: [1,0], translateY: [0,16], duration: 150, easing:'easeInQuad', complete: () => modal.classList.add('hidden') });
     } else { modal.classList.add('hidden'); }
   }
 }
@@ -956,7 +956,7 @@ function ivInitTouch() {
       }
     } else if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 450) {
       const now = Date.now();
-      if (now - lastTap < 300) {
+      if (now - lastTap < 350) {
         clearTimeout(singleTapTimer); singleTapTimer = null;
         ivDoubleTap(endX, endY);
         lastTap = 0;
@@ -965,7 +965,7 @@ function ivInitTouch() {
         singleTapTimer = setTimeout(() => {
           singleTapTimer = null;
           $('ivWrap').classList.toggle('ui-hidden');
-        }, 310);
+        }, 360);
       }
     }
   }, { passive: true });

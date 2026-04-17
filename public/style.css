@@ -475,6 +475,9 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   /* Browser skips rendering off-screen items entirely — native virtual scroll */
   content-visibility: auto;
   contain-intrinsic-size: 0 220px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .file-item:active { transform: scale(0.94); }
 
@@ -550,7 +553,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .file-item .thumb {
   aspect-ratio: 1;
   display: flex; align-items: center; justify-content: center;
-  background: var(--bg3);
+  background: linear-gradient(135deg, #161b22, #1d2535);
   overflow: hidden;
   position: relative;
 }
@@ -1739,13 +1742,15 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   background: rgba(255,255,255,0.6);
   border-radius: 2px;
   animation: eqAnim 0.9s ease-in-out infinite alternate;
+  animation-play-state: paused;
 }
 .audio-eq-bar:nth-child(1) { animation-delay: 0s; }
 .audio-eq-bar:nth-child(2) { animation-delay: 0.18s; }
 .audio-eq-bar:nth-child(3) { animation-delay: 0.32s; }
 .audio-eq-bar:nth-child(4) { animation-delay: 0.08s; }
 @keyframes eqAnim { from { height: 3px; } to { height: 14px; } }
-.eq-paused .audio-eq-bar { animation-play-state: paused; }
+.eq-paused .audio-eq-bar { animation-play-state: paused !important; }
+.file-item.eq-active .audio-eq-bar { animation-play-state: running !important; }
 
 /* PLAYER HEADER (shared) */
 .player-header {
@@ -3562,11 +3567,40 @@ img.lazy-img:not([src]) {
   flex: 1;
   width: 100%;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   background: #525659;
   padding: 12px;
   box-sizing: border-box;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+.pdf-zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 8px;
+  flex-shrink: 0;
+}
+.pdf-zoom-btn {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text1);
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.pdf-zoom-btn:hover, .pdf-zoom-btn:active { background: rgba(255,255,255,0.16); }
+.pdf-zoom-label {
+  font-size: 12px;
+  color: var(--text2);
+  min-width: 44px;
+  text-align: center;
+}
+.pdf-zoom-inner {
+  transform-origin: top center;
+  transition: transform 0.15s ease;
 }
 .pdf-page-wrap {
   margin: 0 auto 10px;
@@ -3848,6 +3882,28 @@ img.lazy-img:not([src]) {
   color: var(--text3);
   padding: 2px 8px 8px;
 }
+.mp-more-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 10px 8px 8px;
+}
+.mp-more-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text1);
+  background: transparent;
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mp-more-action-btn:hover, .mp-more-action-btn:active { background: rgba(255,255,255,0.07); }
+.mp-more-action-btn.danger { color: #f07070; }
+.mp-more-action-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 .mp-more-viz-row {
   display: flex;
   gap: 6px;

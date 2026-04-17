@@ -1349,6 +1349,62 @@ app.get('/api/heic-preview', async (req, res) => {
   }
 });
 
+// ── PPTX → PDF preview (requires LibreOffice/soffice) ──────────────────────
+app.get('/api/pptx-preview', async (req, res) => {
+  const relPath = decodeURIComponent(req.query.path || '');
+  const absPath = safePath(relPath);
+  if (!absPath) return res.status(403).json({ error: 'Access denied' });
+  if (!canRead(absPath)) return res.status(403).json({ error: 'Permission denied' });
+  const stat = safeStatSync(absPath);
+  if (!stat || !stat.isFile()) return res.status(404).json({ error: 'Not found' });
+
+  const ext = path.extname(absPath).toLowerCase();
+  if (!['.pptx','.ppt','.ppsx','.pps'].includes(ext)) return res.status(400).json({ error: 'Not a presentation file' });
+
+  // Check soffice availability
+  const { execFile, spawn } = require('child_process');
+  const sofficeCandidates = ['soffice','libreoffice','/usr/bin/soffice','/usr/lib/libreoffice/program/soffice'];
+  let soffice = null;
+  for (const c of sofficeCandidates) {
+    try { require('child_process').execFileSync(c, ['--version'], { stdio:'ignore' }); soffice = c; break; } catch(_) {}
+  }
+  if (!soffice) return res.status(503).json({ error: 'LibreOffice not installed. Cannot convert PPTX.' });
+
+  const cacheKey = 'pptx_' + crypto.createHash('md5').update(absPath + stat.mtime.getTime()).digest('hex') + '.pdf';
+  const cachePdf = path.join(THUMB_DIR, cacheKey);
+
+  try {
+    if (!fs.existsSync(cachePdf)) {
+      await new Promise((resolve, reject) => {
+        const args = ['--headless','--convert-to','pdf','--outdir', THUMB_DIR, absPath];
+        const proc = spawn(soffice, args, { stdio: 'ignore' });
+        let settled = false;
+        const done = (fn, v) => { if (!settled) { settled = true; fn(v); } };
+        proc.on('close', code => {
+          if (code !== 0) return done(reject, new Error('soffice exit ' + code));
+          // soffice names the output after the input file
+          const rawOut = path.join(THUMB_DIR, path.basename(absPath, ext) + '.pdf');
+          try { if (fs.existsSync(rawOut) && rawOut !== cachePdf) fs.renameSync(rawOut, cachePdf); } catch(_) {}
+          done(resolve, undefined);
+        });
+        proc.on('error', err => done(reject, err));
+        setTimeout(() => { try { proc.kill('SIGKILL'); } catch(_) {} done(reject, new Error('timeout')); }, 60000);
+      });
+    }
+    if (!fs.existsSync(cachePdf)) return res.status(500).json({ error: 'Conversion produced no output' });
+    const pdfBuf = fs.readFileSync(cachePdf);
+    res.writeHead(200, {
+      'Content-Type': 'application/pdf',
+      'Content-Length': pdfBuf.length,
+      'Cache-Control': 'public, max-age=3600',
+    });
+    res.end(pdfBuf);
+  } catch (e) {
+    console.error('[pptx-preview]', e.message);
+    res.status(500).json({ error: e.message || 'Conversion failed' });
+  }
+});
+
 // ── Archive contents listing ────────────────────────────────────────────────
 app.get('/api/archive-list', async (req, res) => {
   const relPath = decodeURIComponent(req.query.path || '');

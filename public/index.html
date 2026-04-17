@@ -903,6 +903,12 @@
                     Off
                   </button>
                 </div>
+                <div class="mp-more-divider"></div>
+                <div class="mp-more-section-label">Track</div>
+                <button class="mp-more-action-btn danger" id="mpDeleteTrackBtn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  Delete this file
+                </button>
               </div>
             </div>
           </div>
@@ -1215,10 +1221,17 @@
             </svg>
           </a>
         </div>
+        <div class="pdf-zoom-bar">
+          <button class="pdf-zoom-btn" id="pdfZoomOut">−</button>
+          <span class="pdf-zoom-label" id="pdfZoomLabel">100%</span>
+          <button class="pdf-zoom-btn" id="pdfZoomIn">+</button>
+        </div>
         <div class="pdf-canvas-wrap" id="pdfCanvasWrap">
-          <div class="pdf-loading" id="pdfLoading">
-            <div class="pdf-spinner"></div>
-            <span>Loading PDF…</span>
+          <div class="pdf-zoom-inner" id="pdfZoomInner">
+            <div class="pdf-loading" id="pdfLoading">
+              <div class="pdf-spinner"></div>
+              <span>Loading PDF…</span>
+            </div>
           </div>
         </div>
       </div>
