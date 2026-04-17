@@ -524,23 +524,50 @@
     }
 
     /* ── SOCIALS ── */
-    .socials { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr)); gap: 14px; margin-top: 28px; }
+    .socials { display: flex; flex-direction: column; gap: 14px; margin-top: 28px; }
     .social {
-      display: flex; align-items: center; gap: 14px;
-      background: rgba(7,20,40,0.95);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 18px; padding: 16px 20px;
+      display: flex; align-items: center; gap: 0;
+      border-radius: 16px; overflow: hidden;
       text-decoration: none; color: var(--text);
-      transition: all 0.3s;
-      transform-style: preserve-3d; perspective: 400px;
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s;
+      position: relative;
     }
-    .social:hover { transform: translateY(-4px) rotateX(-3deg); }
-    .social.yt:hover { border-color:#ff4444; background:rgba(255,68,68,0.07); box-shadow:0 8px 28px rgba(255,68,68,0.1); }
-    .social.ig:hover { border-color:#e1306c; background:rgba(225,48,108,0.07); box-shadow:0 8px 28px rgba(225,48,108,0.1); }
-    .social.tg:hover { border-color:#24a1de; background:rgba(36,161,222,0.07); box-shadow:0 8px 28px rgba(36,161,222,0.1); }
-    .social-emoji { font-size: 1.6rem; }
-    .social b  { display:block; font-size:0.9rem; }
-    .social span{ font-size:0.74rem; color:var(--dim); }
+    .social:active { transform: scale(0.98); }
+    .social-accent {
+      width: 64px; min-width: 64px; height: 72px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; flex-shrink: 0;
+      position: relative;
+    }
+    .social-body {
+      flex: 1; padding: 16px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .social b  { display:block; font-size:1rem; font-weight: 700; }
+    .social span{ font-size:0.78rem; color: rgba(255,255,255,0.5); margin-top:2px; display:block; }
+    .social-arrow {
+      font-size: 1.1rem; opacity: 0.4;
+      transition: transform 0.25s, opacity 0.25s;
+    }
+    .social:hover .social-arrow, .social:focus .social-arrow { transform: translateX(4px); opacity: 0.9; }
+
+    /* YouTube */
+    .social.yt .social-accent { background: linear-gradient(145deg, #c00 0%, #ff2020 100%); }
+    .social.yt .social-body   { background: linear-gradient(90deg, rgba(200,0,0,0.18) 0%, rgba(7,20,40,0.95) 60%); border: 1px solid rgba(255,40,40,0.2); border-left: none; border-radius: 0 16px 16px 0; }
+    .social.yt:hover { transform: translateY(-3px) scale(1.01); box-shadow: 0 12px 36px rgba(255,40,40,0.2); }
+    .social.yt:hover .social-body { border-color: rgba(255,40,40,0.45); }
+
+    /* Instagram */
+    .social.ig .social-accent { background: linear-gradient(145deg, #833ab4, #fd1d1d, #fcb045); }
+    .social.ig .social-body   { background: linear-gradient(90deg, rgba(130,30,180,0.2) 0%, rgba(7,20,40,0.95) 60%); border: 1px solid rgba(225,48,108,0.2); border-left: none; border-radius: 0 16px 16px 0; }
+    .social.ig:hover { transform: translateY(-3px) scale(1.01); box-shadow: 0 12px 36px rgba(225,48,108,0.2); }
+    .social.ig:hover .social-body { border-color: rgba(225,48,108,0.45); }
+
+    /* Telegram */
+    .social.tg .social-accent { background: linear-gradient(145deg, #0077b5, #24a1de); }
+    .social.tg .social-body   { background: linear-gradient(90deg, rgba(36,161,222,0.18) 0%, rgba(7,20,40,0.95) 60%); border: 1px solid rgba(36,161,222,0.2); border-left: none; border-radius: 0 16px 16px 0; }
+    .social.tg:hover { transform: translateY(-3px) scale(1.01); box-shadow: 0 12px 36px rgba(36,161,222,0.2); }
+    .social.tg:hover .social-body { border-color: rgba(36,161,222,0.45); }
 
     /* ── CTA ── */
     .cta-sec {
@@ -612,29 +639,73 @@
       animation: blink 1s step-end infinite;
     }
 
-    /* ── REVEAL ── */
+    /* ── REVEAL — base (desktop: 3D tilt rise) ── */
     .rv {
-      opacity:0; transform:translateY(36px) rotateX(8deg);
-      transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.16,1,0.3,1);
-      perspective: 600px;
+      opacity:0; transform:translateY(40px) rotateX(8deg);
+      transition: opacity 0.75s ease, transform 0.85s cubic-bezier(0.16,1,0.3,1);
+      perspective: 600px; will-change: opacity, transform;
     }
     .rv.in { opacity:1; transform:translateY(0) rotateX(0); }
-    .rv.d1 { transition-delay:0.1s; }
-    .rv.d2 { transition-delay:0.2s; }
-    .rv.d3 { transition-delay:0.3s; }
-    .rv.d4 { transition-delay:0.4s; }
+    .rv.d1 { transition-delay:0.08s; }
+    .rv.d2 { transition-delay:0.16s; }
+    .rv.d3 { transition-delay:0.24s; }
+    .rv.d4 { transition-delay:0.32s; }
+
+    /* Slide from left */
+    .rv-l {
+      opacity:0; transform:translateX(-60px);
+      transition: opacity 0.7s ease, transform 0.8s cubic-bezier(0.16,1,0.3,1);
+      will-change: opacity, transform;
+    }
+    .rv-l.in { opacity:1; transform:translateX(0); }
+
+    /* Slide from right */
+    .rv-r {
+      opacity:0; transform:translateX(60px);
+      transition: opacity 0.7s ease, transform 0.8s cubic-bezier(0.16,1,0.3,1);
+      will-change: opacity, transform;
+    }
+    .rv-r.in { opacity:1; transform:translateX(0); }
+
+    /* Scale pop */
+    .rv-pop {
+      opacity:0; transform:scale(0.88);
+      transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.34,1.56,0.64,1);
+      will-change: opacity, transform;
+    }
+    .rv-pop.in { opacity:1; transform:scale(1); }
+
+    /* Stagger helpers for directional */
+    .rv-l.d1,.rv-r.d1,.rv-pop.d1 { transition-delay:0.08s; }
+    .rv-l.d2,.rv-r.d2,.rv-pop.d2 { transition-delay:0.16s; }
+    .rv-l.d3,.rv-r.d3,.rv-pop.d3 { transition-delay:0.24s; }
 
     /* ── PARALLAX LAYER ── */
     .parallax-layer { transition: transform 0.08s linear; will-change: transform; }
 
     /* ── RESPONSIVE ── */
+    @media(max-width:768px){
+      /* Disable heavy canvases on mobile for performance */
+      #icoCanvas { display: none; }
+      #netCanvas { opacity: 0.35; }
+      #cyberCanvas { opacity: 0.6; }
+
+      /* Stronger mobile scroll animations — override 3D with flat slides */
+      .rv {
+        transform: translateY(32px);
+        transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.16,1,0.3,1);
+      }
+      .rv.in { transform: translateY(0); }
+      .rv-l  { transform: translateX(-45px); }
+      .rv-r  { transform: translateX(45px); }
+    }
     @media(max-width:600px){
       .hero { padding: 90px 20px 60px; }
       .sec  { padding: 60px 0; }
       .wrap { padding: 0 18px; }
       .twh-header { flex-direction: column; }
       .pillar { height: 160px; }
-      #icoCanvas { opacity: 0.3; }
+      .stats-grid { grid-template-columns: repeat(2,1fr); }
     }
   </style>
 </head>
@@ -717,7 +788,7 @@
         <h2 class="sec-head">The Story Behind<br><em>The Build</em></h2>
       </div>
 
-      <div class="story-file rv d1">
+      <div class="story-file rv-l d1">
         <div class="file-header">
           <span class="file-id">&gt; FILE://ORIGIN_STORY.LOG</span>
           <span class="file-stamp">CLASSIFIED</span>
@@ -729,7 +800,7 @@
         </div>
       </div>
 
-      <div class="stats-grid rv d2">
+      <div class="stats-grid rv-pop d2">
         <div class="stat-card">
           <div class="stat-val" data-target="22" data-suffix="">0</div>
           <div class="stat-lbl">Days to Build v1</div>
@@ -789,7 +860,7 @@
           Technical White Hat is more than a channel — it is a movement. Founded and operated by Afsar Ali, TWH has had one primary mission: to decode the complexities of cyberspace and bring elite cybersecurity knowledge to everyone — not just professionals.
         </p>
 
-        <div class="pillars rv d1">
+        <div class="pillars rv-pop d1">
           <div class="pillar">
             <div class="pillar-front">
               <span class="pillar-icon">🛡️</span>
@@ -833,18 +904,27 @@
         </div>
 
         <div class="sec-eye rv" style="margin-top:40px;">Connect with TWH</div>
-        <div class="socials rv d1">
-          <a href="https://www.youtube.com/@technicalwhitehat" target="_blank" rel="noopener" class="social yt">
-            <span class="social-emoji">▶️</span>
-            <div><b>YouTube</b><span>@technicalwhitehat</span></div>
+        <div class="socials">
+          <a href="https://www.youtube.com/@technicalwhitehat" target="_blank" rel="noopener" class="social yt rv-l">
+            <div class="social-accent">▶️</div>
+            <div class="social-body">
+              <div><b>YouTube</b><span>@technicalwhitehat</span></div>
+              <span class="social-arrow">›</span>
+            </div>
           </a>
-          <a href="https://instagram.com/technicalwhitehat" target="_blank" rel="noopener" class="social ig">
-            <span class="social-emoji">📸</span>
-            <div><b>Instagram</b><span>@technicalwhitehat</span></div>
+          <a href="https://instagram.com/technicalwhitehat" target="_blank" rel="noopener" class="social ig rv-l d1">
+            <div class="social-accent">📸</div>
+            <div class="social-body">
+              <div><b>Instagram</b><span>@technicalwhitehat</span></div>
+              <span class="social-arrow">›</span>
+            </div>
           </a>
-          <a href="https://t.me/technicalwhitehat" target="_blank" rel="noopener" class="social tg">
-            <span class="social-emoji">✈️</span>
-            <div><b>Telegram</b><span>@technicalwhitehat</span></div>
+          <a href="https://t.me/technicalwhitehat" target="_blank" rel="noopener" class="social tg rv-l d2">
+            <div class="social-accent">✈️</div>
+            <div class="social-body">
+              <div><b>Telegram</b><span>@technicalwhitehat</span></div>
+              <span class="social-arrow">›</span>
+            </div>
           </a>
         </div>
 
@@ -1351,8 +1431,8 @@ function initReveal(){
     entries.forEach(e=>{
       if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
     });
-  }, { threshold: 0.1 });
-  document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.rv, .rv-l, .rv-r, .rv-pop').forEach(el=>io.observe(el));
 }
 
 
