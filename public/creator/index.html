@@ -482,11 +482,18 @@
     }
     .pillar {
       height: 180px; cursor: default;
-      transform-style: preserve-3d;
-      transition: transform 0.55s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.3s;
+      position: relative;
+      perspective: 600px;
+    }
+    .pillar-inner {
+      width: 100%; height: 100%;
+      transform-style: preserve-3d; -webkit-transform-style: preserve-3d;
+      transition: transform 0.7s cubic-bezier(0.34,1.1,0.64,1);
       will-change: transform; position: relative;
     }
-    .pillar:hover { transform: rotateY(180deg); box-shadow: 0 20px 60px rgba(0,212,200,0.12); }
+    .pillar.flipped .pillar-inner {
+      transform: rotateY(180deg); -webkit-transform: rotateY(180deg);
+    }
     .pillar-front, .pillar-back {
       position: absolute; inset: 0; border-radius: 22px;
       backface-visibility: hidden; -webkit-backface-visibility: hidden;
@@ -499,7 +506,7 @@
     .pillar-back {
       background: linear-gradient(135deg, rgba(0,30,50,0.98), rgba(0,20,40,0.98));
       border: 1px solid rgba(0,212,200,0.3);
-      transform: rotateY(180deg);
+      transform: rotateY(180deg); -webkit-transform: rotateY(180deg);
       box-shadow: inset 0 0 30px rgba(0,212,200,0.05);
     }
     .pillar-icon { font-size: 2.2rem; margin-bottom: 14px; display: block; }
@@ -869,32 +876,38 @@
           Technical White Hat is more than a channel — it is a movement. Founded and operated by Afsar Ali, TWH has had one primary mission: to decode the complexities of cyberspace and bring elite cybersecurity knowledge to everyone — not just professionals.
         </p>
 
-        <div class="pillars rv-pop d1">
-          <div class="pillar">
-            <div class="pillar-front">
-              <span class="pillar-icon">🛡️</span>
-              <div class="pillar-title">Ethical Hacking &amp; Cybersecurity</div>
-            </div>
-            <div class="pillar-back">
-              <p class="pillar-body">From absolute basics to advanced network defense. Complex digital threats broken down into practical, real-world tutorials anyone can follow.</p>
-            </div>
-          </div>
-          <div class="pillar">
-            <div class="pillar-front">
-              <span class="pillar-icon">🔭</span>
-              <div class="pillar-title">Custom OSINT &amp; Security Tools</div>
-            </div>
-            <div class="pillar-back">
-              <p class="pillar-body">TWH doesn't just use tools — it builds them. Custom-engineered software for precision, speed, and next-level digital intelligence.</p>
+        <div class="pillars rv-pop d1" id="pillarGrid">
+          <div class="pillar" data-flip-index="0">
+            <div class="pillar-inner">
+              <div class="pillar-front">
+                <span class="pillar-icon">🛡️</span>
+                <div class="pillar-title">Ethical Hacking &amp; Cybersecurity</div>
+              </div>
+              <div class="pillar-back">
+                <p class="pillar-body">From absolute basics to advanced network defense. Complex digital threats broken down into practical, real-world tutorials anyone can follow.</p>
+              </div>
             </div>
           </div>
-          <div class="pillar">
-            <div class="pillar-front">
-              <span class="pillar-icon">⚡</span>
-              <div class="pillar-title">Coding &amp; Automation</div>
+          <div class="pillar" data-flip-index="1">
+            <div class="pillar-inner">
+              <div class="pillar-front">
+                <span class="pillar-icon">🔭</span>
+                <div class="pillar-title">Custom OSINT &amp; Security Tools</div>
+              </div>
+              <div class="pillar-back">
+                <p class="pillar-body">TWH doesn't just use tools — it builds them. Custom-engineered software for precision, speed, and next-level digital intelligence.</p>
+              </div>
             </div>
-            <div class="pillar-back">
-              <p class="pillar-body">Python scripting, JavaScript, APIs, and AI-assisted development. If a system is slow or manual, TWH writes the code to automate it.</p>
+          </div>
+          <div class="pillar" data-flip-index="2">
+            <div class="pillar-inner">
+              <div class="pillar-front">
+                <span class="pillar-icon">⚡</span>
+                <div class="pillar-title">Coding &amp; Automation</div>
+              </div>
+              <div class="pillar-back">
+                <p class="pillar-body">Python scripting, JavaScript, APIs, and AI-assisted development. If a system is slow or manual, TWH writes the code to automate it.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1488,6 +1501,20 @@ function initReveal(){
     }, { threshold: 0.2 });
     stackObserver.observe(stack);
   }
+
+  // Scroll-triggered pillar flip — each card flips automatically when scrolled to
+  const pillars = document.querySelectorAll('.pillar[data-flip-index]');
+  pillars.forEach((pillar)=>{
+    const flipObserver = new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting){
+          pillar.classList.add('flipped');
+          flipObserver.unobserve(pillar);
+        }
+      });
+    }, { threshold: 0.5 });
+    flipObserver.observe(pillar);
+  });
 }
 
 
@@ -1504,6 +1531,25 @@ function tryPlayMusic(){
   bgAudio.volume = 0.38;
   bgAudio.play().then(()=>{ playing=true; mIcon.innerHTML=iconOn; }).catch(()=>{});
 }
+
+// Auto-play on first user interaction (browser policy workaround)
+(function(){
+  let musicStarted = false;
+  function startOnInteraction(){
+    if(musicStarted) return;
+    musicStarted = true;
+    document.removeEventListener('touchstart', startOnInteraction);
+    document.removeEventListener('click', startOnInteraction);
+    document.removeEventListener('keydown', startOnInteraction);
+    if(!playing){
+      bgAudio.volume = 0.38;
+      bgAudio.play().then(()=>{ playing=true; mIcon.innerHTML=iconOn; }).catch(()=>{});
+    }
+  }
+  document.addEventListener('touchstart', startOnInteraction, { once: true, passive: true });
+  document.addEventListener('click', startOnInteraction, { once: true });
+  document.addEventListener('keydown', startOnInteraction, { once: true });
+})();
 
 mBtn.addEventListener('click',()=>{
   click();
