@@ -362,10 +362,17 @@ function loadIndexFromDisk() {
 }
 
 // ── Full async scan (runs in background, does NOT block requests) ──────────
+let _indexBuilding = false;
 async function buildFullIndex() {
+  if (_indexBuilding) {
+    console.log('[index] scan already in progress — skipping duplicate run');
+    return;
+  }
+  _indexBuilding = true;
   console.log(`[index] full scan starting: ${ROOT_DIR}`);
   const t0  = Date.now();
   const all = [];
+  try {
 
   async function walk(absDir, relDir, depth) {
     if (depth > 15) return;
@@ -404,6 +411,9 @@ async function buildFullIndex() {
   console.log(`[index] full scan done — ${all.length} entries in ${Date.now() - t0} ms`);
   // Kick off background thumbnail pre-generation for all media files
   startThumbPregen();
+  } finally {
+    _indexBuilding = false;
+  }
 }
 
 // ── Incremental update for one directory (triggered by fs.watch) ───────────
@@ -3139,4 +3149,26 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
     console.log(`╚${line}╝\n`);
     console.log('  Tip: set ROOT_DIR=/sdcard to browse a specific folder.\n');
   });
+
+  // ── Graceful shutdown: kill WAN tunnel + flush pending writes ──────────────
+  function gracefulShutdown(signal) {
+    console.log(`\n[server] ${signal} received — shutting down gracefully…`);
+    if (wanProc) {
+      try { wanProc.kill('SIGTERM'); } catch (_) {}
+      wanProc = null;
+    }
+    process.exit(0);
+  }
+  process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 })();
+
+// ── Global error safety nets ──────────────────────────────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception — server continuing:', err.message);
+  console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[WARN] Unhandled promise rejection:', reason instanceof Error ? reason.message : reason);
+});
