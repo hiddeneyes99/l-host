@@ -5,6 +5,32 @@ Run it on Termux (Android), Kali Linux, Windows, macOS, or any machine — acces
 
 ---
 
+## Quick Start (One Command)
+
+**Termux / Kali Linux / Any Linux / macOS:**
+```bash
+git clone <your-repo-url> hevi-explorer
+cd hevi-explorer
+bash start.sh
+```
+
+**Windows (double-click or PowerShell):**
+```powershell
+git clone <your-repo-url> hevi-explorer
+cd hevi-explorer
+.\start.bat
+```
+
+The setup script will automatically:
+- Detect your platform (Termux / Kali / Ubuntu / Arch / Fedora / Windows / macOS)
+- Install Node.js if missing or too old
+- Install FFmpeg if missing (for video thumbnails + HEIC)
+- Install p7zip / 7-Zip if missing (for RAR/7z archives)
+- Run `npm install` with auto-retry on failure
+- Start Hevi Explorer
+
+---
+
 ## Features
 
 - Browse, upload (up to 2 GB per file, streamed) and manage files & folders
