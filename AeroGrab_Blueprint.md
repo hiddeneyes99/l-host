@@ -16,7 +16,7 @@
 **Classification:** Internal Engineering Blueprint
 **Author:** Technical White Hat (TWH), Independent Developer
 **Created:** April 18, 2026
-**Platform:** L-Host Ecosystem (Hevi Explorer)
+**Platform:** TWH Eco System Technology (Hevi Explorer)
 **Status:** 🟡 Blueprint Phase — Ready for Phase 1 Development
 
 </div>
@@ -58,11 +58,11 @@
 
 ## 1. Executive Summary
 
-AeroGrab is a gesture-controlled, peer-to-peer file transfer system built for the L-Host ecosystem (Hevi Explorer). It allows users on a local network to physically "grab" a file using a hand gesture (closed fist) and "throw" it to another device, where another user catches it using an open palm gesture — all without touching a single UI button for the transfer itself.
+AeroGrab is a gesture-controlled, peer-to-peer file transfer system built for the TWH Eco System Technology (Hevi Explorer). It allows users on a local network to physically "grab" a file using a hand gesture (closed fist) and "throw" it to another device, where another user catches it using an open palm gesture — all without touching a single UI button for the transfer itself.
 
 The system is engineered around three non-negotiable principles:
 
-**Speed** — File data travels directly between devices via a P2P Bridge. The L-Host server handles only lightweight signaling (who grabbed, who caught), never the file bytes themselves. This means no server bottleneck regardless of file size.
+**Speed** — File data travels directly between devices via a P2P Bridge. The Hevi Explorer server handles only lightweight signaling (who grabbed, who caught), never the file bytes themselves. This means no server bottleneck regardless of file size.
 
 **Privacy** — The camera feed never leaves the device. Google MediaPipe runs entirely inside the user's browser using on-device AI. No video, no frames, no images are transmitted anywhere. The server only receives gesture event strings like `"FIST_DETECTED"`. Camera access is requested once, on first use, with a full transparent explanation to the user.
 
@@ -82,13 +82,13 @@ File transfer on local networks today is either clunky (USB drives, AirDrop menu
 
 AeroGrab is different. It is:
 - **Open** — Built on standard web technologies (HTML, JS, WebSockets, WebRTC)
-- **Ecosystem-native** — Runs inside L-Host/Hevi Explorer, which users already have open
+- **Ecosystem-native** — Runs inside Hevi Explorer (TWH Eco System Technology), which users already have open
 - **Hardware-agnostic** — Works on any device with a front camera and a modern browser
 - **Local-first** — Your files never touch the internet
 
 ### Who Built This?
 
-AeroGrab was conceived and architected by **Technical White Hat (TWH)**, the developer behind the L-Host / Hevi Explorer project. The technology was designed from scratch, inspired by the concept of physical intuition — the idea that transferring a file should feel as natural as handing someone a physical object.
+AeroGrab was conceived and architected by **Technical White Hat (TWH)**, the developer behind the Hevi Explorer — TWH Eco System Technology project. The technology was designed from scratch, inspired by the concept of physical intuition — the idea that transferring a file should feel as natural as handing someone a physical object.
 
 ---
 
@@ -102,7 +102,7 @@ Imagine you are in a room with two phones, both running Hevi Explorer on the sam
 You navigate to a file — maybe a video. You enable AeroGrab from the toggle in the menu. The camera turns on (with your permission). You hold your hand up in front of the phone and **close your fist** — like you are grabbing the file out of the screen.
 
 **What happens next (invisible to user):**
-The app detects your fist. It immediately starts packaging the file and signals the L-Host server: *"A file has been grabbed. Everyone wake up."* The server pings all other Hevi Explorer instances on the network.
+The app detects your fist. It immediately starts packaging the file and signals the Hevi Explorer server: *"A file has been grabbed. Everyone wake up."* The server pings all other Hevi Explorer instances on the network.
 
 **On Phone B (Receiver):**
 The Hevi Explorer app receives the wake-up signal. A notification appears: *"Someone is sending a file — open your palm to catch it."* The user taps to activate their camera. They hold up an **open palm**.
@@ -167,7 +167,7 @@ This is the most critical architectural decision in AeroGrab, and it is what mak
 
 ### The Problem with Server-Based File Routing
 
-A naive implementation would have the sender upload the file to the L-Host server, which stores it in RAM or Redis, then streams it to the receiver. This creates three serious problems:
+A naive implementation would have the sender upload the file to the Hevi Explorer server, which stores it in RAM or Redis, then streams it to the receiver. This creates three serious problems:
 
 1. **Server memory pressure** — A 2GB video would require 2GB of server RAM
 2. **Double bandwidth usage** — File travels sender→server AND server→receiver on the same LAN
@@ -187,7 +187,7 @@ AeroGrab P2P (GOOD):      Sender ───────────────�
 
 ### WebRTC Signaling Flow
 
-WebRTC requires a brief "handshake" to set up the direct connection. The L-Host server facilitates this handshake — this is the only thing the server does for file transfer:
+WebRTC requires a brief "handshake" to set up the direct connection. The Hevi Explorer server facilitates this handshake — this is the only thing the server does for file transfer:
 
 ```
 Step 1: Sender creates WebRTC Offer → sends to Server
@@ -334,7 +334,7 @@ After the user taps "Enable AeroGrab", the browser's native camera permission pr
 
 ### What the Server Sees
 
-The L-Host server receives only these string events — never any media:
+The Hevi Explorer server receives only these string events — never any media:
 
 - `"FILE_GRABBED"` — with file metadata (name, size, type)
 - `"DROP_HERE"` — with receiver device socket ID
@@ -498,7 +498,7 @@ Downloads/
 | Browser denies camera permission | Permission API event | "AeroGrab needs camera access. Enable in browser settings." with instructions |
 | Two senders grab simultaneously | Server timestamps | Each grab creates a separate independent session |
 | Receiver has insufficient storage | Pre-transfer size check | "Not enough storage on receiving device" notification |
-| WebRTC P2P fails (firewall/NAT issue) | ICE connection failure | Fallback: offer to transfer via traditional L-Host file share |
+| WebRTC P2P fails (firewall/NAT issue) | ICE connection failure | Fallback: offer to transfer via traditional Hevi Explorer file share |
 | Session timeout (60s, no receiver) | Server timer | "Transfer expired. File remains on your device." |
 
 ---
@@ -509,7 +509,7 @@ Downloads/
 
 ### Prerequisites
 
-Before implementing AeroGrab, ensure the L-Host server has Socket.io installed and the frontend has access to:
+Before implementing AeroGrab, ensure the Hevi Explorer server has Socket.io installed and the frontend has access to:
 
 ```
 npm install socket.io          # Server side
@@ -703,7 +703,7 @@ AeroGrab will be developed in three phases. Each phase is independently usable a
 **Goal:** Establish working P2P file transfer and signaling without any camera involvement.
 
 **What gets built:**
-- Socket.io integration in L-Host server
+- Socket.io integration in Hevi Explorer server
 - "AeroGrab Share" button in Hevi Explorer file context menu
 - Server session management (grab, wake-up, drop, timeout)
 - WebRTC P2P file transfer (chunked streaming)
@@ -771,7 +771,7 @@ A TURN (Traversal Using Relays around NAT) server acts as a relay when direct P2
 
 | Component | LAN v1.0 | WAN Future |
 |---|---|---|
-| Signaling server | Local L-Host | Deployed L-Host + STUN/TURN config |
+| Signaling server | Local Hevi Explorer | Deployed Hevi Explorer + STUN/TURN config |
 | Device discovery | Socket.io local broadcast | User authentication + contact list |
 | File transfer | WebRTC LAN P2P | WebRTC WAN P2P + TURN fallback |
 | Security | Trusted LAN | End-to-end encryption required |
@@ -785,7 +785,7 @@ A TURN (Traversal Using Relays around NAT) server acts as a relay when direct P2
 
 | Category | Technology | Version | Purpose |
 |---|---|---|---|
-| Backend Runtime | Node.js | 18+ | L-Host server |
+| Backend Runtime | Node.js | 18+ | Hevi Explorer server |
 | WebSocket Library | Socket.io | 4.x | Real-time signaling |
 | Gesture AI | MediaPipe Hands (JS) | Latest | On-device gesture detection |
 | P2P Transfer | WebRTC Data Channels | Browser native | File streaming |
@@ -804,7 +804,7 @@ A TURN (Traversal Using Relays around NAT) server acts as a relay when direct P2
 ## End of Document
 
 **AeroGrab Technology Blueprint v1.0**
-*L-Host Engineering Division*
+*TWH Eco System Technology — Engineering Division*
 
 Authored by **Technical White Hat (TWH)**
 April 18, 2026
@@ -813,7 +813,7 @@ April 18, 2026
 
 ---
 
-© 2026 Technical White Hat (TWH) — L-Host / Hevi Explorer Project
+© 2026 Technical White Hat (TWH) — Hevi Explorer — TWH Eco System Technology
 This document is an internal engineering blueprint.
 All technology described herein is original work of Technical White Hat (TWH).
 
