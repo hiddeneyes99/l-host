@@ -29,3 +29,9 @@ id = "xyFMJ-G2qvtH_cDqhk74n"
 uri = "file://AeroGrab_Blueprint.md"
 type = "text"
 title = "AeroGrab Blueprint — TWH Eco System Technology (Updated)"
+
+[[outputs]]
+id = "WjTPz8xzNCGMpqM79pxUj"
+uri = "file://AeroGrab_Blueprint.docx"
+type = "word_document"
+title = "AeroGrab Technology Blueprint — by Technical White Hat (TWH)"
