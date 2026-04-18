@@ -162,65 +162,94 @@
     });
   }
 
-  // ── MediaPipe Hands at 12fps ───────────────────────────────────────────────
+  // ── MediaPipe Hands — direct getUserMedia (no Camera utility) ─────────────
+  let _rafId      = null;   // requestAnimationFrame id
+  let _camStream  = null;   // raw MediaStream
+
   async function initMediaPipe() {
     if (_hands) return;
     try {
+      // Build Hands model
       _hands = new Hands({
         locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
       });
       _hands.setOptions({
-        maxNumHands:     1,
-        modelComplexity: 0,
-        minDetectionConfidence: CONFIDENCE_THRESH,
-        minTrackingConfidence:  CONFIDENCE_THRESH,
+        maxNumHands:             1,
+        modelComplexity:         0,
+        minDetectionConfidence:  0.6,
+        minTrackingConfidence:   0.5,
       });
       _hands.onResults(processGestureResults);
 
-      const videoEl = $('aeroVideoEl');
-      _camera = new Camera(videoEl, {
-        onFrame: async () => { await _hands.send({ image: videoEl }); },
-        width: 320, height: 240,
-        fps: GESTURE_FPS,
+      // Get camera stream ourselves — more reliable than Camera utility
+      _camStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: 320, height: 240 },
       });
-      await _camera.start();
+
+      const videoEl = $('aeroVideoEl');
+      videoEl.srcObject = _camStream;
+      videoEl.style.cssText = 'position:fixed;bottom:80px;right:12px;width:90px;height:68px;border-radius:10px;object-fit:cover;z-index:850;border:2px solid var(--accent);opacity:0.85;';
+      await videoEl.play();
+
+      // Send frames at 12fps using setInterval instead of rAF
+      _rafId = setInterval(async () => {
+        if (videoEl.readyState >= 2) {
+          try { await _hands.send({ image: videoEl }); } catch (_) {}
+        }
+      }, Math.round(1000 / GESTURE_FPS));
+
+      console.log('[AeroGrab] MediaPipe started, watching at', GESTURE_FPS, 'fps');
     } catch (e) {
-      showToast('AeroGrab unavailable. Camera AI failed to load.', 'error');
+      showToast('AeroGrab: Camera AI failed to load.', 'error');
       console.error('[AeroGrab] MediaPipe init failed:', e);
       deactivateAeroGrab();
     }
   }
 
   // ── Gesture classification ─────────────────────────────────────────────────
+  function lmDist(a, b) {
+    return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + ((a.z || 0) - (b.z || 0)) ** 2);
+  }
+
   function processGestureResults(results) {
     if (!results.multiHandLandmarks || !results.multiHandLandmarks.length) return;
-    const landmarks = results.multiHandLandmarks[0];
-    const gesture   = classifyGesture(landmarks);
+    const lm      = results.multiHandLandmarks[0];
+    const gesture = classifyGesture(lm);
+
+    // Update live indicator label
+    const lbl = $('aeroGestureLbl');
+    if (lbl) lbl.textContent = gesture || '—';
+
     if (gesture && gesture !== _lastGesture) {
       _lastGesture = gesture;
       clearTimeout(_gestureDebounce);
-      _gestureDebounce = setTimeout(() => { _lastGesture = null; }, 2000);
+      _gestureDebounce = setTimeout(() => { _lastGesture = null; }, 1500);
       onGestureDetected(gesture);
     }
   }
 
   function classifyGesture(lm) {
-    // Fingertip indices: thumb=4, index=8, middle=12, ring=16, pinky=20
-    // Knuckle (MCP) indices: index=5, middle=9, ring=13, pinky=17
-    // For FIST: fingertips below their knuckles (higher Y value in image coords)
-    const fingerTips    = [8, 12, 16, 20];
-    const fingerKnuckle = [6,  10, 14, 18];
+    // ── Distance-based classification — works regardless of hand orientation ──
+    // Hand size = wrist(0) to middle-MCP(9) distance (normalises for distance from camera)
+    const handSize = lmDist(lm[0], lm[9]);
+    if (handSize < 0.05) return null;   // hand too far or not detected cleanly
 
-    const allCurled = fingerTips.every((tip, i) => lm[tip].y > lm[fingerKnuckle[i]].y);
-    // Thumb: tip (4) close to index base (2)
-    const thumbCurled = lm[4].y > lm[3].y;
+    // For each finger: compare tip-to-MCP distance with MCP-to-wrist distance.
+    // Curl ratio < 0.5  → finger is curled (fist)
+    // Curl ratio > 0.85 → finger is extended (open)
+    const fingerTips = [8, 12, 16, 20];
+    const fingerMCP  = [5, 9, 13, 17];
 
-    if (allCurled && thumbCurled) return 'FIST';
+    const curlRatios = fingerTips.map((tip, i) => {
+      const tipToMcp = lmDist(lm[tip], lm[fingerMCP[i]]);
+      return tipToMcp / handSize;
+    });
 
-    // OPEN PALM: all fingertips above their knuckles
-    const allOpen = fingerTips.every((tip, i) => lm[tip].y < lm[fingerKnuckle[i]].y);
-    if (allOpen) return 'OPEN_PALM';
+    const allCurled   = curlRatios.every(r => r < 0.55);
+    const allExtended = curlRatios.every(r => r > 0.75);
 
+    if (allCurled)   return 'FIST';
+    if (allExtended) return 'OPEN_PALM';
     return null;
   }
 
@@ -492,10 +521,12 @@
     _wakePayload = null;
   }
 
-  // ── Green dot indicator ────────────────────────────────────────────────────
+  // ── Green dot + camera overlay ────────────────────────────────────────────
   function showGreenDot(visible) {
     const dot = $('aeroGreenDot');
     if (dot) dot.classList.toggle('hidden', !visible);
+    const overlay = $('agCamOverlay');
+    if (overlay) overlay.classList.toggle('hidden', !visible);
   }
 
   // ── Reset session state ────────────────────────────────────────────────────
@@ -516,8 +547,21 @@
     showGreenDot(false);
     hideWakeUpNotification();
     resetSession();
-    if (_camera) { try { _camera.stop(); } catch (_) {} _camera = null; }
-    if (_hands)  { try { _hands.close(); } catch (_) {} _hands  = null; }
+
+    if (_rafId)     { clearInterval(_rafId); _rafId = null; }
+    if (_camStream) { _camStream.getTracks().forEach(t => t.stop()); _camStream = null; }
+    if (_camera)    { try { _camera.stop(); } catch (_) {} _camera = null; }
+    if (_hands)     { try { _hands.close(); } catch (_) {} _hands  = null; }
+
+    // Reset video element to hidden
+    const videoEl = $('aeroVideoEl');
+    if (videoEl) {
+      videoEl.srcObject = null;
+      videoEl.style.cssText = 'display:none;position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+    }
+    const lbl = $('aeroGestureLbl');
+    if (lbl) lbl.textContent = '—';
+
     const toggle = $('aeroGrabToggle');
     if (toggle) toggle.checked = false;
   }
@@ -566,11 +610,23 @@
     toggle.addEventListener('change', () => toggleAeroGrab(toggle.checked));
   }
 
+  // ── Manual grab button (bypasses gesture detection) ──────────────────────
+  function wireManualGrab() {
+    const btn = $('aeroManualGrab');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      if (!_enabled) return;
+      if (_myRole !== null) return;
+      initiateGrab();
+    });
+  }
+
   // ── Boot ──────────────────────────────────────────────────────────────────
   function boot() {
     wireToggle();
     wireContextMenuButton();
     wireWakePanel();
+    wireManualGrab();
     console.log('[AeroGrab] ready — by TWH');
   }
 

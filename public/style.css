@@ -6780,3 +6780,43 @@ img.lazy-img:not([src]) {
   font-weight: 700;
   color: var(--success);
 }
+
+/* ── AeroGrab camera overlay ─────────────────────────────────────────────── */
+.ag-cam-overlay {
+  position: fixed;
+  bottom: 154px;
+  right: 12px;
+  width: 90px;
+  z-index: 851;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.ag-gesture-lbl {
+  background: rgba(7,11,18,0.8);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(37,244,208,0.3);
+  letter-spacing: 0.5px;
+  width: 100%;
+  text-align: center;
+}
+.ag-manual-grab {
+  background: var(--accent);
+  color: #000;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 0;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  letter-spacing: 0.3px;
+  transition: opacity 0.2s;
+}
+.ag-manual-grab:active { opacity: 0.7; }
