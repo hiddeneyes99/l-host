@@ -97,7 +97,7 @@ function fileVisual(item) {
   if (['.ppt','.pptx','.pps','.ppsx'].includes(ext)) return { icon: '📊', label: ext.replace('.', '').toUpperCase(), className: 'file-type-ppt' };
   if (['.doc','.docx','.rtf'].includes(ext)) return { icon: '📘', label: ext.replace('.', '').toUpperCase(), className: 'file-type-doc' };
   if (['.xls','.xlsx','.ods'].includes(ext)) return { icon: '📗', label: ext.replace('.', '').toUpperCase(), className: 'file-type-sheet' };
-  if (['.txt','.md','.log'].includes(ext)) return { icon: '📝', label: ext.replace('.', '').toUpperCase(), className: 'file-type-text' };
+  if (['.txt','.md','.log','.sbv'].includes(ext)) return { icon: '📝', label: ext.replace('.', '').toUpperCase(), className: 'file-type-text' };
   if (ext === '.py') return { icon: '🐍', label: 'PY', className: 'file-type-python' };
   if (ext === '.sh') return { icon: '⌨️', label: 'SH', className: 'file-type-shell' };
   if (ext === '.java') return { icon: '☕', label: 'JAVA', className: 'file-type-java' };
@@ -3603,7 +3603,7 @@ function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
     openPptx(item, url);
   } else if (cat === 'archive' || cat === 'apk' || ['.zip','.tar','.gz','.tgz','.rar','.7z','.z7','.bz2','.xz','.lz','.lzma','.zst','.apk','.jar'].includes(item.ext)) {
     openArchive(item, url);
-  } else if (['.txt','.md','.log','.json','.xml','.html','.css','.js','.ts','.py','.sh','.c','.cpp','.h','.java','.yaml','.yml','.ini','.conf','.csv','.sql','.bat','.ps1','.rb','.go','.rs'].includes(item.ext)) {
+  } else if (['.txt','.md','.log','.sbv','.json','.xml','.html','.css','.js','.ts','.py','.sh','.c','.cpp','.h','.java','.yaml','.yml','.ini','.conf','.csv','.sql','.bat','.ps1','.rb','.go','.rs'].includes(item.ext)) {
     openText(item, url);
   } else {
     const a = document.createElement('a');
@@ -3790,7 +3790,7 @@ function archiveIcon(entry) {
   if (['.ttf','.otf','.woff','.woff2','.eot'].includes(e)) return '🔤';
   if (['.tmp','.temp','.cache','.bak','.old'].includes(e)) return '⏱️';
   if (['.ppt','.pptx','.pps','.ppsx'].includes(e)) return '📊';
-  if (['.txt','.md','.log'].includes(e)) return '📝';
+  if (['.txt','.md','.log','.sbv'].includes(e)) return '📝';
   if (['.html','.htm'].includes(e)) return '🌐';
   if (e === '.css') return '🎨';
   if (e === '.py') return '🐍';
@@ -6100,7 +6100,7 @@ function openCloudFile(accountId, item) {
   const isAudio  = cat === 'audio' || ['.mp3','.flac','.wav','.aac','.m4a','.ogg','.opus'].includes(ext);
   const isImage  = cat === 'image' || ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.avif','.svg'].includes(ext);
   const isPdf    = ext === '.pdf';
-  const isText   = ['.txt','.md','.log','.json','.xml','.csv','.sh','.py','.js','.ts','.html','.css'].includes(ext);
+  const isText   = ['.txt','.md','.log','.sbv','.json','.xml','.csv','.sh','.py','.js','.ts','.html','.css'].includes(ext);
 
   if (isVideo) {
     cloudOpenVideo(item.name, fileUrl);

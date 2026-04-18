@@ -191,7 +191,7 @@ const MIME_MAP = {
   '.arw':'image/x-sony-arw','.dng':'image/x-adobe-dng',
   '.psd':'image/vnd.adobe.photoshop','.ai':'image/vnd.adobe.illustrator',
   '.pdf':'application/pdf','.txt':'text/plain','.md':'text/markdown',
-  '.log':'text/plain','.json':'application/json','.xml':'application/xml',
+  '.log':'text/plain','.sbv':'text/plain','.json':'application/json','.xml':'application/xml',
   '.html':'text/html','.css':'text/css','.js':'application/javascript',
   '.py':'text/plain','.sh':'text/plain',
   '.c':'text/plain','.cpp':'text/plain','.h':'text/plain','.java':'text/plain',
@@ -1829,7 +1829,7 @@ app.post('/api/index/rebuild', (req, res) => {
 });
 
 const DOC_EXTS = new Set([
-  '.pdf','.txt','.md','.log','.rtf','.doc','.docx','.xls','.xlsx','.ods',
+  '.pdf','.txt','.md','.log','.sbv','.rtf','.doc','.docx','.xls','.xlsx','.ods',
   '.ppt','.pptx','.pps','.ppsx','.csv','.json','.xml','.html','.htm','.css',
   '.js','.ts','.jsx','.tsx','.yaml','.yml','.ini','.conf','.sql','.py','.sh',
   '.bat','.ps1','.rb','.go','.rs','.c','.cpp','.h','.java'
