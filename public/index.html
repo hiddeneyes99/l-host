@@ -50,6 +50,7 @@
       <button class="icon-btn hidden" id="viewMenuBtn" title="View options">
         <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h12M3 19h7" stroke-linecap="round"/></svg>
       </button>
+      <div class="ag-green-dot hidden" id="aeroGreenDot" title="AeroGrab active"></div>
       <button class="icon-btn" id="searchToggleBtn" title="Search">
         <svg viewBox="0 0 24 24">
           <circle cx="11" cy="11" r="7" />
@@ -142,6 +143,25 @@
         <div class="sidebar-section-label hidden" id="sbCloudLabel">Cloud Storage</div>
         <div id="sbCloudList"></div>
       </nav>
+      <div class="sidebar-aerograb-row">
+        <div class="sidebar-aerograb-left">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
+            <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
+            <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+            <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+          </svg>
+          <div>
+            <div class="sidebar-aerograb-name">AeroGrab</div>
+            <div class="sidebar-aerograb-sub">Gesture file transfer</div>
+          </div>
+        </div>
+        <label class="ag-toggle-switch">
+          <input type="checkbox" id="aeroGrabToggle">
+          <span class="ag-toggle-slider"></span>
+        </label>
+      </div>
+
       <div class="sidebar-footer">
         <button class="sidebar-item" id="sbSettings">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -2132,6 +2152,15 @@
         </svg>
         Info
       </button>
+      <button class="ctx-item ctx-aerograb" id="ctxAeroGrab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
+          <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
+          <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+          <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+        </svg>
+        <span>AeroGrab</span>
+      </button>
       <div class="ctx-divider"></div>
       <button class="ctx-item ctx-danger" id="ctxDelete">
         <svg viewBox="0 0 24 24">
@@ -2348,8 +2377,60 @@
       <strong>TWH</strong>
     </a>
 
+    <!-- ── AEROGRAB: Hidden camera video for MediaPipe ── -->
+    <video id="aeroVideoEl" style="display:none;position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" playsinline muted></video>
+
+    <!-- ── AEROGRAB: Camera Permission Dialog ── -->
+    <div class="modal hidden" id="aeroPermDialog">
+      <div class="modal-backdrop"></div>
+      <div class="ag-perm-card">
+        <div class="ag-perm-icon">🎯</div>
+        <div class="ag-perm-title">AeroGrab needs your camera</div>
+        <div class="ag-perm-body">
+          AeroGrab uses your camera to detect hand gestures<br>
+          <b>(fist to grab, open palm to catch)</b>.
+        </div>
+        <ul class="ag-perm-list">
+          <li>✅ Your camera feed <b>NEVER</b> leaves this device</li>
+          <li>✅ No video is recorded or stored</li>
+          <li>✅ No data is sent to any server</li>
+          <li>✅ Only gesture events are transmitted — never images</li>
+        </ul>
+        <div class="ag-perm-note">AeroGrab only works on your local network. Completely private.</div>
+        <div class="ag-perm-actions">
+          <button class="btn-primary" id="aeroPermEnable">Enable AeroGrab</button>
+          <button class="btn-ghost" id="aeroPermCancel">Not Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AEROGRAB: Receiver Wake-up Notification ── -->
+    <div class="ag-wake-panel hidden" id="aeroWakePanel">
+      <div class="ag-wake-icon">📡</div>
+      <div class="ag-wake-text">
+        <div class="ag-wake-title">Someone is sending a file</div>
+        <div class="ag-wake-file" id="aeroWakeFileName">a file</div>
+        <div class="ag-wake-hint">Open your palm to catch it</div>
+      </div>
+      <div class="ag-wake-btns">
+        <button class="btn-primary ag-wake-catch" id="aeroWakeCatchBtn">✋ Catch</button>
+        <button class="btn-ghost ag-wake-dismiss" id="aeroWakeDismiss">Dismiss</button>
+      </div>
+    </div>
+
+    <!-- ── AEROGRAB: Animation Stage Overlay ── -->
+    <div class="ag-anim-stage hidden" id="aeroAnimStage"></div>
+
+    <!-- ── CDN Scripts ── -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
     <script src="/iv.js?v=11"></script>
     <script src="/app.js?v=12"></script>
+    <script src="/aerograb-animation.js?v=1"></script>
+    <script src="/aerograb.js?v=1"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js?v=11').then(reg => reg.update()).catch(() => {});

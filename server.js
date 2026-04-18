@@ -18,11 +18,18 @@ const os          = require('os');
 const net         = require('net');
 const crypto      = require('crypto');
 const { execFile, spawn } = require('child_process');
-const https = require('https');
+const https  = require('https');
+const http   = require('http');
+const { Server: IOServer } = require('socket.io');
 
 const APP_VERSION = require('./package.json').version;
 
-const app  = express();
+const app        = express();
+const httpServer = http.createServer(app);
+const io         = new IOServer(httpServer, {
+  cors: { origin: '*', methods: ['GET', 'POST'] },
+  maxHttpBufferSize: 1e6,
+});
 const HOST = '0.0.0.0';
 let ACTIVE_PORT = 5000;
 
@@ -3180,7 +3187,65 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
   // Bootstrap the file index (load from disk or build in background)
   initIndex().catch(e => console.error('[index] init error:', e));
 
-  app.listen(PORT, HOST, () => {
+  // ── AeroGrab — Signaling Hub ─────────────────────────────────────────────
+  // Sessions: { sessionId → { senderId, socketId, metadata, timer } }
+  const aeroSessions = new Map();
+
+  io.on('connection', (socket) => {
+
+    socket.on('FILE_GRABBED', (metadata) => {
+      const sessionId = crypto.randomUUID();
+      const timer = setTimeout(() => {
+        const s = aeroSessions.get(sessionId);
+        if (!s) return;
+        io.to(s.senderId).emit('SESSION_EXPIRED');
+        io.emit('SLEEP_CAMERAS', { sessionId });
+        aeroSessions.delete(sessionId);
+      }, 60000);
+      aeroSessions.set(sessionId, {
+        sessionId, senderId: socket.id, metadata, timer, receiverId: null,
+      });
+      socket.broadcast.emit('WAKE_UP_CAMERAS', { sessionId, senderId: socket.id, metadata });
+    });
+
+    socket.on('DROP_HERE', ({ sessionId }) => {
+      const s = aeroSessions.get(sessionId);
+      if (!s || s.receiverId) {
+        socket.emit('TRANSFER_TAKEN');
+        return;
+      }
+      s.receiverId = socket.id;
+      io.to(s.senderId).emit('TRANSFER_APPROVED', { receiverId: socket.id, sessionId });
+      socket.emit('YOU_ARE_RECEIVER', { senderId: s.senderId, sessionId, metadata: s.metadata });
+      io.except([s.senderId, socket.id]).emit('TRANSFER_TAKEN', { sessionId });
+    });
+
+    socket.on('webrtc_signal', ({ to, signal }) => {
+      io.to(to).emit('webrtc_signal', { from: socket.id, signal });
+    });
+
+    socket.on('SESSION_END', ({ sessionId }) => {
+      const s = aeroSessions.get(sessionId);
+      if (s) {
+        clearTimeout(s.timer);
+        aeroSessions.delete(sessionId);
+      }
+      io.emit('SLEEP_CAMERAS', { sessionId });
+    });
+
+    socket.on('disconnect', () => {
+      for (const [sid, s] of aeroSessions.entries()) {
+        if (s.senderId === socket.id) {
+          clearTimeout(s.timer);
+          io.emit('SLEEP_CAMERAS', { sessionId: sid });
+          aeroSessions.delete(sid);
+        }
+      }
+    });
+  });
+  // ─────────────────────────────────────────────────────────────────────────
+
+  httpServer.listen(PORT, HOST, () => {
     ACTIVE_PORT = PORT;
     const ifaces     = os.networkInterfaces();
     const networkIPs = Object.values(ifaces)

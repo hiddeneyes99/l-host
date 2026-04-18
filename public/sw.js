@@ -8,14 +8,16 @@
 //   • Everything else            → Network-first
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_SHELL   = 'lhost-shell-v12';
-const CACHE_THUMBS  = 'lhost-thumbs-v12';
+const CACHE_SHELL   = 'lhost-shell-v13';
+const CACHE_THUMBS  = 'lhost-thumbs-v13';
 
 const SHELL_ASSETS = [
   '/',
   '/app.js',
   '/style.css',
   '/index.html',
+  '/aerograb.js',
+  '/aerograb-animation.js',
 ];
 
 // ── Install: precache shell assets and skip waiting ───────────────────────────

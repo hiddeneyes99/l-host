@@ -3577,6 +3577,12 @@ async function doSearch(q) {
 
 // ── Open file ──────────────────────────────────────────────────────────────
 function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
+  // Notify AeroGrab about the currently opened file (Priority Override)
+  if (typeof window.aeroGrabSetOpenFile === 'function') {
+    window.aeroGrabSetOpenFile({ name: item.name, size: item.size, path: item.path, type: item.mimeType || 'application/octet-stream' });
+    try { localStorage.setItem('ag_last_file', item.path); } catch(_) {}
+  }
+
   // Persist to recent.json via dedicated endpoint
   fetch('/api/recent', {
     method: 'POST',
@@ -3971,6 +3977,7 @@ async function loadFavoritesAll() {
 
 function showCtxMenu(e, item) {
   state.ctxItem = item;
+  window._aeroCtxItem = item;
   const menu = $('ctxMenu');
   menu.classList.remove('hidden');
   menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';

@@ -13,15 +13,17 @@ A self-hosted private media vault and local file manager that runs on Replit and
 ## Project Structure
 
 ```
-server.js        - Express HTTP server, API routes, indexing, thumbnails, file streaming, and cloud backend
-files/           - Default browseable file root on Replit, created automatically at startup
+server.js              - Express HTTP server + Socket.io signaling hub (AeroGrab), API routes, indexing, thumbnails, file streaming, cloud backend
+files/                 - Default browseable file root on Replit, created automatically at startup
 public/
-  index.html     - SPA shell (includes cloud browser view, cloud modals)
-  style.css      - UI styles (includes cloud section CSS)
-  brand.svg      - Hevi Explorer logo and favicon
-  app.js         - Frontend application logic (includes cloud account management and browser)
-  iv.js          - Advanced image viewer module
-  sw.js          - Service worker
+  index.html           - SPA shell (includes AeroGrab UI: toggle, permission dialog, wake panel, animation stage)
+  style.css            - UI styles (includes AeroGrab styles)
+  brand.svg            - Hevi Explorer logo and favicon
+  app.js               - Frontend application logic (includes cloud, openFile hook for AeroGrab)
+  aerograb.js          - AeroGrab client: Socket.io, MediaPipe 12fps gesture detection, WebRTC P2P, session management
+  aerograb-animation.js- AeroGrab Fly animations: Energy Squeeze, Rocket Launch, Landing, Progress Ring
+  iv.js                - Advanced image viewer module
+  sw.js                - Service worker (v13, caches AeroGrab files)
 data/
   index.json     - Persistent file index and category caches
   thumbs/        - Server-side thumbnail cache
@@ -36,6 +38,7 @@ package.json     - npm manifest
 
 - `express` for the HTTP server and API routes
 - `compression` for gzip response compression
+- `socket.io` for AeroGrab real-time signaling (WebSocket, session management)
 - `exifr` for image metadata extraction
 - `music-metadata` for audio artwork and tag metadata
 - `heic2any` for browser-side HEIC/HEIF conversion when the user requests a preview
@@ -43,6 +46,7 @@ package.json     - npm manifest
 - `dropbox` for Dropbox SDK
 - `megajs` for MEGA cloud storage (CommonJS, v1)
 - `node-fetch` (v2) and `isomorphic-fetch` for OneDrive/Dropbox token refresh HTTP calls
+- CDN (browser-only): `socket.io-client`, `@mediapipe/hands`, `@mediapipe/camera_utils`, `jszip`, `anime.js`
 
 ## Replit Compatibility
 

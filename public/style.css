@@ -6426,3 +6426,357 @@ img.lazy-img:not([src]) {
   margin-top: 2px;
 }
 .st-twh-footer svg { color: rgba(0,212,200,0.5); flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AeroGrab  —  UI Styles v1.0
+   by Technical White Hat (TWH)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Green dot indicator ─────────────────────────────────────────────────── */
+.ag-green-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 2px rgba(34,201,126,0.25);
+  animation: ag-pulse-dot 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+@keyframes ag-pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(34,201,126,0.25); }
+  50%       { box-shadow: 0 0 0 6px rgba(34,201,126,0.0); }
+}
+
+/* ── Sidebar AeroGrab row ─────────────────────────────────────────────────── */
+.sidebar-aerograb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  margin: 8px 8px 0;
+  background: linear-gradient(135deg, rgba(37,244,208,0.06), rgba(47,140,255,0.04));
+  border: 1px solid rgba(37,244,208,0.15);
+  border-radius: var(--radius);
+}
+.sidebar-aerograb-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sidebar-aerograb-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.3px;
+}
+.sidebar-aerograb-sub {
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 1px;
+}
+
+/* ── Toggle switch ────────────────────────────────────────────────────────── */
+.ag-toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.ag-toggle-switch input { opacity: 0; width: 0; height: 0; }
+.ag-toggle-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.25s;
+}
+.ag-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: var(--text2);
+  transition: transform 0.25s, background 0.25s;
+}
+.ag-toggle-switch input:checked + .ag-toggle-slider {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.ag-toggle-switch input:checked + .ag-toggle-slider::before {
+  transform: translate(20px, -50%);
+  background: #fff;
+}
+
+/* ── Context menu AeroGrab button ────────────────────────────────────────── */
+.ctx-aerograb { color: var(--accent); }
+.ctx-aerograb svg { stroke: var(--accent); }
+
+/* ── Permission dialog ───────────────────────────────────────────────────── */
+.ag-perm-card {
+  background: var(--bg2);
+  border: 1px solid rgba(37,244,208,0.2);
+  border-radius: 20px;
+  padding: 28px 24px;
+  max-width: 360px;
+  width: 90vw;
+  text-align: center;
+  position: relative;
+  z-index: 1001;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+.ag-perm-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  display: block;
+}
+.ag-perm-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.ag-perm-body {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.ag-perm-list {
+  list-style: none;
+  text-align: left;
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.9;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: rgba(37,244,208,0.04);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(37,244,208,0.08);
+}
+.ag-perm-note {
+  font-size: 11px;
+  color: var(--text3);
+  margin-bottom: 20px;
+  font-style: italic;
+}
+.ag-perm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Wake-up notification panel ──────────────────────────────────────────── */
+.ag-wake-panel {
+  position: fixed;
+  bottom: calc(var(--nav-h) + 16px);
+  left: 12px;
+  right: 12px;
+  background: linear-gradient(135deg, var(--bg3), var(--bg2));
+  border: 1px solid rgba(37,244,208,0.25);
+  border-radius: 18px;
+  padding: 16px;
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(37,244,208,0.08);
+  animation: ag-wake-slide 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes ag-wake-slide {
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.ag-wake-icon { font-size: 28px; flex-shrink: 0; }
+.ag-wake-text { flex: 1; min-width: 0; }
+.ag-wake-title {
+  font-size: 12px;
+  color: var(--text3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ag-wake-file {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 2px 0;
+}
+.ag-wake-hint { font-size: 11px; color: var(--accent); font-weight: 500; }
+.ag-wake-btns { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.ag-wake-catch { font-size: 12px !important; padding: 8px 14px !important; }
+.ag-wake-dismiss {
+  font-size: 11px;
+  color: var(--text3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+
+/* ── Animation stage ──────────────────────────────────────────────────────── */
+.ag-anim-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7,11,18,0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── File box ─────────────────────────────────────────────────────────────── */
+.ag-file-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 32px;
+  background: var(--bg3);
+  border: 1px solid rgba(37,244,208,0.2);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(37,244,208,0.06);
+  position: relative;
+}
+.ag-box-icon { font-size: 48px; line-height: 1; }
+.ag-box-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  max-width: 200px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Energy ring ──────────────────────────────────────────────────────────── */
+.ag-energy-ring {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 20px rgba(37,244,208,0.4);
+  pointer-events: none;
+}
+
+/* ── Rocket ───────────────────────────────────────────────────────────────── */
+.ag-rocket {
+  font-size: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+.ag-rocket-land {
+  position: absolute;
+}
+
+/* ── Waiting state ────────────────────────────────────────────────────────── */
+.ag-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.ag-waiting-rocket { font-size: 48px; }
+.ag-waiting-orbit {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px dashed rgba(37,244,208,0.4);
+}
+.ag-waiting-label {
+  font-size: 15px;
+  color: var(--text2);
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* ── Pulse ring (receiver) ────────────────────────────────────────────────── */
+.ag-pulse-ring {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(37,244,208,0.3), transparent 70%);
+  pointer-events: none;
+}
+
+/* ── Beam (receiver) ──────────────────────────────────────────────────────── */
+.ag-beam {
+  position: absolute;
+  width: 60px;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(37,244,208,0.0), rgba(37,244,208,0.25), rgba(37,244,208,0.0));
+  border-radius: 30px;
+  transform-origin: top center;
+  pointer-events: none;
+}
+
+/* ── Progress ring ────────────────────────────────────────────────────────── */
+.ag-progress-wrap {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ag-ring-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  stroke: none;
+}
+.ag-ring-bg {
+  fill: none;
+  stroke: var(--bg4);
+  stroke-width: 6;
+}
+.ag-ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 213.63;
+  stroke-dashoffset: 213.63;
+  transition: stroke-dashoffset 0.3s ease;
+}
+.ag-ring-pct {
+  position: relative;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  z-index: 1;
+}
+
+/* ── Done state ───────────────────────────────────────────────────────────── */
+.ag-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.ag-done-icon { font-size: 56px; }
+.ag-done-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--success);
+}
