@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "NrrfN8nAjfYPQbXIWanCJ"
@@ -24,3 +23,9 @@ id = "TPGBFs6Je4PqBTm1Uu3yu"
 uri = "file://public/creator/title-bg.png"
 type = "image"
 title = "generated_image"
+
+[[outputs]]
+id = "xyFMJ-G2qvtH_cDqhk74n"
+uri = "file://AeroGrab_Blueprint.md"
+type = "text"
+title = "AeroGrab Technology Blueprint v1.0 — by TWH"
