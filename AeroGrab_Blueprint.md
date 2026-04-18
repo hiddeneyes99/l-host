@@ -10,11 +10,11 @@
 
 ## Touchless Gesture-Controlled Local File Transfer System
 
-### by TWH
+### by Technical White Hat (TWH)
 
 **Document Version:** 1.0 — Engineering Release
 **Classification:** Internal Engineering Blueprint
-**Author:** TWH (T. W. H.), Independent Developer
+**Author:** Technical White Hat (TWH), Independent Developer
 **Created:** April 18, 2026
 **Platform:** L-Host Ecosystem (Hevi Explorer)
 **Status:** 🟡 Blueprint Phase — Ready for Phase 1 Development
@@ -26,7 +26,7 @@
 <br/>
 
 > *"The future of file transfer is not about cables, not about clouds — it's about intention. You grab, you throw, someone catches."*
-> — TWH, Creator of AeroGrab
+> — Technical White Hat (TWH), Creator of AeroGrab
 
 <br/>
 
@@ -88,7 +88,7 @@ AeroGrab is different. It is:
 
 ### Who Built This?
 
-AeroGrab was conceived and architected by **TWH**, the developer behind the L-Host / Hevi Explorer project. The technology was designed from scratch, inspired by the concept of physical intuition — the idea that transferring a file should feel as natural as handing someone a physical object.
+AeroGrab was conceived and architected by **Technical White Hat (TWH)**, the developer behind the L-Host / Hevi Explorer project. The technology was designed from scratch, inspired by the concept of physical intuition — the idea that transferring a file should feel as natural as handing someone a physical object.
 
 ---
 
@@ -806,15 +806,15 @@ A TURN (Traversal Using Relays around NAT) server acts as a relay when direct P2
 **AeroGrab Technology Blueprint v1.0**
 *L-Host Engineering Division*
 
-Authored by **TWH**
+Authored by **Technical White Hat (TWH)**
 April 18, 2026
 
 *"Grab it. Throw it. They'll catch it."*
 
 ---
 
-© 2026 TWH — L-Host / Hevi Explorer Project
+© 2026 Technical White Hat (TWH) — L-Host / Hevi Explorer Project
 This document is an internal engineering blueprint.
-All technology described herein is original work by TWH.
+All technology described herein is original work of Technical White Hat (TWH).
 
 </div>
