@@ -3598,6 +3598,17 @@ img.lazy-img:not([src]) {
   min-width: 44px;
   text-align: center;
 }
+.pdf-zoom-hint {
+  font-size: 11px;
+  color: var(--text2);
+  opacity: 0.6;
+  margin-left: auto;
+  padding-right: 4px;
+  white-space: nowrap;
+}
+@media (hover: none) {
+  .pdf-zoom-hint { display: none; }
+}
 .pdf-zoom-inner {
   transform-origin: top left;
 }

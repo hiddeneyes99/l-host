@@ -1225,6 +1225,7 @@
           <button class="pdf-zoom-btn" id="pdfZoomOut">−</button>
           <span class="pdf-zoom-label" id="pdfZoomLabel">100%</span>
           <button class="pdf-zoom-btn" id="pdfZoomIn">+</button>
+          <span class="pdf-zoom-hint" id="pdfZoomHint">Shift + Scroll to zoom</span>
         </div>
         <div class="pdf-canvas-wrap" id="pdfCanvasWrap">
           <div class="pdf-zoom-inner" id="pdfZoomInner">
@@ -2067,6 +2068,13 @@
 
     <!-- ── CONTEXT MENU ── -->
     <div class="ctx-menu hidden" id="ctxMenu">
+      <button class="ctx-item" id="ctxSelect">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><polyline points="7 7 9 9 13 5"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Select
+      </button>
       <button class="ctx-item" id="ctxOpen">
         <svg viewBox="0 0 24 24">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />

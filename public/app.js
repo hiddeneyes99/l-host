@@ -982,13 +982,14 @@ function mpUpdateProgress() {
 }
 
 let _mpSeekPending = null;
+let _mpBarRect = null;
 function mpSeekFromEvent(e) {
-  const bar = $('mpProgressBar');
-  const rect = bar.getBoundingClientRect();
+  if (!_mpBarRect) _mpBarRect = $('mpProgressBar').getBoundingClientRect();
+  const rect = _mpBarRect;
   const touch = e.touches && e.touches[0] ? e.touches[0] : (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0] : null);
   const clientX = touch ? touch.clientX : e.clientX;
   const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-  // Update visual immediately for smooth feedback
+  // Update visual immediately — no transition so dot follows finger exactly
   $('mpProgressFill').style.width = (pct * 100) + '%';
   $('mpProgressDot').style.left = (pct * 100) + '%';
   $('mpCurrentTime').textContent = fmtTime(pct * (mpGetAudio().duration || 0));
@@ -2065,12 +2066,26 @@ function mpInitEvents() {
   });
 
   const bar = $('mpProgressBar');
-  bar.addEventListener('mousedown', e => { mp.progressDragging = true; mpSeekFromEvent(e); });
-  bar.addEventListener('touchstart', e => { mp.progressDragging = true; mpSeekFromEvent(e); }, { passive: true });
+  const _mpDragStart = () => {
+    mp.progressDragging = true;
+    _mpBarRect = bar.getBoundingClientRect();
+    $('mpProgressFill').style.transition = 'none';
+    $('mpProgressDot').style.transition = 'none';
+  };
+  const _mpDragEnd = e => {
+    if (!mp.progressDragging) return;
+    if (e) mpSeekFromEvent(e);
+    $('mpProgressFill').style.transition = '';
+    $('mpProgressDot').style.transition = '';
+    _mpBarRect = null;
+    _mpApplyPendingSeek();
+  };
+  bar.addEventListener('mousedown', e => { _mpDragStart(); mpSeekFromEvent(e); });
+  bar.addEventListener('touchstart', e => { _mpDragStart(); mpSeekFromEvent(e); }, { passive: true });
   document.addEventListener('mousemove', e => { if (mp.progressDragging) mpSeekFromEvent(e); });
   document.addEventListener('touchmove', e => { if (mp.progressDragging) { e.preventDefault(); mpSeekFromEvent(e); } }, { passive: false });
-  document.addEventListener('mouseup',   () => { if (mp.progressDragging) _mpApplyPendingSeek(); });
-  document.addEventListener('touchend',  e => { if (mp.progressDragging) { mpSeekFromEvent(e); _mpApplyPendingSeek(); } }, { passive: true });
+  document.addEventListener('mouseup',   () => { if (mp.progressDragging) _mpDragEnd(); });
+  document.addEventListener('touchend',  e => { if (mp.progressDragging) _mpDragEnd(e); }, { passive: true });
 
   // Restore saved preferences
   const savedVol = parseFloat(localStorage.getItem('lhost_mp_vol') ?? '1');
@@ -3441,6 +3456,22 @@ function createItemEl(item, imageSet = [], audioSet = [], videoSet = []) {
     el.addEventListener('touchcancel', cancelLP, { once: true, passive: true });
     el.addEventListener('touchmove',  moveLP,  { once: true, passive: true });
   }, { passive: true });
+
+  // Mouse hold-press for PC (600 ms) → enter select mode
+  let _mlHold = null;
+  el.addEventListener('mousedown', e => {
+    if (e.button !== 0 || e.target.closest('[data-more]')) return;
+    let startX = e.clientX, startY = e.clientY;
+    _mlHold = setTimeout(() => {
+      _mlHold = null;
+      if (!state.selectMode) enterSelectMode();
+      if (item.type !== 'dir') toggleItemSelect(item, el);
+    }, 600);
+    const cancelML = () => { clearTimeout(_mlHold); _mlHold = null; };
+    const moveML = ev => { if (Math.abs(ev.clientX - startX) > 8 || Math.abs(ev.clientY - startY) > 8) cancelML(); };
+    el.addEventListener('mouseup', cancelML, { once: true });
+    document.addEventListener('mousemove', moveML, { once: true });
+  });
 
   return el;
 }
@@ -5061,24 +5092,38 @@ document.addEventListener('DOMContentLoaded', () => {
   $('pdfClose') && $('pdfClose').addEventListener('click', () => { _cancelPdf(); closeModal('pdfModal'); });
   $('pdfZoomIn')  && $('pdfZoomIn').addEventListener('click',  () => _pdfSetZoom(_pdfZoom + 0.25));
   $('pdfZoomOut') && $('pdfZoomOut').addEventListener('click', () => _pdfSetZoom(_pdfZoom - 0.25));
-  // Pinch-to-zoom on PDF canvas wrapper
+  // Pinch-to-zoom on PDF canvas wrapper (mobile) + Shift+Scroll (PC)
   (() => {
     const cw = $('pdfCanvasWrap');
     if (!cw) return;
     let _pz0 = 0, _pzBase = 1;
     cw.addEventListener('touchstart', e => {
       if (e.touches.length === 2) {
+        e.preventDefault();
         _pz0 = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
         _pzBase = _pdfZoom;
       }
-    }, { passive: true });
+    }, { passive: false });
     cw.addEventListener('touchmove', e => {
       if (e.touches.length === 2 && _pz0 > 0) {
+        e.preventDefault();
         const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
         _pdfSetZoom(_pzBase * (d / _pz0));
       }
-    }, { passive: true });
+    }, { passive: false });
     cw.addEventListener('touchend', () => { _pz0 = 0; }, { passive: true });
+    // Shift+Scroll to zoom on PC
+    cw.addEventListener('wheel', e => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.15 : 0.15;
+      _pdfSetZoom(_pdfZoom + delta);
+    }, { passive: false });
+    // Hide/show the Shift+Scroll hint based on input type
+    cw.addEventListener('touchstart', () => {
+      const hint = $('pdfZoomHint');
+      if (hint) hint.style.display = 'none';
+    }, { passive: true, once: true });
   })();
 
   $('mpFavBtn') && $('mpFavBtn').addEventListener('click', () => {
@@ -5297,6 +5342,15 @@ document.addEventListener('DOMContentLoaded', () => {
   $('folderNameInput').addEventListener('keydown', e => { if (e.key === 'Enter') { const n = e.target.value.trim(); if (n) { closeModal('folderModal'); createFolder(n); } } });
 
   // Context menu
+  $('ctxSelect') && $('ctxSelect').addEventListener('click', () => {
+    const i = state.ctxItem; hideCtxMenu();
+    if (!i) return;
+    if (!state.selectMode) enterSelectMode();
+    if (i.type !== 'dir') {
+      const el = document.querySelector(`.file-item[data-path="${CSS.escape(i.path)}"]`);
+      if (el) toggleItemSelect(i, el);
+    }
+  });
   $('ctxOpen').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (!i) return; if (i.type === 'dir') navigate(i.path); else openFile(i); });
   $('ctxDownload').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (!i) return; const a = document.createElement('a'); a.href = `/file?path=${encodeURIComponent(i.path)}&dl=1`; a.download = i.name; a.click(); });
   $('ctxFavorite').addEventListener('click', () => { const i = state.ctxItem; hideCtxMenu(); if (i) toggleFavorite(i); });

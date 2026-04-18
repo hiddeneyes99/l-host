@@ -716,17 +716,20 @@ function ivStartInertia() {
   iv.inertiaRaf = requestAnimationFrame(step);
 }
 
-// ── Double-tap zoom cycle ─────────────────────────────────────────────────
+// ── Double-tap: toggle between 1x (centered) and 2x (at tap point) ──────────
 function ivDoubleTap(x, y) {
-  iv.zoomLevelIdx = (iv.zoomLevelIdx + 1) % ZOOM_CYCLE.length;
-  const target = ZOOM_CYCLE[iv.zoomLevelIdx];
-  if (target === 1) {
+  if (iv.scale > 1.05) {
+    // Already zoomed → reset to 1x centered
     iv.scale = 1; iv.panX = 0; iv.panY = 0;
+    iv.zoomLevelIdx = 0;
     ivApplyWrapAnimated();
   } else {
+    // At 1x → zoom to 2x at tap point
+    iv.zoomLevelIdx = 1;
     const rect = $('ivStage').getBoundingClientRect();
     const px = x - rect.left - rect.width  / 2;
     const py = y - rect.top  - rect.height / 2;
+    const target = 2;
     const ratio = target / iv.scale;
     iv.panX = px + (iv.panX - px) * ratio;
     iv.panY = py + (iv.panY - py) * ratio;
@@ -954,9 +957,9 @@ function ivInitTouch() {
         ivApplyCurSlot(0, 1, true);
         if (shouldOpenInfo && !iv.metaOpen) { ivToggleMeta(); }
       }
-    } else if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 450) {
+    } else if (Math.abs(dx) < 20 && Math.abs(dy) < 20 && dt < 500) {
       const now = Date.now();
-      if (now - lastTap < 350) {
+      if (now - lastTap < 420) {
         clearTimeout(singleTapTimer); singleTapTimer = null;
         ivDoubleTap(endX, endY);
         lastTap = 0;
@@ -965,7 +968,7 @@ function ivInitTouch() {
         singleTapTimer = setTimeout(() => {
           singleTapTimer = null;
           $('ivWrap').classList.toggle('ui-hidden');
-        }, 360);
+        }, 440);
       }
     }
   }, { passive: true });
