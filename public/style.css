@@ -6786,7 +6786,7 @@ img.lazy-img:not([src]) {
   position: fixed;
   bottom: 154px;
   right: 12px;
-  width: 90px;
+  width: 150px;
   z-index: 851;
   display: flex;
   flex-direction: column;
@@ -6794,16 +6794,18 @@ img.lazy-img:not([src]) {
   gap: 4px;
 }
 .ag-gesture-lbl {
-  background: rgba(7,11,18,0.8);
+  background: rgba(7,11,18,0.92);
   color: var(--accent);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 3px 6px;
   border-radius: 8px;
-  border: 1px solid rgba(37,244,208,0.3);
-  letter-spacing: 0.5px;
+  border: 1px solid rgba(37,244,208,0.4);
+  letter-spacing: 0.3px;
   width: 100%;
   text-align: center;
+  word-break: break-all;
+  line-height: 1.4;
 }
 .ag-manual-grab {
   background: var(--accent);

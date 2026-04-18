@@ -188,14 +188,16 @@
 
       const videoEl = $('aeroVideoEl');
       videoEl.srcObject = _camStream;
-      videoEl.style.cssText = 'position:fixed;bottom:80px;right:12px;width:90px;height:68px;border-radius:10px;object-fit:cover;z-index:850;border:2px solid var(--accent);opacity:0.85;';
+      videoEl.style.cssText = 'position:fixed;bottom:80px;right:12px;width:150px;height:112px;border-radius:10px;object-fit:cover;z-index:850;border:2px solid var(--accent);opacity:0.9;';
       await videoEl.play();
 
-      // Send frames at 12fps using setInterval instead of rAF
+      // Send frames at 12fps — skip frame if previous still processing
       _rafId = setInterval(async () => {
-        if (videoEl.readyState >= 2) {
-          try { await _hands.send({ image: videoEl }); } catch (_) {}
-        }
+        if (_processingHands) return;           // don't overlap calls
+        if (videoEl.readyState < 2) return;     // video not ready
+        _processingHands = true;
+        try { await _hands.send({ image: videoEl }); }
+        catch (e) { _processingHands = false; console.warn('[AeroGrab] send err:', e); }
       }, Math.round(1000 / GESTURE_FPS));
 
       console.log('[AeroGrab] MediaPipe started, watching at', GESTURE_FPS, 'fps');
@@ -207,18 +209,42 @@
   }
 
   // ── Gesture classification ─────────────────────────────────────────────────
-  function lmDist(a, b) {
-    return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + ((a.z || 0) - (b.z || 0)) ** 2);
+  // IMPORTANT: Only use x,y — MediaPipe z is relative depth, NOT same scale as x,y.
+  function lmDist2D(a, b) {
+    return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
   }
 
+  let _frameCount     = 0;    // total frames sent to MediaPipe
+  let _detectCount    = 0;    // frames where a hand was found
+  let _processingHands = false; // prevent concurrent send() calls
+
   function processGestureResults(results) {
-    if (!results.multiHandLandmarks || !results.multiHandLandmarks.length) return;
+    _processingHands = false;   // unlock for next frame
+    _frameCount++;
+
+    const lbl = $('aeroGestureLbl');
+
+    if (!results.multiHandLandmarks || !results.multiHandLandmarks.length) {
+      // No hand detected — show frame counter so user knows model is running
+      if (lbl) lbl.textContent = `👁 ${_frameCount} | no hand`;
+      return;
+    }
+
+    _detectCount++;
     const lm      = results.multiHandLandmarks[0];
     const gesture = classifyGesture(lm);
 
-    // Update live indicator label
-    const lbl = $('aeroGestureLbl');
-    if (lbl) lbl.textContent = gesture || '—';
+    // Show live debug: gesture + curl ratios
+    if (lbl) {
+      const fingerTips = [8, 12, 16, 20];
+      const fingerMCP  = [5, 9, 13, 17];
+      const handSize   = lmDist2D(lm[0], lm[9]);
+      const ratios     = fingerTips.map((t, i) =>
+        (lmDist2D(lm[t], lm[fingerMCP[i]]) / handSize).toFixed(2));
+      lbl.textContent  = gesture
+        ? `✅ ${gesture}`
+        : `H:${handSize.toFixed(2)} [${ratios.join(',')}]`;
+    }
 
     if (gesture && gesture !== _lastGesture) {
       _lastGesture = gesture;
@@ -229,24 +255,22 @@
   }
 
   function classifyGesture(lm) {
-    // ── Distance-based classification — works regardless of hand orientation ──
-    // Hand size = wrist(0) to middle-MCP(9) distance (normalises for distance from camera)
-    const handSize = lmDist(lm[0], lm[9]);
-    if (handSize < 0.05) return null;   // hand too far or not detected cleanly
+    // Hand size = wrist(0) to middle-finger-MCP(9) in 2D normalised space
+    const handSize = lmDist2D(lm[0], lm[9]);
+    if (handSize < 0.03) return null;  // too small / too far — ignore
 
-    // For each finger: compare tip-to-MCP distance with MCP-to-wrist distance.
-    // Curl ratio < 0.5  → finger is curled (fist)
-    // Curl ratio > 0.85 → finger is extended (open)
+    // Finger tips vs their MCP (knuckle) in 2D
     const fingerTips = [8, 12, 16, 20];
-    const fingerMCP  = [5, 9, 13, 17];
+    const fingerMCP  = [5,  9, 13, 17];
 
-    const curlRatios = fingerTips.map((tip, i) => {
-      const tipToMcp = lmDist(lm[tip], lm[fingerMCP[i]]);
-      return tipToMcp / handSize;
-    });
+    const curlRatios = fingerTips.map((tip, i) =>
+      lmDist2D(lm[tip], lm[fingerMCP[i]]) / handSize
+    );
 
-    const allCurled   = curlRatios.every(r => r < 0.55);
-    const allExtended = curlRatios.every(r => r > 0.75);
+    // Lenient thresholds — wide enough to catch real gestures
+    // Curl ratio: small → finger folded, large → finger extended
+    const allCurled   = curlRatios.every(r => r < 0.65);   // fist
+    const allExtended = curlRatios.every(r => r > 0.65);   // open palm
 
     if (allCurled)   return 'FIST';
     if (allExtended) return 'OPEN_PALM';
@@ -552,6 +576,8 @@
     if (_camStream) { _camStream.getTracks().forEach(t => t.stop()); _camStream = null; }
     if (_camera)    { try { _camera.stop(); } catch (_) {} _camera = null; }
     if (_hands)     { try { _hands.close(); } catch (_) {} _hands  = null; }
+    _processingHands = false;
+    _frameCount = 0; _detectCount = 0;
 
     // Reset video element to hidden
     const videoEl = $('aeroVideoEl');
