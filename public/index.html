@@ -162,6 +162,23 @@
         </label>
       </div>
 
+      <!-- ── Hevi Network Panel ── -->
+      <div class="hevi-net-section" id="heviNetSection">
+        <button class="hevi-net-header" id="heviNetHeader" aria-expanded="false">
+          <div class="hevi-net-header-left">
+            <span class="hevi-net-icon">🌐</span>
+            <div>
+              <div class="hevi-net-title">Hevi Network</div>
+              <div class="hevi-net-count" id="heviNetCount">Searching...</div>
+            </div>
+          </div>
+          <svg class="hevi-net-chevron" id="heviNetChevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+        <div class="hevi-net-list hidden" id="heviNetList">
+          <div class="hevi-net-empty" id="heviNetEmpty">No other devices found on this network.</div>
+        </div>
+      </div>
+
       <div class="sidebar-footer">
         <button class="sidebar-item" id="sbSettings">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -2408,7 +2425,8 @@
     <div class="ag-wake-panel hidden" id="aeroWakePanel">
       <div class="ag-wake-icon">📡</div>
       <div class="ag-wake-text">
-        <div class="ag-wake-title">Someone is sending a file</div>
+        <div class="ag-wake-sender" id="aeroWakeSender"></div>
+        <div class="ag-wake-title">is sending a file</div>
         <div class="ag-wake-file" id="aeroWakeFileName">a file</div>
         <div class="ag-wake-hint">Open your palm to catch it</div>
       </div>
@@ -2441,6 +2459,81 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js?v=11').then(reg => reg.update()).catch(() => {});
       }
+
+      // ── Hevi Network: peer list rendering ─────────────────────────────────
+      (function() {
+        const _peerMap = new Map(); // socketId → deviceName
+
+        window._heviPeerName = function(socketId) {
+          return _peerMap.get(socketId) || null;
+        };
+
+        window.onHeviPeersUpdate = function(devices, total, mySocketId) {
+          _peerMap.clear();
+          devices.forEach(d => _peerMap.set(d.socketId, d.deviceName));
+
+          const countEl = document.getElementById('heviNetCount');
+          const listEl  = document.getElementById('heviNetList');
+          const emptyEl = document.getElementById('heviNetEmpty');
+          if (!countEl || !listEl) return;
+
+          const others = devices.filter(d => d.socketId !== mySocketId);
+          countEl.textContent = total > 1
+            ? `${total} devices online` : total === 1
+            ? '1 device online (you)' : 'No devices found';
+
+          // Clear old cards
+          Array.from(listEl.querySelectorAll('.hevi-peer-card')).forEach(c => c.remove());
+
+          if (others.length === 0) {
+            if (emptyEl) emptyEl.style.display = 'block';
+          } else {
+            if (emptyEl) emptyEl.style.display = 'none';
+            others.forEach(d => {
+              const card = document.createElement('div');
+              card.className = 'hevi-peer-card';
+              card.dataset.socketId = d.socketId;
+              card.innerHTML = `
+                <span class="hevi-peer-avatar">${d.avatar}</span>
+                <div class="hevi-peer-info">
+                  <div class="hevi-peer-name">${d.deviceName}</div>
+                  <div class="hevi-peer-status"><span class="hevi-peer-dot"></span>Online</div>
+                </div>
+                <button class="hevi-peer-send" onclick="heviSendTo('${d.socketId}','${d.deviceName}')">Send →</button>
+              `;
+              listEl.appendChild(card);
+            });
+          }
+        };
+
+        window.heviSendTo = function(socketId, deviceName) {
+          if (!window.aeroGrab) return;
+          window.aeroGrab.setTarget(socketId);
+          // Close sidebar
+          const overlay = document.getElementById('sidebarOverlay');
+          const drawer  = document.getElementById('sidebarDrawer');
+          if (overlay) overlay.classList.remove('open');
+          if (drawer)  drawer.classList.remove('open');
+          // Prompt user
+          if (typeof toast === 'function') {
+            toast(`Targeted: ${deviceName} — now make a fist or press ✊ Grab`, 'info');
+          }
+        };
+
+        // Hevi Network header click — collapse/expand
+        document.addEventListener('DOMContentLoaded', function() {
+          const header  = document.getElementById('heviNetHeader');
+          const list    = document.getElementById('heviNetList');
+          const chevron = document.getElementById('heviNetChevron');
+          if (!header || !list) return;
+          header.addEventListener('click', function() {
+            const open = !list.classList.contains('hidden');
+            list.classList.toggle('hidden', open);
+            header.setAttribute('aria-expanded', String(!open));
+            if (chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
+          });
+        });
+      })();
     </script>
   </body>
 </html>

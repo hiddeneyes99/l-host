@@ -3187,14 +3187,46 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
   // Bootstrap the file index (load from disk or build in background)
   initIndex().catch(e => console.error('[index] init error:', e));
 
-  // ── AeroGrab — Signaling Hub ─────────────────────────────────────────────
-  // Sessions: { sessionId → { senderId, socketId, metadata, timer } }
+  // ── AeroGrab + Hevi Network — Signaling Hub ──────────────────────────────
+  // Sessions: { sessionId → { senderId, metadata, timer, receiverId } }
   const aeroSessions = new Map();
+
+  // Device Registry: { socket.id → { socketId, deviceId, deviceName, avatar, joinedAt, lastSeen } }
+  const heviDevices = new Map();
+
+  function broadcastPeersUpdate() {
+    io.emit('HEVI_PEERS_UPDATE', {
+      devices: [...heviDevices.values()],
+      total:   heviDevices.size,
+    });
+  }
 
   io.on('connection', (socket) => {
 
-    socket.on('FILE_GRABBED', (metadata) => {
-      const sessionId = crypto.randomUUID();
+    // ── Hevi Network: device announces itself ─────────────────────────────
+    socket.on('HEVI_ANNOUNCE', ({ deviceId, deviceName, avatar } = {}) => {
+      heviDevices.set(socket.id, {
+        socketId:   socket.id,
+        deviceId:   (deviceId  || socket.id).substring(0, 36),
+        deviceName: (deviceName || 'Hevi Device').substring(0, 28),
+        avatar:     avatar || '📱',
+        joinedAt:   Date.now(),
+        lastSeen:   Date.now(),
+      });
+      broadcastPeersUpdate();
+    });
+
+    // ── Hevi Network: keep-alive heartbeat ───────────────────────────────
+    socket.on('HEVI_HEARTBEAT', () => {
+      const d = heviDevices.get(socket.id);
+      if (d) d.lastSeen = Date.now();
+    });
+
+    // ── AeroGrab: sender grabs a file ─────────────────────────────────────
+    socket.on('FILE_GRABBED', ({ metadata, targetId } = {}) => {
+      const sessionId  = crypto.randomUUID();
+      const sender     = heviDevices.get(socket.id);
+      const senderName = sender ? sender.deviceName : 'A device';
       const timer = setTimeout(() => {
         const s = aeroSessions.get(sessionId);
         if (!s) return;
@@ -3205,7 +3237,12 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
       aeroSessions.set(sessionId, {
         sessionId, senderId: socket.id, metadata, timer, receiverId: null,
       });
-      socket.broadcast.emit('WAKE_UP_CAMERAS', { sessionId, senderId: socket.id, metadata });
+      const wakePayload = { sessionId, senderId: socket.id, senderName, metadata };
+      if (targetId && io.sockets.sockets.get(targetId)) {
+        io.to(targetId).emit('WAKE_UP_CAMERAS', wakePayload);
+      } else {
+        socket.broadcast.emit('WAKE_UP_CAMERAS', wakePayload);
+      }
     });
 
     socket.on('DROP_HERE', ({ sessionId }) => {
@@ -3226,14 +3263,17 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
 
     socket.on('SESSION_END', ({ sessionId }) => {
       const s = aeroSessions.get(sessionId);
-      if (s) {
-        clearTimeout(s.timer);
-        aeroSessions.delete(sessionId);
-      }
+      if (s) { clearTimeout(s.timer); aeroSessions.delete(sessionId); }
       io.emit('SLEEP_CAMERAS', { sessionId });
     });
 
     socket.on('disconnect', () => {
+      // Clean up device registry + notify peers
+      if (heviDevices.has(socket.id)) {
+        heviDevices.delete(socket.id);
+        broadcastPeersUpdate();
+      }
+      // Clean up any active AeroGrab sessions
       for (const [sid, s] of aeroSessions.entries()) {
         if (s.senderId === socket.id) {
           clearTimeout(s.timer);

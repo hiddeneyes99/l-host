@@ -28,6 +28,8 @@
   let _recvBuffer     = [];            // incoming chunks
   let _recvMeta       = null;          // { name, size, type }
   let _recvReceived   = 0;             // bytes received so far
+  let _targetSocketId = null;          // if set, only this device gets WAKE_UP
+  let _heartbeatTimer = null;          // setInterval handle for HEVI_HEARTBEAT
   let _lastGesture    = null;
   let _gestureDebounce = null;
   let _activeOpenFile = null;          // set by Hevi Explorer when a file is opened
@@ -41,19 +43,76 @@
   const qs = s  => document.querySelector(s);
 
   // ── Initialise Socket.io connection ────────────────────────────────────────
+  // ── Device Identity (persisted in localStorage) ───────────────────────────
+  function getOrCreateDeviceId() {
+    let id = localStorage.getItem('ag_device_id');
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem('ag_device_id', id); }
+    return id;
+  }
+  function getDeviceName() {
+    const saved = localStorage.getItem('ag_device_name');
+    if (saved) return saved;
+    const ua = navigator.userAgent;
+    if (/android/i.test(ua))   return 'Android Device';
+    if (/iphone|ipad/i.test(ua)) return 'iPhone/iPad';
+    if (/mac/i.test(ua))       return 'Mac';
+    if (/win/i.test(ua))       return 'Windows PC';
+    return 'Hevi Device';
+  }
+  function getDeviceAvatar() {
+    const saved = localStorage.getItem('ag_device_avatar');
+    if (saved) return saved;
+    const ua = navigator.userAgent;
+    if (/android/i.test(ua))     return '📱';
+    if (/iphone|ipad/i.test(ua)) return '📱';
+    if (/mac/i.test(ua))         return '💻';
+    if (/win/i.test(ua))         return '🖥';
+    return '📡';
+  }
+
+  // ── Network announce + heartbeat ──────────────────────────────────────────
+  function announceToNetwork() {
+    if (!_socket) return;
+    _socket.emit('HEVI_ANNOUNCE', {
+      deviceId:   getOrCreateDeviceId(),
+      deviceName: getDeviceName(),
+      avatar:     getDeviceAvatar(),
+    });
+  }
+  function startHeartbeat() {
+    clearInterval(_heartbeatTimer);
+    _heartbeatTimer = setInterval(() => {
+      if (_socket && _socket.connected) _socket.emit('HEVI_HEARTBEAT');
+    }, 15000);
+  }
+  function stopHeartbeat() {
+    clearInterval(_heartbeatTimer);
+    _heartbeatTimer = null;
+  }
+
+  // ── Socket.io connection ───────────────────────────────────────────────────
   function initSocket() {
     if (_socket) return;
     _socket = io({ transports: ['websocket'], reconnectionDelay: 1000 });
 
     _socket.on('connect', () => {
       console.log('[AeroGrab] socket connected:', _socket.id);
+      announceToNetwork();
+      startHeartbeat();
+    });
+
+    // ── Hevi Network: peer list updated
+    _socket.on('HEVI_PEERS_UPDATE', ({ devices, total }) => {
+      if (typeof window.onHeviPeersUpdate === 'function') {
+        window.onHeviPeersUpdate(devices, total, _socket.id);
+      }
     });
 
     // ── Receiver: someone grabbed a file on another device
-    _socket.on('WAKE_UP_CAMERAS', ({ sessionId, senderId, metadata }) => {
+    _socket.on('WAKE_UP_CAMERAS', ({ sessionId, senderId, senderName, metadata }) => {
       if (_myRole === 'sender') return;
       _wakePayload = { sessionId, senderId, metadata };
-      showWakeUpNotification(metadata);
+      showWakeUpNotification(metadata, senderName);
     });
 
     // ── Sender: a receiver has confirmed they want the file
@@ -298,9 +357,16 @@
       type: payload.type || 'application/octet-stream',
       isFolder: !!payload.isFolder,
     };
-    _socket.emit('FILE_GRABBED', meta);
+    const targetId = _targetSocketId;
+    _targetSocketId = null;   // reset after use
+    _socket.emit('FILE_GRABBED', { metadata: meta, targetId });
+    if (targetId) {
+      const targetName = window._heviPeerName && window._heviPeerName(targetId);
+      showToast(`Grabbing → ${targetName || 'targeted device'}...`, 'info');
+    } else {
+      showToast('File grabbed — waiting for a receiver...', 'info');
+    }
     aeroAnim.showSenderLaunch(payload);
-    showToast('File grabbed — waiting for a receiver...', 'info');
   }
 
   // ── Determine what to grab based on Hevi Explorer state ───────────────────
@@ -530,11 +596,13 @@
   }
 
   // ── Wake-up notification for receivers ────────────────────────────────────
-  function showWakeUpNotification(metadata) {
-    const panel = $('aeroWakePanel');
-    const label = $('aeroWakeFileName');
+  function showWakeUpNotification(metadata, senderName) {
+    const panel  = $('aeroWakePanel');
+    const label  = $('aeroWakeFileName');
+    const device = $('aeroWakeSender');
     if (!panel) return;
-    if (label) label.textContent = metadata.name || 'a file';
+    if (label)  label.textContent  = metadata.name || 'a file';
+    if (device) device.textContent = senderName ? `From: ${senderName}` : '';
     panel.classList.remove('hidden');
     panel.classList.add('ag-wake-enter');
   }
@@ -578,6 +646,7 @@
     if (_hands)     { try { _hands.close(); } catch (_) {} _hands  = null; }
     _processingHands = false;
     _frameCount = 0; _detectCount = 0;
+    // NOTE: Socket + heartbeat stay alive for Hevi Network discovery
 
     // Reset video element to hidden
     const videoEl = $('aeroVideoEl');
@@ -653,6 +722,8 @@
     wireContextMenuButton();
     wireWakePanel();
     wireManualGrab();
+    // Connect socket immediately for Hevi Network discovery (even if AeroGrab is OFF)
+    initSocket();
     console.log('[AeroGrab] ready — by TWH');
   }
 
@@ -664,10 +735,15 @@
 
   // ── Public API ────────────────────────────────────────────────────────────
   window.aeroGrab = {
-    toggle:  toggleAeroGrab,
-    isOn:    () => _enabled,
-    grab:    initiateGrab,
-    catch:   signalReadyToReceive,
+    toggle:    toggleAeroGrab,
+    isOn:      () => _enabled,
+    grab:      initiateGrab,
+    catch:     signalReadyToReceive,
+    setTarget: (socketId) => { _targetSocketId = socketId || null; },
+    mySocketId: () => _socket ? _socket.id : null,
   };
+
+  // Helper used by initiateGrab to look up peer names (populated by Network tab)
+  window._heviPeerName = null;
 
 })();

@@ -6822,3 +6822,120 @@ img.lazy-img:not([src]) {
   transition: opacity 0.2s;
 }
 .ag-manual-grab:active { opacity: 0.7; }
+
+/* ── Hevi Network Section in Sidebar ─────────────────────────────────────── */
+.hevi-net-section {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin: 4px 0 0;
+}
+.hevi-net-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+  transition: background 0.15s;
+  border-radius: 0;
+}
+.hevi-net-header:hover { background: rgba(255,255,255,0.04); }
+.hevi-net-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hevi-net-icon { font-size: 18px; flex-shrink: 0; }
+.hevi-net-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.hevi-net-count {
+  font-size: 11px;
+  color: var(--accent);
+  line-height: 1.2;
+  margin-top: 1px;
+}
+.hevi-net-chevron {
+  flex-shrink: 0;
+  color: rgba(255,255,255,0.35);
+  transition: transform 0.2s;
+}
+.hevi-net-list {
+  padding: 4px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hevi-net-empty {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  padding: 6px 6px;
+  text-align: center;
+  font-style: italic;
+}
+.hevi-peer-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 8px 10px;
+  transition: background 0.15s;
+}
+.hevi-peer-card:hover { background: rgba(37,244,208,0.06); border-color: rgba(37,244,208,0.2); }
+.hevi-peer-avatar { font-size: 20px; flex-shrink: 0; }
+.hevi-peer-info { flex: 1; min-width: 0; }
+.hevi-peer-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hevi-peer-status {
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+}
+.hevi-peer-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  display: inline-block;
+  box-shadow: 0 0 4px #22c55e;
+}
+.hevi-peer-send {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 5px 9px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.hevi-peer-send:active { opacity: 0.7; }
+
+/* ── Wake panel: sender name ─────────────────────────────────────────────── */
+.ag-wake-sender {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 2px;
+  min-height: 14px;
+}
