@@ -274,14 +274,16 @@ Classes: `.hevi-net-section`, `.hevi-net-header`, `.hevi-peer-card`, `.hevi-peer
 
 ### Bug 2: Camera Blocked on HTTP Origins
 **Was:** `getUserMedia` called without checking `isSecureContext`
-**Fix:** Added `if (!window.isSecureContext) { showCameraHttpsError(); return false; }`
-**Why:** Browsers block camera access on `http://` origins except `localhost`. When a device accesses via LAN IP (`http://192.168.x.x:5000`), camera is blocked. Now shows clear error: "Camera needs HTTPS. Open: https://..."
+**Fix:** Added `if (!window.isSecureContext) { showCameraHttpsError(); return null; }`
+**Why:** Browsers block camera access on `http://` origins except `localhost`. When a device accesses via LAN IP (`http://192.168.x.x:5000`), camera is blocked. Now shows clear error: "Camera needs HTTPS. Access via your Replit URL (https://...)."
 
 ### Bug 3: Camera Denied Error Not Specific
 **Was:** Generic toast "AeroGrab needs camera access."
 **Fix:** Named error handling:
 - `NotAllowedError` → "Camera access denied. Go to browser Settings → Site permissions → Camera → Allow."
 - `NotFoundError` → "No camera found on this device."
+- `NotReadableError` → "Camera is being used by another app. Close it and try again."
+- `OverconstrainedError` → Auto-retry without `facingMode` constraint (desktop cameras may not support 'user' facing mode)
 - Other → "Camera error: [message]"
 - Also: `localStorage.removeItem(PERM_KEY)` on error so next time dialog shows again
 
@@ -296,6 +298,30 @@ Classes: `.hevi-net-section`, `.hevi-net-header`, `.hevi-peer-card`, `.hevi-peer
 ### Bug 6: No Auto-Expand on Peer Discovery
 **Was:** User had to manually click to expand the Hevi Network panel
 **Fix:** Panel auto-expands + border pulse animation when first peer joins
+
+---
+
+## PART 4B: ADDITIONAL BUGS FIXED (April 20, 2026 — Second Session)
+
+### Bug 7: Double `getUserMedia` Call — "Device In Use" Error
+**Was:** `requestCameraPermission()` called `getUserMedia({ video: true })` → immediately stopped the stream → returned `true` (boolean). Then `initMediaPipe()` called `getUserMedia` AGAIN with actual constraints.
+**Fix:** `requestCameraPermission()` now returns the `MediaStream` directly (or `null` on failure). The stream is passed to `initMediaPipe(stream)` which reuses it — only ONE `getUserMedia` call total.
+**Why:** Two rapid `getUserMedia` calls can cause `NotReadableError` on some mobile browsers ("device in use"). Also wastes resources by starting camera twice.
+
+### Bug 8: `Permissions-Policy` Header Missing on Server
+**Was:** Server responses had no `Permissions-Policy` header.
+**Fix:** Added `app.use((req, res, next) => { res.setHeader('Permissions-Policy', 'camera=*, microphone=()'); next(); });` in `server.js` before static file serving.
+**Why:** Modern Chrome may block camera access silently on some proxy/iframe setups without explicit `Permissions-Policy: camera=*` header from the server.
+
+### Bug 9: HTTPS Error Message Useless for LAN Users
+**Was:** `showCameraHttpsError()` showed `https://192.168.x.x:5000` (no SSL cert = useless URL).
+**Fix:** Detects LAN IP pattern, shows: "Camera needs HTTPS. Access via your Replit URL (https://...) — camera works there automatically."
+**Why:** The HTTP→HTTPS URL swap only works if a real SSL cert is configured. On LAN without a cert, users should use the Replit URL instead.
+
+### Bug 10: No Stale Device Cleanup Timer on Server
+**Was:** `heviDevices` Map was only cleared on `socket.disconnect` events. If a browser crashed or network cut without clean disconnect, device stayed in registry forever.
+**Fix:** Added `setInterval` sweep every 15 seconds that removes devices with `lastSeen > 45s` and calls `broadcastPeersUpdate()` if any were removed.
+**Why:** Devices that crash or lose network don't always fire a clean socket disconnect. Without the sweep, ghost devices accumulate in the Hevi Network panel.
 
 ---
 
@@ -379,7 +405,7 @@ Server socket.io version: `^4.8.3`
 
 1. **Real multi-device test** — Need two physical devices on same WiFi, both opening Replit URL, to verify end-to-end: see each other → send file → receive file.
 
-2. **Stale device cleanup** — Server has `lastSeen` tracking but NO timeout sweep. A device that crashes (network cut, browser force-close) stays in `heviDevices` until socket disconnects. Add a `setInterval` sweep on server to remove devices where `Date.now() - lastSeen > 45000` and call `broadcastPeersUpdate()`.
+2. **~~Stale device cleanup~~** — ✅ FIXED (April 20, second session). `setInterval` sweep runs every 15s, removes devices with `lastSeen > 45s`.
 
 3. **Device Name Customization** — Currently auto-detected from userAgent. User should be able to set a custom name. Add a small input field in the Network section or Settings.
 

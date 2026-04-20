@@ -544,6 +544,13 @@ function thumbCacheSet(key, buf) {
   if (thumbMemCache.size > THUMB_CACHE_MAX) thumbMemCache.delete(thumbMemCache.keys().next().value);
 }
 
+// ── Permissions-Policy: allow camera for AeroGrab gesture detection ──────────
+// Without this header, some browsers block getUserMedia even on secure origins.
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=*, microphone=()');
+  next();
+});
+
 // Serve frontend (with long-term cache for CSS/JS/images)
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: '7d',
@@ -3283,6 +3290,21 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
       }
     });
   });
+
+  // ── Stale device cleanup sweep ────────────────────────────────────────────
+  // Remove devices that missed 3 heartbeats (45s) — handles browser crashes,
+  // network cuts, or force-closes that don't fire a clean socket disconnect.
+  setInterval(() => {
+    const cutoff = Date.now() - 45000;
+    let changed = false;
+    for (const [id, d] of heviDevices.entries()) {
+      if (d.lastSeen < cutoff) {
+        heviDevices.delete(id);
+        changed = true;
+      }
+    }
+    if (changed) broadcastPeersUpdate();
+  }, 15000);
   // ─────────────────────────────────────────────────────────────────────────
 
   httpServer.listen(PORT, HOST, () => {

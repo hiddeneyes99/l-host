@@ -190,15 +190,17 @@
     if (enable === _enabled) return;
 
     if (enable) {
-      const granted = await requestCameraPermission();
-      if (!granted) {
+      // requestCameraPermission now returns the MediaStream directly (or null on failure)
+      // This avoids the double getUserMedia call that caused "device in use" errors
+      const stream = await requestCameraPermission();
+      if (!stream) {
         const toggle = $('aeroGrabToggle');
         if (toggle) toggle.checked = false;
         return;
       }
       _enabled = true;
       initSocket();
-      await initMediaPipe();
+      await initMediaPipe(stream);
       showGreenDot(true);
       showToast('AeroGrab active — make a fist to grab a file', 'info');
     } else {
@@ -207,47 +209,71 @@
   }
 
   // ── Camera permission dialog ───────────────────────────────────────────────
+  // Returns the MediaStream on success, or null on any failure.
+  // Only ONE getUserMedia call is made — the stream is passed directly to
+  // initMediaPipe() to avoid "device in use" errors from double acquisition.
   async function requestCameraPermission() {
     // Modern browsers block getUserMedia on non-secure (HTTP) origins
     // except localhost. Show a clear error before even trying.
     if (!window.isSecureContext) {
       showCameraHttpsError();
-      return false;
+      return null;
     }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showToast('Your browser does not support camera access.', 'error');
-      return false;
+      return null;
     }
 
-    // If browser already denied once, clear cache so we can try again
+    // Show custom explanation dialog before the browser native prompt
     const alreadyGranted = localStorage.getItem(PERM_KEY) === 'granted';
     if (!alreadyGranted) {
       const ok = await showPermissionDialog();
-      if (!ok) return false;
+      if (!ok) return null;
     }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(t => t.stop());
+      // Request with actual constraints used by MediaPipe — only ONE getUserMedia call
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
+      });
       localStorage.setItem(PERM_KEY, 'granted');
-      return true;
+      return stream;   // caller (toggleAeroGrab) passes this directly to initMediaPipe
     } catch (e) {
-      localStorage.removeItem(PERM_KEY);  // clear cached grant on error
+      localStorage.removeItem(PERM_KEY);  // clear cached grant so dialog shows next time
       if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
         showToast('Camera access denied. Go to browser Settings → Site permissions → Camera → Allow.', 'error');
-      } else if (e.name === 'NotFoundError') {
+      } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
         showToast('No camera found on this device.', 'error');
+      } else if (e.name === 'NotReadableError' || e.name === 'TrackStartError') {
+        showToast('Camera is being used by another app. Close it and try again.', 'error');
+      } else if (e.name === 'OverconstrainedError') {
+        // facingMode 'user' may not exist on desktop — retry without facingMode
+        try {
+          const fallback = await navigator.mediaDevices.getUserMedia({ video: true });
+          localStorage.setItem(PERM_KEY, 'granted');
+          return fallback;
+        } catch (e2) {
+          showToast('Camera error: ' + e2.message, 'error');
+        }
       } else {
         showToast('Camera error: ' + e.message, 'error');
       }
       console.error('[AeroGrab] getUserMedia error:', e.name, e.message);
-      return false;
+      return null;
     }
   }
 
   // Shows a friendly error when HTTP (non-secure) is detected
   function showCameraHttpsError() {
-    const httpsUrl = window.location.href.replace(/^http:\/\//, 'https://');
-    showToast(`Camera needs HTTPS. Open: ${httpsUrl}`, 'error');
+    // On LAN IPs (http://192.168.x.x), swapping http→https won't work without a cert.
+    // Guide the user to access via the Replit URL instead.
+    const isLanIp = /^https?:\/\/(\d{1,3}\.){3}\d{1,3}/.test(window.location.href);
+    if (isLanIp) {
+      showToast('Camera needs HTTPS. Access this app via your Replit URL (https://...) — camera works there automatically.', 'error');
+    } else {
+      const httpsUrl = window.location.href.replace(/^http:\/\//, 'https://');
+      showToast(`Camera needs HTTPS. Try: ${httpsUrl}`, 'error');
+    }
     console.error('[AeroGrab] Camera blocked — not a secure context. Use HTTPS or localhost.');
   }
 
@@ -265,7 +291,9 @@
   let _rafId      = null;   // requestAnimationFrame id
   let _camStream  = null;   // raw MediaStream
 
-  async function initMediaPipe() {
+  // existingStream: the MediaStream already acquired by requestCameraPermission().
+  // Passing it in avoids a second getUserMedia call ("device in use" errors).
+  async function initMediaPipe(existingStream) {
     if (_hands) return;
     try {
       // Build Hands model
@@ -280,9 +308,9 @@
       });
       _hands.onResults(processGestureResults);
 
-      // Get camera stream ourselves — more reliable than Camera utility
-      _camStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 320, height: 240 },
+      // Use the stream already acquired in requestCameraPermission — no second getUserMedia call
+      _camStream = existingStream || await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
       });
 
       const videoEl = $('aeroVideoEl');
@@ -301,8 +329,17 @@
 
       console.log('[AeroGrab] MediaPipe started, watching at', GESTURE_FPS, 'fps');
     } catch (e) {
-      showToast('AeroGrab: Camera AI failed to load.', 'error');
-      console.error('[AeroGrab] MediaPipe init failed:', e);
+      // Give specific error based on what failed
+      if (e.name === 'NotAllowedError') {
+        showToast('Camera access denied. Allow camera in browser settings and try again.', 'error');
+      } else if (e.name === 'NotReadableError') {
+        showToast('Camera is in use by another app. Close it and try again.', 'error');
+      } else if (e.message && e.message.includes('hands')) {
+        showToast('AeroGrab: Gesture model failed to load. Check your internet connection.', 'error');
+      } else {
+        showToast('AeroGrab: Camera failed to start. ' + e.message, 'error');
+      }
+      console.error('[AeroGrab] MediaPipe init failed:', e.name, e.message);
       deactivateAeroGrab();
     }
   }
