@@ -93,12 +93,26 @@
   // ── Socket.io connection ───────────────────────────────────────────────────
   function initSocket() {
     if (_socket) return;
-    _socket = io({ transports: ['websocket'], reconnectionDelay: 1000 });
+    // Use default transport negotiation (polling → websocket upgrade)
+    // so it works on Replit proxy, LAN, and all network configs
+    _socket = io(window.location.origin, {
+      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity,
+    });
 
     _socket.on('connect', () => {
       console.log('[AeroGrab] socket connected:', _socket.id);
       announceToNetwork();
       startHeartbeat();
+    });
+
+    _socket.on('connect_error', (err) => {
+      console.warn('[AeroGrab] socket connect_error:', err.message);
+    });
+
+    _socket.on('reconnect', () => {
+      console.log('[AeroGrab] socket reconnected, re-announcing...');
+      announceToNetwork();
     });
 
     // ── Hevi Network: peer list updated
@@ -194,6 +208,18 @@
 
   // ── Camera permission dialog ───────────────────────────────────────────────
   async function requestCameraPermission() {
+    // Modern browsers block getUserMedia on non-secure (HTTP) origins
+    // except localhost. Show a clear error before even trying.
+    if (!window.isSecureContext) {
+      showCameraHttpsError();
+      return false;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Your browser does not support camera access.', 'error');
+      return false;
+    }
+
+    // If browser already denied once, clear cache so we can try again
     const alreadyGranted = localStorage.getItem(PERM_KEY) === 'granted';
     if (!alreadyGranted) {
       const ok = await showPermissionDialog();
@@ -205,10 +231,24 @@
       localStorage.setItem(PERM_KEY, 'granted');
       return true;
     } catch (e) {
-      showToast('AeroGrab needs camera access. Enable it in browser settings.', 'error');
-      localStorage.removeItem(PERM_KEY);
+      localStorage.removeItem(PERM_KEY);  // clear cached grant on error
+      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+        showToast('Camera access denied. Go to browser Settings → Site permissions → Camera → Allow.', 'error');
+      } else if (e.name === 'NotFoundError') {
+        showToast('No camera found on this device.', 'error');
+      } else {
+        showToast('Camera error: ' + e.message, 'error');
+      }
+      console.error('[AeroGrab] getUserMedia error:', e.name, e.message);
       return false;
     }
+  }
+
+  // Shows a friendly error when HTTP (non-secure) is detected
+  function showCameraHttpsError() {
+    const httpsUrl = window.location.href.replace(/^http:\/\//, 'https://');
+    showToast(`Camera needs HTTPS. Open: ${httpsUrl}`, 'error');
+    console.error('[AeroGrab] Camera blocked — not a secure context. Use HTTPS or localhost.');
   }
 
   function showPermissionDialog() {

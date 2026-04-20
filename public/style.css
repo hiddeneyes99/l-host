@@ -6939,3 +6939,14 @@ img.lazy-img:not([src]) {
   margin-bottom: 2px;
   min-height: 14px;
 }
+
+/* ── Hevi Network: peer-appeared pulse ───────────────────────────────────── */
+@keyframes heviNetPulse {
+  0%   { border-color: rgba(37,244,208,0); box-shadow: none; }
+  40%  { border-color: rgba(37,244,208,0.5); box-shadow: 0 0 0 2px rgba(37,244,208,0.15); }
+  100% { border-color: rgba(37,244,208,0); box-shadow: none; }
+}
+.hevi-net-section.hevi-net-pulse {
+  animation: heviNetPulse 1.2s ease forwards;
+  border-radius: 0;
+}

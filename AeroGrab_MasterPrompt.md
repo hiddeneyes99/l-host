@@ -1,392 +1,422 @@
-# AeroGrab Master Prompt — Handoff Document
-## For AI Assistants Continuing This Project
+# AeroGrab Master Prompt — AI Handoff Document
+## For Any AI Assistant Continuing This Project
 
 **Project:** AeroGrab inside Hevi Explorer (TWH Eco System Technology)
 **Author:** Technical White Hat (TWH)
-**Date:** April 18, 2026
-**Language to use with developer:** Hinglish (Hindi + English mixed, casual tone)
-**Brand accent color:** `#25f4d0`
+**Last Updated:** April 20, 2026
+**Language with developer:** Hinglish (Hindi + English mixed, casual tone — use "bhai", "yaar", "karo", "aaja", etc.)
+**Brand accent color:** `#25f4d0` (CSS variable: `--accent`)
 
 ---
 
-## PART 1: WHAT IS THIS PROJECT?
+## PART 1: PROJECT OVERVIEW
 
-**Hevi Explorer** is a local-first file manager and media server built in Node.js. It runs on a device (phone, PC, Termux on Android) and serves a web interface on port 5000. Users can browse, view, upload, and manage their local files through a web browser.
+**Hevi Explorer** is a local-first file manager and media server in Node.js.
+- Runs on any device (Android Termux, PC, Mac, Replit) on port 5000
+- Serves a full web UI: browse/view/upload/manage local files
+- Stack: Node.js + Express + Socket.io + plain HTML/CSS/JS (no frontend framework)
 
-**AeroGrab** is a feature built INSIDE Hevi Explorer. It allows users to transfer files between devices on the same Wi-Fi network using nothing but hand gestures:
-- **Closed fist** = "I am grabbing this file" (Sender action)
-- **Open palm** = "I will catch it" (Receiver action)
-- File travels **directly device-to-device via WebRTC** — the server never touches file bytes
+**AeroGrab** is a gesture-controlled P2P file transfer feature BUILT INSIDE Hevi Explorer.
+- **Closed fist ✊** = "Grab this file" (sender)
+- **Open palm ✋** = "I'll catch it" (receiver)
+- File travels **device-to-device via WebRTC DataChannel** — server never sees file bytes
+- Gesture detection uses **Google MediaPipe Hands** running 100% on-device
+- Camera feed NEVER leaves the device (privacy first-class requirement)
+- Works on same WiFi LAN only (no TURN server yet, so no 4G/5G)
 
-The system uses **Google MediaPipe Hands** running in the browser for on-device gesture detection. Camera feed never leaves the device. Privacy is a first-class requirement.
-
-**Full engineering spec:** Read `AeroGrab_Blueprint.md` in the project root.
-
----
-
-## PART 2: WHAT HAS ALREADY BEEN BUILT (v1 — COMPLETE)
-
-All of the following is implemented and working in the codebase:
-
-### Server Side (`server.js`, around line 3183+)
-- Socket.io server running alongside the existing HTTP server
-- `aeroSessions` Map — in-memory session storage (never written to disk)
-- Event handlers:
-  - `FILE_GRABBED` — stores session, broadcasts `WAKE_UP_CAMERAS` to all connected sockets
-  - `DROP_HERE` — applies First-Confirmed-Receiver-Wins rule, initiates WebRTC signaling
-  - `webrtc_signal` — pure relay (forwards SDP offers/answers/ICE between peers)
-  - `SESSION_END` — clears session, stops timeout
-- 60-second session timeout (auto-expires if no receiver responds)
-- First-Confirmed-Receiver-Wins rule (millisecond-precision timestamp comparison)
-
-### Client Side (`public/aerograb.js`) — Self-contained IIFE
-- `toggleAeroGrab(bool)` — enable/disable with camera lifecycle management
-- `showPermissionDialog()` — custom permission explanation before browser prompt (one-time, remembered in localStorage `'ag_cam_perm'`)
-- `initMediaPipe()` — direct `getUserMedia` (NOT the MediaPipe Camera utility, which was replaced for reliability), `setInterval` at 12fps, `_processingHands` flag prevents concurrent `hands.send()` calls
-- `classifyGesture(lm)` — **2D distance-based** algorithm (z-axis is deliberately ignored because MediaPipe z values are not on the same scale as normalized x,y). Uses `wrist(0)→middleMCP(9)` as `handSize`, then `tipToMCP/handSize` curl ratios for fingers 8,12,16,20. FIST = all ratios < 0.65, OPEN_PALM = all ratios > 0.65
-- `processGestureResults(results)` — shows live debug in `#aeroGestureLbl`: `"👁 N | no hand"` when no hand, `"H:0.18 [0.32,0.28,0.30,0.25]"` when hand detected (curl ratios), `"✅ FIST"` when gesture confirmed
-- `initiateGrab()` → `getAeroGrabPayload()` → `socket.emit('FILE_GRABBED', meta)`
-- `getAeroGrabPayload()` — priority order: (1) open viewer file, (2) selected files, (3) targeted folder, (4) last opened file from localStorage
-- `startFileTransfer()` — fetches file from OWN server (`/file?path=...`), streams via WebRTC
-- `streamFileOverBridge(blob, name)` — 64KB chunking via FileReader, respects `_dataChannel.bufferedAmount`
-- `finaliseReceivedFile()` — assembles ArrayBuffer chunks → Blob → `<a download>` click → browser download to device local storage
-- WebRTC STUN servers: `stun:stun.l.google.com:19302` and `stun:stun1.l.google.com:19302`
-- `zipFolder(payload)` — JSZip compression for folder transfers
-- `deactivateAeroGrab()` — stops `setInterval`, stops all camera tracks, closes MediaPipe, resets all state
-
-### UI (`public/index.html` + `public/style.css`)
-- AeroGrab toggle in sidebar (checkbox `#aeroGrabToggle`)
-- Green dot indicator `#aeroGreenDot` (top-right, shows when AeroGrab is ON)
-- Permission overlay `#aeroPermOverlay` with Confirm/Cancel buttons
-- Wake-up notification panel `#aeroWakePanel` (shown on receiver devices when someone grabs)
-- Animation stage `#aeroAnimStage` (fullscreen overlay for rocket/box animations)
-- Camera preview video `#aeroVideoEl` (150x112px, bottom-right corner, visible when AeroGrab ON)
-- Camera overlay `#agCamOverlay` with:
-  - `#aeroGestureLbl` — live gesture debug label
-  - `#aeroManualGrab` — ✊ Grab button (manual fallback bypassing gesture detection)
-- Context menu button "AeroGrab this file" (wired in `app.js`)
-
-### Animation Layer (`public/aerograb-animation.js`)
-- `aeroAnim.onGrabConfirmed(meta)` — Energy Squeeze animation (Phase 1)
-- `aeroAnim.onRocketLaunch()` — Rocket Launch (Phase 2)
-- `aeroAnim.onReceiverReady()` — Receiver Landing (Phase 3)
-- `aeroAnim.updateReceiverProgress(pct)` — Progress Ring (Phase 4)
-- `aeroAnim.onReceiverComplete(meta)` — complete animation
-- `aeroAnim.onSenderComplete()` — sender done
-- Uses anime.js from CDN for all animations
-
-### Key Hooks Between `aerograb.js` and `app.js`
-- `window.aeroGrabSetOpenFile({ name, size, path, type })` — called by `app.js` when user opens a file, so AeroGrab knows what to grab
-- `window.aeroGrabFromCtxMenu(item)` — called by right-click context menu handler in `app.js`
-- Toast function: `toast(msg, type)` — types: `'success'`, `'error'`, `'warn'`, `''`
-
-### Privacy & Security
-- `.gitignore` excludes: `files/`, `uploads/`, `thumbnails/`, `*.db`, `*.sqlite`, `.env`
-- Server never writes AeroGrab session data to disk
-- Server never receives file content (only signaling metadata)
-- Camera feed processed entirely on-device
-
-### CDN Scripts (loaded in `index.html`)
-```html
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip/dist/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/animejs/lib/anime.min.js"></script>
-<script src="/aerograb.js"></script>
-<script src="/aerograb-animation.js"></script>
-```
+**Full technical spec:** Read `AeroGrab_Blueprint.md` in project root.
 
 ---
 
-## PART 3: THE ARCHITECTURAL PROBLEM THAT EXISTS IN v1
+## PART 2: THE v1 → v2 EVOLUTION
 
-In v1, all devices connect to **one shared Hevi Explorer server**. This means:
-- Device A and Device B both browse the **same files** (from the same host)
-- When Device A grabs a file and Device B catches it → Device B gets a download of a file it could already access through the shared web interface
-- This is redundant — AeroGrab adds no real value in this model
+### v1 Flaw (Why v1 Was Useless)
+In v1, ALL devices connected to ONE shared Hevi Explorer server. So Device A and Device B were both browsing the SAME files from the SAME server. AeroGrab transferring a file was pointless — Device B could just download it directly from the shared server.
 
-**The v1 model is: 1 chef, N waiters. Everyone eats from the same kitchen.**
+**v1 model: 1 kitchen, N waiters. Everyone eats from the same pot.**
 
----
-
-## PART 4: WHAT NEEDS TO BE BUILT (v2 — THE REAL VISION)
-
-### The New Vision: Distributed LAN Instances
-
-Each device on the WiFi network runs its **OWN** Hevi Explorer instance, serving its **OWN** files from its own local storage.
-
-- **Phone A** → `localhost:5000` → serves Phone A's files
-- **Phone B** → `localhost:5000` → serves Phone B's files
-- **Phone C** → `localhost:5000` → serves Phone C's files
-
-All three connect to a **common signaling server** (could be one of their Hevi instances, or a deployed cloud instance) for coordination only.
-
-**The new model is: N chefs, 1 coordinator. Each kitchen is independent.**
+### v2 Vision (Real Value)
+Each device runs its OWN Hevi Explorer instance, serving its OWN local files.
+- Phone A → `localhost:5000` → Phone A's files
+- Phone B → `localhost:5000` → Phone B's files
+- All connect to a **shared signaling server** (one Hevi instance, or Replit-deployed) for coordination only
 
 When Phone A grabs a file:
-1. It fetches from ITS OWN `localhost:5000/file?path=...` (already works — no change needed to transfer logic)
-2. Streams via WebRTC to Phone B
-3. Phone B saves it to its local storage as a browser download
+1. Fetches from ITS OWN `/file?path=...` endpoint
+2. Streams via WebRTC DataChannel to Phone B
+3. Phone B's browser saves it as a download
 
-**The transfer code is already correct for v2** — the missing piece is **auto-discovery**: devices don't know each other exists yet.
+**v2 model: N kitchens, 1 coordinator. Every chef owns their own food.**
 
-### Feature: LAN Auto-Discovery (HEVI NETWORK)
+**The WebRTC transfer logic was already correct for v2.** The missing piece was auto-discovery — devices needed to find each other automatically.
 
-Every Hevi Explorer instance, when it starts, must:
-1. Connect to the signaling server
-2. Announce itself: name, avatar, deviceId
-3. Receive the live list of all other online Hevi instances
-4. Show a "Network" tab with all discovered devices
-5. Update in real-time as devices join and leave
+---
 
-**New "Network" tab shows:**
+## PART 3: WHAT HAS BEEN BUILT (COMPLETE STATUS — April 20, 2026)
+
+### ✅ Server Side (`server.js`, around line 3190+)
+
 ```
-🌐 Hevi Network — 4 devices online
-───────────────────────────────────
-📱 Rahul Ka Phone     ● Online   [Send →]
-💻 Laptop Ghar        ● Online   [Send →]
-📱 Bhai Ka Phone      ● Online   [Send →]
-📟 Tablet             ● Online   [Send →]
+const heviDevices = new Map();  // socket.id → device info
 ```
 
-When a device joins or leaves, everyone's list updates instantly.
+Events implemented:
+- `HEVI_ANNOUNCE` — device registers itself on connect; triggers `broadcastPeersUpdate()`
+- `HEVI_HEARTBEAT` — keeps device `lastSeen` fresh (every 15s from client)
+- `HEVI_PEERS_UPDATE` — server broadcasts full device list to ALL sockets on any join/leave
+- `FILE_GRABBED` — creates session, broadcasts `WAKE_UP_CAMERAS`; supports `targetId` for targeted send (wake only one device)
+- `DROP_HERE` — First-Confirmed-Receiver-Wins rule; initiates WebRTC signaling
+- `webrtc_signal` — pure relay (forwards SDP offers/answers/ICE between peers)
+- `SESSION_END` — clears session
+- `disconnect` — removes device from `heviDevices`, broadcasts update; cleans up any active sessions
 
-### New Socket Events to Implement
+Session data is 100% in-memory. Never written to disk.
 
-**Client → Server:**
-```
-HEVI_ANNOUNCE   { deviceId, deviceName, avatar }    // on every connect
-HEVI_HEARTBEAT  { deviceId }                        // every 15 seconds
-```
-
-**Server → Client:**
-```
-HEVI_PEERS_UPDATE  { devices: [...], total: N }     // broadcast on any join/leave
+`broadcastPeersUpdate()` sends:
+```javascript
+{ devices: [...heviDevices.values()], total: heviDevices.size }
 ```
 
-**`devices` array item shape:**
+Device shape in registry:
 ```javascript
 {
-  socketId:   'abc123',
-  deviceId:   'uuid-v4',         // unique per install, localStorage persisted
-  deviceName: 'Rahul Ka Phone',  // hostname-based or user-set
-  avatar:     '📱',              // emoji or 1-2 letter initials
-  joinedAt:   1713433200000,     // timestamp
+  socketId:   socket.id,
+  deviceId:   'uuid-v4',           // from localStorage, stable per install
+  deviceName: 'Rahul Ka Phone',    // UA-detected or user-set
+  avatar:     '📱',               // emoji
+  joinedAt:   Date.now(),
+  lastSeen:   Date.now(),
 }
 ```
 
-**Device ID generation (client, one-time):**
+### ✅ Client Side (`public/aerograb.js`) — Self-Contained IIFE
+
+**Device Identity (localStorage-persisted):**
 ```javascript
-function getOrCreateDeviceId() {
-  let id = localStorage.getItem('ag_device_id');
-  if (!id) { id = crypto.randomUUID(); localStorage.setItem('ag_device_id', id); }
-  return id;
-}
+getOrCreateDeviceId()  // crypto.randomUUID(), stored in 'ag_device_id'
+getDeviceName()        // UA-detected: Android/iPhone/Mac/Windows, stored in 'ag_device_name'
+getDeviceAvatar()      // 📱💻🖥📡, stored in 'ag_device_avatar'
 ```
 
-**Device Name (client, auto-generated):**
+**Socket Connection:**
 ```javascript
-function getDeviceName() {
-  return localStorage.getItem('ag_device_name') || navigator.platform || 'Hevi Device';
-}
-```
-
-### Server-Side: Device Registry
-
-```javascript
-// In server.js, inside the Socket.io block
-const heviDevices = new Map(); // key: socket.id, value: device info
-
-socket.on('HEVI_ANNOUNCE', ({ deviceId, deviceName, avatar }) => {
-  heviDevices.set(socket.id, { socketId: socket.id, deviceId, deviceName, avatar, joinedAt: Date.now() });
-  broadcastPeersUpdate();
+_socket = io(window.location.origin, {
+  reconnectionDelay: 1000,
+  reconnectionAttempts: Infinity,
 });
-
-socket.on('HEVI_HEARTBEAT', ({ deviceId }) => {
-  const d = heviDevices.get(socket.id);
-  if (d) d.lastSeen = Date.now();
-});
-
-socket.on('disconnect', () => {
-  if (heviDevices.has(socket.id)) {
-    heviDevices.delete(socket.id);
-    broadcastPeersUpdate();
-  }
-  // ... existing session cleanup ...
-});
-
-function broadcastPeersUpdate() {
-  io.emit('HEVI_PEERS_UPDATE', {
-    devices: [...heviDevices.values()],
-    total:   heviDevices.size,
-  });
-}
 ```
+- Socket connects on page BOOT (not just when AeroGrab toggle is ON)
+- `connect` → `announceToNetwork()` + `startHeartbeat()`
+- `reconnect` → re-announces to network
+- `connect_error` → logged to console
+- Heartbeat every 15 seconds
 
-### Client-Side: Announce + Heartbeat (in `aerograb.js`)
+**IMPORTANT: Why `window.location.origin` and NOT `io()`?**
+Using `io()` alone can fail on some proxy setups. Explicit origin is more reliable.
 
-Add to `initSocket()`:
+**IMPORTANT: Why NOT `transports: ['websocket']`?**
+WebSocket-only mode fails on some browsers/proxies. Default (polling → WebSocket upgrade) is more reliable and was the fix for the v2 connection bug.
+
+**Gesture Classification:**
 ```javascript
-function initSocket() {
-  _socket = io();
-  // ... existing listeners ...
-  _socket.on('connect', () => {
-    announceToNetwork();
-    startHeartbeat();
-  });
-  _socket.on('HEVI_PEERS_UPDATE', ({ devices, total }) => {
-    if (typeof window.onHeviPeersUpdate === 'function') {
-      window.onHeviPeersUpdate(devices, total);
-    }
-  });
-}
-
-function announceToNetwork() {
-  _socket.emit('HEVI_ANNOUNCE', {
-    deviceId:   getOrCreateDeviceId(),
-    deviceName: getDeviceName(),
-    avatar:     getDeviceAvatar(),
-  });
-}
-
-let _heartbeatInterval = null;
-function startHeartbeat() {
-  clearInterval(_heartbeatInterval);
-  _heartbeatInterval = setInterval(() => {
-    _socket.emit('HEVI_HEARTBEAT', { deviceId: getOrCreateDeviceId() });
-  }, 15000);
-}
+classifyGesture(lm):
+  handSize = wrist(0) → middleMCP(9) distance (2D x,y ONLY — never z)
+  curlRatio[i] = dist(tip[i], mcp[i]) / handSize
+  FIST      = all curlRatios < 0.65
+  OPEN_PALM = all curlRatios > 0.65
 ```
+**NEVER use z-axis** — MediaPipe z is relative depth, not same scale as normalized x,y.
 
-### Client-Side: Network Tab (in `app.js` or new `hevi-network.js`)
+**MediaPipe setup:**
+- `setInterval` at 12fps (NOT Camera utility — too slow)
+- `_processingHands` flag prevents concurrent `hands.send()` calls
+- `getUserMedia({ video: { facingMode: 'user', width: 320, height: 240 } })`
 
+**Camera Permission guard (fixed in April 20 session):**
 ```javascript
-window.onHeviPeersUpdate = function(devices, total) {
-  const container = document.getElementById('heviNetworkList');
-  const counter   = document.getElementById('heviNetworkCount');
-  if (!container) return;
-  counter.textContent = `${total} device${total !== 1 ? 's' : ''} online`;
-  container.innerHTML = devices.map(d => `
-    <div class="hevi-peer-card" data-socket-id="${d.socketId}">
-      <span class="hevi-peer-avatar">${d.avatar}</span>
-      <span class="hevi-peer-name">${d.deviceName}</span>
-      <span class="hevi-peer-status">● Online</span>
-      <button class="hevi-peer-send" onclick="aeroGrabTargeted('${d.socketId}')">Send →</button>
-    </div>
-  `).join('');
+if (!window.isSecureContext) → show HTTPS error, return false
+if (!navigator.mediaDevices) → show browser error, return false
+```
+On HTTP origins (e.g., `http://192.168.x.x:5000`), browsers block camera access.
+AeroGrab now shows a clear error: "Camera needs HTTPS. Use the Replit URL or localhost."
+
+**File Transfer:**
+- `getAeroGrabPayload()` priority: (1) open viewer file, (2) selected files, (3) targeted folder, (4) last opened (localStorage)
+- `initiateGrab()` → `emit('FILE_GRABBED', { metadata, targetId })`
+- `startFileTransfer()` → fetches file from OWN `/file?path=...`
+- `streamFileOverBridge(blob)` → 64KB chunks via FileReader, respects bufferedAmount
+- `finaliseReceivedFile()` → assembles chunks → Blob → `<a download>` → browser saves
+- `zipFolder()` → JSZip for folder transfers
+
+**Targeted Transfer:**
+```javascript
+window.aeroGrab.setTarget(socketId)  // set before grab
+_targetSocketId = null               // auto-reset after use
+```
+When target is set, `FILE_GRABBED` includes `targetId`, server wakes only that device.
+
+**Public API (window.aeroGrab):**
+```javascript
+window.aeroGrab = {
+  toggle:    toggleAeroGrab,     // bool
+  isOn:      () => _enabled,
+  grab:      initiateGrab,
+  catch:     signalReadyToReceive,
+  setTarget: (socketId) => { _targetSocketId = socketId || null; },
+  mySocketId: () => _socket ? _socket.id : null,
 };
-
-function aeroGrabTargeted(targetSocketId) {
-  // Set target, then trigger grab
-  window.aeroGrabSetTarget && window.aeroGrabSetTarget(targetSocketId);
-  // Then user makes fist, or click triggers initiateGrab()
-}
+window.aeroGrabSetOpenFile = (fileMeta) => { _activeOpenFile = fileMeta; };
 ```
 
-### Targeted Transfer (optional in Phase 5)
-
-Modify `FILE_GRABBED` emit to include optional `targetId`:
+**Hooks from `app.js`:**
 ```javascript
-socket.emit('FILE_GRABBED', { ...meta, targetId: _targetSocketId || null });
+window.aeroGrabSetOpenFile({ name, size, path, type })  // called when file opens
+window._aeroCtxItem                                       // set by right-click menu handler
 ```
 
-Server uses `targetId` to send wake-up only to that device:
+### ✅ UI (`public/index.html`)
+
+**In sidebar (between AeroGrab toggle and sidebar-footer):**
+```html
+<div class="hevi-net-section" id="heviNetSection">
+  <button class="hevi-net-header" id="heviNetHeader">
+    🌐 Hevi Network
+    <div id="heviNetCount">Searching...</div>
+  </button>
+  <div class="hevi-net-list hidden" id="heviNetList">
+    <div id="heviNetEmpty">No other devices found</div>
+    <!-- .hevi-peer-card elements injected dynamically -->
+  </div>
+</div>
+```
+
+**Wake-up panel (shown on receiver when someone grabs):**
+```html
+<div id="aeroWakePanel">
+  <div id="aeroWakeSender">From: Device Name</div>  <!-- shows sender name -->
+  <div id="aeroWakeFileName">filename.pdf</div>
+  <button id="aeroWakeCatchBtn">✋ Catch</button>
+  <button id="aeroWakeDismiss">Dismiss</button>
+</div>
+```
+
+**Permission dialog:**
+```html
+<div class="modal hidden" id="aeroPermDialog">
+  <!-- Shows before browser camera prompt — explains what AeroGrab does -->
+  <button id="aeroPermEnable">Enable AeroGrab</button>
+  <button id="aeroPermCancel">Not Now</button>
+</div>
+```
+
+**Camera overlay (visible bottom-right when AeroGrab ON):**
+```html
+<video id="aeroVideoEl" .../>
+<div id="agCamOverlay">
+  <span id="aeroGestureLbl">—</span>  <!-- live debug: gesture + curl ratios -->
+  <button id="aeroManualGrab">✊ Grab</button>  <!-- manual fallback -->
+</div>
+<div id="aeroGreenDot"></div>  <!-- top-right dot, green when ON -->
+```
+
+### ✅ Hevi Network Inline Script (`public/index.html` — at bottom, after aerograb.js)
+
 ```javascript
-socket.on('FILE_GRABBED', ({ targetId, ...meta }) => {
-  // ...existing session setup...
-  if (targetId) {
-    io.to(targetId).emit('WAKE_UP_CAMERAS', { senderId: socket.id, senderName, meta, sessionId });
-  } else {
-    io.emit('WAKE_UP_CAMERAS', { senderId: socket.id, senderName, meta, sessionId });
-  }
-});
+(function() {
+  const _peerMap = new Map();          // socketId → deviceName
+  let _prevOtherCount = 0;
+
+  window._heviPeerName = function(socketId) { return _peerMap.get(socketId) || null; };
+
+  window.onHeviPeersUpdate = function(devices, total, mySocketId) {
+    // Called from aerograb.js when HEVI_PEERS_UPDATE arrives
+    // Renders peer cards, updates count, auto-expands panel on first peer
+    // Pulses section border with .hevi-net-pulse class when new peer joins
+  };
+
+  window.heviSendTo = function(socketId, deviceName) {
+    // Called by "Send →" button on each peer card
+    // Sets aeroGrab.setTarget(), closes sidebar, shows toast
+  };
+})();
 ```
 
----
+**Count text behavior:**
+- `total === 0` → "Connecting..."
+- `n (others) === 0` → "Connected — waiting for other devices" (dim color)
+- `n > 0` → "N device(s) nearby" (accent color)
+- Auto-expands panel when first peer appears
+- Pulses border animation (`.hevi-net-pulse`) on new peer
 
-## PART 5: IMPORTANT CONSTRAINTS & RULES
+### ✅ Animation Layer (`public/aerograb-animation.js`)
+- Rocket Launch animation (sender)
+- Box Landing animation (receiver)
+- Progress ring during transfer
+- Uses anime.js from CDN
 
-1. **NEVER break existing Hevi Explorer functionality.** AeroGrab is an overlay — if it breaks, the file manager must still work perfectly.
+### ✅ Styles (`public/style.css` — all AeroGrab styles appended at end)
+Classes: `.hevi-net-section`, `.hevi-net-header`, `.hevi-peer-card`, `.hevi-peer-send`, `.hevi-peer-dot`, `.ag-wake-panel`, `.ag-wake-sender`, `.ag-perm-card`, `.ag-toggle-switch`, `@keyframes heviNetPulse`
 
-2. **`aerograb.js` must remain a self-contained IIFE:** `(function AeroGrab() { ... })()`. No global variable pollution except explicitly exported `window.aeroGrab*` hooks.
-
-3. **Server data is always in-memory only.** Never write session or device data to disk.
-
-4. **File bytes never pass through the server.** Any implementation that buffers file content on the server violates the core architecture.
-
-5. **Camera is controlled entirely by `aerograb.js`.** No other code should access the camera.
-
-6. **The existing file manager's performance must not be affected.** AeroGrab loads lazily; MediaPipe only runs when toggle is ON.
-
-7. **Termux compatibility:** No native modules, no binary dependencies beyond Node.js built-ins. Pure JS, WebRTC, Socket.io only.
-
-8. **Gesture detection uses 2D distances only (x, y).** Never include z-axis in landmark distance calculations — MediaPipe z is relative depth and breaks the math.
-
-9. **Toast notifications** always use: `toast(message, 'success' | 'error' | 'warn' | '')` — this function is global in `app.js`.
-
-10. **Accent color** is `#25f4d0` (CSS variable `--accent`). All new AeroGrab UI elements use this color.
+### ✅ Privacy
+- `.gitignore` excludes: `files/`, `uploads/`, `thumbnails/`, `*.db`, `*.sqlite`, `.env`
+- Server never writes session/device data to disk
+- Server never touches file bytes (only signaling metadata)
+- Camera processed entirely on-device
 
 ---
 
-## PART 6: TERMUX (ANDROID) SPECIFIC NOTES
+## PART 4: BUGS THAT WERE FIXED (April 20, 2026 Session)
 
-- Termux is a terminal emulator on Android that can run Node.js
-- Users run `node server.js` in Termux → Hevi Explorer serves on `localhost:5000`
-- Other devices on same WiFi access via the Termux device's LAN IP (e.g., `192.168.1.5:5000`)
-- **For LAN discovery to work:** all devices must connect to the same signaling server URL. Two options:
-  - Option A: One Termux device runs the server, others connect to its LAN IP
-  - Option B: Server deployed to Replit/cloud — all devices connect to that URL regardless of network
-- WebRTC STUN works fine on local WiFi. For 4G/5G, TURN is needed (Phase 6).
-- No cameras on typical Termux/PC setup — AeroGrab gracefully falls back to the Manual Grab button.
+### Bug 1: Socket WebSocket-Only Transport
+**Was:** `io({ transports: ['websocket'] })`
+**Fix:** `io(window.location.origin, { reconnectionDelay: 1000, reconnectionAttempts: Infinity })`
+**Why:** WebSocket-only fails on some Replit proxy configs and mobile browsers. Default negotiation (polling → WebSocket upgrade) is more reliable.
+
+### Bug 2: Camera Blocked on HTTP Origins
+**Was:** `getUserMedia` called without checking `isSecureContext`
+**Fix:** Added `if (!window.isSecureContext) { showCameraHttpsError(); return false; }`
+**Why:** Browsers block camera access on `http://` origins except `localhost`. When a device accesses via LAN IP (`http://192.168.x.x:5000`), camera is blocked. Now shows clear error: "Camera needs HTTPS. Open: https://..."
+
+### Bug 3: Camera Denied Error Not Specific
+**Was:** Generic toast "AeroGrab needs camera access."
+**Fix:** Named error handling:
+- `NotAllowedError` → "Camera access denied. Go to browser Settings → Site permissions → Camera → Allow."
+- `NotFoundError` → "No camera found on this device."
+- Other → "Camera error: [message]"
+- Also: `localStorage.removeItem(PERM_KEY)` on error so next time dialog shows again
+
+### Bug 4: Socket Reconnect Didn't Re-Announce
+**Was:** No reconnect handler
+**Fix:** `_socket.on('reconnect', () => announceToNetwork())`
+
+### Bug 5: `onHeviPeersUpdate` Count Text Was Confusing
+**Was:** "1 device online (you)" when alone — user thought nothing was working
+**Fix:** "Connected — waiting for other devices" when no peers, "N device(s) nearby" when peers exist
+
+### Bug 6: No Auto-Expand on Peer Discovery
+**Was:** User had to manually click to expand the Hevi Network panel
+**Fix:** Panel auto-expands + border pulse animation when first peer joins
 
 ---
 
-## PART 7: TESTING CHECKLIST
+## PART 5: ARCHITECTURE — HOW NETWORK DISCOVERY WORKS
 
-Before declaring v2 implementation complete, verify:
+```
+Device A (Replit URL)          Server (Replit)          Device B (same Replit URL)
+        |                           |                           |
+        |-- HEVI_ANNOUNCE --------->|                           |
+        |<-- HEVI_PEERS_UPDATE {A} -|                           |
+        |                           |<-- HEVI_ANNOUNCE ---------
+        |<-- HEVI_PEERS_UPDATE{A,B}-|-- HEVI_PEERS_UPDATE{A,B}->|
+        |                           |                           |
+        | [sees Device B in list]   |        [sees Device A in list]
+```
 
-- [ ] Device A opens Hevi Explorer → appears in its own Network tab
-- [ ] Device B opens Hevi Explorer → both A and B appear in each other's Network tabs
-- [ ] Device C joins → all three see each other, counter shows "3 devices online"
-- [ ] Device C disconnects → counter updates to "2 devices online" within 15-30 seconds
-- [ ] Device A grabs a file → Device B and C get wake-up notification showing "Device A is sending: filename"
-- [ ] Device B opens palm → gets the file as browser download from Device A's storage
-- [ ] File received on Device B is identical to file on Device A (no corruption)
-- [ ] Targeted grab: Device A targets Device B → only Device B gets wake-up (Device C does not)
-- [ ] Existing Hevi Explorer functionality unaffected (browse, upload, view, etc.)
-- [ ] Toggle AeroGrab OFF → camera stops, network tab still works (network discovery is independent of AeroGrab toggle)
+**CRITICAL REQUIREMENT FOR LAN DISCOVERY:**
+Both devices MUST open the SAME URL to connect to the SAME server.
+- ✅ Both devices open `https://your-repl.replit.dev` → SAME server → can see each other
+- ❌ Device A on Replit URL, Device B on `http://192.168.x.x:5000` → DIFFERENT server instances → CANNOT see each other
+- ❌ Both on LAN IP with HTTP → camera blocked (no HTTPS)
+
+**For Termux/LAN deployment:**
+One device runs the server. Others access via that device's LAN IP. But they need HTTPS for camera — this requires either:
+- A self-signed cert (complex setup)
+- Deploy to Replit (recommended for now) and ALL devices use the Replit URL
 
 ---
 
-## PART 8: KEY FILES AND LINE NUMBERS
+## PART 6: IMPORTANT RULES (Do NOT Violate These)
 
-| File | What's In It | Key Line Numbers |
+1. **Never break Hevi Explorer** — AeroGrab is an overlay. If AeroGrab crashes, file manager must still work.
+2. **`aerograb.js` must stay a self-contained IIFE** — `(function AeroGrab() { ... })()`
+3. **No file bytes on server** — Server is pure signaling relay. WebRTC DataChannel handles actual bytes.
+4. **2D gesture math only** — Never use z-axis in landmark distance calculations.
+5. **Camera controlled only by `aerograb.js`** — No other code touches camera.
+6. **Socket.io on server has `cors: { origin: '*' }`** — Do not restrict to specific origins.
+7. **All device/session data in-memory only** — Never write to disk.
+8. **Toast function:** `toast(message, 'success' | 'error' | 'warn' | '')` — available globally in `app.js`.
+9. **CSS var `--accent: #25f4d0`** — All AeroGrab UI elements use this color.
+
+---
+
+## PART 7: CDN SCRIPTS (in `index.html`)
+
+```html
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="/iv.js?v=11"></script>
+<script src="/app.js?v=12"></script>
+<script src="/aerograb-animation.js?v=1"></script>
+<script src="/aerograb.js?v=1"></script>
+<script>
+  // service worker + Hevi Network inline IIFE (onHeviPeersUpdate, heviSendTo, etc.)
+</script>
+```
+
+Server socket.io version: `^4.8.3`
+
+---
+
+## PART 8: KEY FILE MAP
+
+| File | Purpose | Important Lines |
 |---|---|---|
-| `server.js` | AeroGrab signaling handlers | ~3183+ |
-| `public/aerograb.js` | All AeroGrab client logic | Entire file (~674 lines) |
-| `public/aerograb-animation.js` | Rocket/Box/Particle animations | Entire file |
-| `public/index.html` | UI markup, CDN scripts | Camera overlay ~2424, CDN scripts ~2433 |
-| `public/style.css` | All styles incl. AeroGrab | AeroGrab styles appended at end ~6785+ |
+| `server.js` | AeroGrab signaling + Hevi Network | ~3190–3285 |
+| `public/aerograb.js` | All AeroGrab client logic | Full file (~780 lines) |
+| `public/aerograb-animation.js` | Rocket/box animations | Full file |
+| `public/index.html` | UI markup + inline Hevi Network script | Wake panel ~2424, Network section ~168–183, inline script ~2466+ |
+| `public/style.css` | All styles | AeroGrab styles appended at end |
 | `public/app.js` | Hevi Explorer main app | openFile hook ~3581, ctxMenu ~3974 |
-| `AeroGrab_Blueprint.md` | Full engineering spec v2 | Entire file |
-| `.gitignore` | Privacy protection | Entire file |
+| `AeroGrab_Blueprint.md` | Full engineering spec | Full file |
 
 ---
 
-## PART 9: SUMMARY OF NEXT STEPS (IN ORDER)
+## PART 9: WHAT IS STILL REMAINING / KNOWN GAPS
 
-1. **Add `HEVI_ANNOUNCE` + `HEVI_HEARTBEAT` to `aerograb.js`** inside `initSocket()`
-2. **Add device registry + `broadcastPeersUpdate()` to `server.js`** in the Socket.io section
-3. **Handle `disconnect` cleanup** in server.js device registry
-4. **Add Network tab HTML** to `index.html` (new tab in the navigation or as a section)
-5. **Add `window.onHeviPeersUpdate` handler** in `app.js` that renders device cards
-6. **Style the device list** in `style.css` using `--accent: #25f4d0`
-7. **Add `aeroGrabSetTarget(socketId)` to `aerograb.js`** for targeted transfers
-8. **Update `FILE_GRABBED` handler in `server.js`** to support optional `targetId`
-9. **Test with two real devices** on same WiFi
+### ❌ NOT YET DONE — Next AI Should Tackle These
+
+1. **Real multi-device test** — Need two physical devices on same WiFi, both opening Replit URL, to verify end-to-end: see each other → send file → receive file.
+
+2. **Stale device cleanup** — Server has `lastSeen` tracking but NO timeout sweep. A device that crashes (network cut, browser force-close) stays in `heviDevices` until socket disconnects. Add a `setInterval` sweep on server to remove devices where `Date.now() - lastSeen > 45000` and call `broadcastPeersUpdate()`.
+
+3. **Device Name Customization** — Currently auto-detected from userAgent. User should be able to set a custom name. Add a small input field in the Network section or Settings.
+
+4. **WebRTC TURN server** — For devices NOT on same WiFi (4G/5G cross-network). Not needed for LAN use case but required for full P2P. Use free TURN from `openrelay.metered.ca` or deploy coturn.
+
+5. **Transfer Progress UI** — `aeroAnim.updateReceiverProgress(pct)` exists in animation layer but progress % is not wired to the actual DataChannel receive tracking. Wire `_recvReceived / _recvMeta.size` to the animation progress.
+
+6. **Multiple File Select** — `getAeroGrabPayload()` supports selected files but currently only grabs first selected file if multiple are selected. Add zip for multi-select.
+
+7. **Receive History** — No log of received files. Add a simple received-files list in the AeroGrab UI showing last N transfers.
+
+8. **Offline/HTTPS on LAN** — For Termux deployment with camera working on LAN without Replit, need HTTPS. Could add a `--https` flag to `server.js` that generates a self-signed cert on first run.
+
+9. **AeroGrab Device Name Display** — In the "🌐 Hevi Network" panel, the user's OWN device name/avatar is not displayed anywhere. Show "This device: 📱 Android Device" at top of the panel.
 
 ---
 
-*This document was written by TWH for AI-assisted continuation of the AeroGrab project.*
-*Always read `AeroGrab_Blueprint.md` for the full technical specification.*
-*Always communicate with the developer in Hinglish (casual Hindi + English mix).*
+## PART 10: TESTING CHECKLIST
+
+When two devices are available, verify ALL of these:
+
+- [ ] Device A opens Replit URL → Network panel shows "Connected — waiting for other devices"
+- [ ] Device B opens same Replit URL → both A and B see each other in Network panel
+- [ ] Network panel on A shows Device B's name + avatar + green dot
+- [ ] "Send →" button on Device B's card in A's sidebar → toast shows "Targeted: [B name]"
+- [ ] AeroGrab toggle ON → permission dialog appears → click Enable → browser camera prompt appears
+- [ ] Camera shows in bottom-right → gesture label shows live curl ratios
+- [ ] Make fist → FIST detected → WAKE_UP_CAMERAS sent to B
+- [ ] Device B shows wake-up notification with "From: [A name]" + filename
+- [ ] Device B opens palm OR clicks Catch → file transfer starts → file downloads on B
+- [ ] AeroGrab toggle OFF → camera stops → Hevi Network panel still works
+- [ ] Device C joins → counter updates → all three see each other
+- [ ] Device C closes browser → counter updates within seconds (socket disconnect)
+- [ ] Existing Hevi Explorer works perfectly (browse/upload/view/etc.)
+
+---
+
+*Document maintained by Technical White Hat (TWH).*
+*Communicate with developer in casual Hinglish — bhai, yaar, chill tone.*
+*Always read `AeroGrab_Blueprint.md` for detailed engineering spec.*

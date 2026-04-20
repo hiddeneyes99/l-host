@@ -2463,74 +2463,105 @@
       // ── Hevi Network: peer list rendering ─────────────────────────────────
       (function() {
         const _peerMap = new Map(); // socketId → deviceName
+        let _prevOtherCount = 0;
 
         window._heviPeerName = function(socketId) {
           return _peerMap.get(socketId) || null;
         };
 
+        function _heviNetSetOpen(open) {
+          const list    = document.getElementById('heviNetList');
+          const header  = document.getElementById('heviNetHeader');
+          const chevron = document.getElementById('heviNetChevron');
+          if (!list) return;
+          list.classList.toggle('hidden', !open);
+          if (header)  header.setAttribute('aria-expanded', String(open));
+          if (chevron) chevron.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
+        }
+
         window.onHeviPeersUpdate = function(devices, total, mySocketId) {
           _peerMap.clear();
           devices.forEach(d => _peerMap.set(d.socketId, d.deviceName));
 
-          const countEl = document.getElementById('heviNetCount');
-          const listEl  = document.getElementById('heviNetList');
-          const emptyEl = document.getElementById('heviNetEmpty');
+          const countEl  = document.getElementById('heviNetCount');
+          const listEl   = document.getElementById('heviNetList');
+          const emptyEl  = document.getElementById('heviNetEmpty');
+          const sectionEl = document.getElementById('heviNetSection');
           if (!countEl || !listEl) return;
 
           const others = devices.filter(d => d.socketId !== mySocketId);
-          countEl.textContent = total > 1
-            ? `${total} devices online` : total === 1
-            ? '1 device online (you)' : 'No devices found';
+          const n = others.length;
 
-          // Clear old cards
+          // Count label: show connected status
+          if (total === 0) {
+            countEl.textContent = 'Connecting...';
+          } else if (n === 0) {
+            countEl.textContent = 'Connected — waiting for other devices';
+            countEl.style.color = 'rgba(255,255,255,0.4)';
+          } else {
+            countEl.textContent = `${n} device${n > 1 ? 's' : ''} nearby`;
+            countEl.style.color = 'var(--accent)';
+          }
+
+          // Pulse the section border when a new peer appears
+          if (n > _prevOtherCount && sectionEl) {
+            sectionEl.classList.add('hevi-net-pulse');
+            setTimeout(() => sectionEl.classList.remove('hevi-net-pulse'), 1200);
+            // Auto-expand list when first peer joins
+            _heviNetSetOpen(true);
+          }
+          _prevOtherCount = n;
+
+          // Clear old peer cards
           Array.from(listEl.querySelectorAll('.hevi-peer-card')).forEach(c => c.remove());
 
-          if (others.length === 0) {
+          if (n === 0) {
             if (emptyEl) emptyEl.style.display = 'block';
           } else {
             if (emptyEl) emptyEl.style.display = 'none';
             others.forEach(d => {
+              const safeId   = d.socketId.replace(/'/g, '');
+              const safeName = d.deviceName.replace(/'/g, '').replace(/</g, '');
               const card = document.createElement('div');
               card.className = 'hevi-peer-card';
               card.dataset.socketId = d.socketId;
-              card.innerHTML = `
-                <span class="hevi-peer-avatar">${d.avatar}</span>
-                <div class="hevi-peer-info">
-                  <div class="hevi-peer-name">${d.deviceName}</div>
-                  <div class="hevi-peer-status"><span class="hevi-peer-dot"></span>Online</div>
-                </div>
-                <button class="hevi-peer-send" onclick="heviSendTo('${d.socketId}','${d.deviceName}')">Send →</button>
-              `;
+              card.innerHTML =
+                `<span class="hevi-peer-avatar">${d.avatar || '📱'}</span>` +
+                `<div class="hevi-peer-info">` +
+                  `<div class="hevi-peer-name">${safeName}</div>` +
+                  `<div class="hevi-peer-status"><span class="hevi-peer-dot"></span>Online</div>` +
+                `</div>` +
+                `<button class="hevi-peer-send" onclick="heviSendTo('${safeId}','${safeName}')">Send →</button>`;
               listEl.appendChild(card);
             });
           }
         };
 
         window.heviSendTo = function(socketId, deviceName) {
-          if (!window.aeroGrab) return;
+          if (!window.aeroGrab) {
+            if (typeof toast === 'function') toast('AeroGrab is not loaded yet.', 'warn');
+            return;
+          }
           window.aeroGrab.setTarget(socketId);
           // Close sidebar
           const overlay = document.getElementById('sidebarOverlay');
           const drawer  = document.getElementById('sidebarDrawer');
           if (overlay) overlay.classList.remove('open');
           if (drawer)  drawer.classList.remove('open');
-          // Prompt user
           if (typeof toast === 'function') {
-            toast(`Targeted: ${deviceName} — now make a fist or press ✊ Grab`, 'info');
+            toast(`Targeted: ${deviceName} — now open a file and make a fist ✊`, 'info');
           }
         };
 
         // Hevi Network header click — collapse/expand
         document.addEventListener('DOMContentLoaded', function() {
-          const header  = document.getElementById('heviNetHeader');
-          const list    = document.getElementById('heviNetList');
-          const chevron = document.getElementById('heviNetChevron');
-          if (!header || !list) return;
+          const header = document.getElementById('heviNetHeader');
+          if (!header) return;
           header.addEventListener('click', function() {
-            const open = !list.classList.contains('hidden');
-            list.classList.toggle('hidden', open);
-            header.setAttribute('aria-expanded', String(!open));
-            if (chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
+            const list = document.getElementById('heviNetList');
+            if (!list) return;
+            const isOpen = !list.classList.contains('hidden');
+            _heviNetSetOpen(!isOpen);
           });
         });
       })();
