@@ -313,10 +313,35 @@ Classes: `.hevi-net-section`, `.hevi-net-header`, `.hevi-peer-card`, `.hevi-peer
 **Fix:** Added `app.use((req, res, next) => { res.setHeader('Permissions-Policy', 'camera=*, microphone=()'); next(); });` in `server.js` before static file serving.
 **Why:** Modern Chrome may block camera access silently on some proxy/iframe setups without explicit `Permissions-Policy: camera=*` header from the server.
 
-### Bug 9: HTTPS Error Message Useless for LAN Users
+### Bug 9: HTTPS Error Message Useless for LAN Users (SUPERSEDED by Feature 11)
 **Was:** `showCameraHttpsError()` showed `https://192.168.x.x:5000` (no SSL cert = useless URL).
-**Fix:** Detects LAN IP pattern, shows: "Camera needs HTTPS. Access via your Replit URL (https://...) — camera works there automatically."
-**Why:** The HTTP→HTTPS URL swap only works if a real SSL cert is configured. On LAN without a cert, users should use the Replit URL instead.
+**Original Fix:** Detects LAN IP pattern, shows: "Camera needs HTTPS. Access via your Replit URL..."
+**Superseded by Feature 11:** Server now runs HTTPS on `httpPort + 443`, so the error now shows the actual working HTTPS URL.
+
+### Feature 11: LAN HTTPS Server (AeroGrab Camera on Any LAN Device) ✅
+**Problem:** Browsers block `getUserMedia` (camera) on HTTP origins, except localhost. Users accessing via LAN IP (`http://192.168.x.x:5000`) could not use AeroGrab camera.
+**Fix:** Added automatic self-signed SSL certificate generation at startup + HTTPS server on `PORT + 443` (e.g. 5443 when HTTP is on 5000).
+
+**Files changed:**
+- `server.js` — added `selfsigned` require, `ensureSslCert()` async function, HTTPS server startup, banner update
+- `public/aerograb.js` — updated `showCameraHttpsError()` to compute `https://${hostname}:${httpPort + 443}` and copy it to clipboard
+
+**Certificate details:**
+- Generated once at `data/ssl/{cert,key,ips}.pem/json`
+- 10-year validity (`notAfterDate` = now + 10 years)
+- RSA 2048-bit, SHA-256 signed
+- SAN includes: `DNS:localhost`, `IP:127.0.0.1`, all current LAN IPs
+- Regenerated automatically when LAN IPs change (detected via `data/ssl/ips.json`)
+- Uses `selfsigned` npm package v5 (`generate()` is async/Promise-based)
+
+**User setup (one-time per device):**
+1. Server prints the HTTPS URL in startup banner: `https://192.168.x.x:5443`
+2. User opens that URL in browser
+3. Browser shows security warning (self-signed cert) → click "Advanced" → "Proceed"
+4. Camera permission prompt appears → allow → AeroGrab works!
+5. Next visits: no warning (cert cached by browser)
+
+**Socket.io:** HTTPS server uses `io.attach(httpsServer)` so HTTP and HTTPS clients share the same device registry and can AeroGrab with each other.
 
 ### Bug 10: No Stale Device Cleanup Timer on Server
 **Was:** `heviDevices` Map was only cleared on `socket.disconnect` events. If a browser crashed or network cut without clean disconnect, device stayed in registry forever.

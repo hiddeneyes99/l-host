@@ -263,18 +263,26 @@
     }
   }
 
-  // Shows a friendly error when HTTP (non-secure) is detected
+  // Shows a friendly error when HTTP (non-secure) is detected.
+  // Server runs HTTPS on httpPort + 443 (e.g. 5000 → 5443).
   function showCameraHttpsError() {
-    // On LAN IPs (http://192.168.x.x), swapping http→https won't work without a cert.
-    // Guide the user to access via the Replit URL instead.
-    const isLanIp = /^https?:\/\/(\d{1,3}\.){3}\d{1,3}/.test(window.location.href);
-    if (isLanIp) {
-      showToast('Camera needs HTTPS. Access this app via your Replit URL (https://...) — camera works there automatically.', 'error');
-    } else {
-      const httpsUrl = window.location.href.replace(/^http:\/\//, 'https://');
-      showToast(`Camera needs HTTPS. Try: ${httpsUrl}`, 'error');
+    const loc = window.location;
+    // Compute the HTTPS URL: same host, same path, port = current port + 443
+    const httpPort   = parseInt(loc.port) || 80;
+    const httpsPort  = httpPort + 443;
+    const httpsUrl   = `https://${loc.hostname}:${httpsPort}${loc.pathname}`;
+
+    showToast(
+      `Camera blocked on HTTP. Open the HTTPS link and accept the security warning:\n${httpsUrl}`,
+      'error'
+    );
+
+    // Also copy URL to clipboard silently for quick access
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(httpsUrl).catch(() => {});
     }
-    console.error('[AeroGrab] Camera blocked — not a secure context. Use HTTPS or localhost.');
+
+    console.warn('[AeroGrab] Camera blocked — non-secure context. HTTPS URL:', httpsUrl);
   }
 
   function showPermissionDialog() {

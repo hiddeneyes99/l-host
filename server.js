@@ -21,6 +21,7 @@ const { execFile, spawn } = require('child_process');
 const https  = require('https');
 const http   = require('http');
 const { Server: IOServer } = require('socket.io');
+const selfsigned = require('selfsigned');
 
 const APP_VERSION = require('./package.json').version;
 
@@ -31,7 +32,8 @@ const io         = new IOServer(httpServer, {
   maxHttpBufferSize: 1e6,
 });
 const HOST = '0.0.0.0';
-let ACTIVE_PORT = 5000;
+let ACTIVE_PORT      = 5000;
+let ACTIVE_HTTPS_PORT = null;   // set after HTTPS server starts
 
 // ── Gzip responses — skip video (already compressed; gzip wastes CPU for 0 gain)
 const VIDEO_EXTS = new Set(['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp','.ts','.wmv','.rmvb','.vob','.ogg','.ogv']);
@@ -155,6 +157,91 @@ async function findFreePort() {
     srv.listen(0, HOST, () => { const p = srv.address().port; srv.close(() => resolve(p)); });
     srv.on('error', reject);
   });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  PROTOCOL 5 — LAN HTTPS (AeroGrab Camera Support)
+//  Generates a self-signed SSL cert so camera works on LAN devices.
+//  Cert includes all current LAN IPs as Subject Alternative Names.
+//  Port = HTTP port + 443  (default: 5443 when HTTP is on 5000).
+// ══════════════════════════════════════════════════════════════════════════
+
+const SSL_DIR = path.join(__dirname, 'data', 'ssl');
+
+function getLanIps() {
+  return Object.values(os.networkInterfaces())
+    .flat()
+    .filter(i => i && i.family === 'IPv4' && !i.internal)
+    .map(i => i.address);
+}
+
+// Generate (or reload) a self-signed cert valid for all current LAN IPs.
+// Saves cert + key to data/ssl/. Regenerates if LAN IPs have changed.
+// selfsigned v5 uses @peculiar/x509 internally — generate() returns a Promise.
+async function ensureSslCert() {
+  try {
+    fs.mkdirSync(SSL_DIR, { recursive: true });
+
+    const certPath = path.join(SSL_DIR, 'cert.pem');
+    const keyPath  = path.join(SSL_DIR, 'key.pem');
+    const ipsPath  = path.join(SSL_DIR, 'ips.json');
+
+    const currentIps = getLanIps();
+
+    // Reuse existing cert if IPs haven't changed
+    if (fs.existsSync(certPath) && fs.existsSync(keyPath) && fs.existsSync(ipsPath)) {
+      try {
+        const savedIps = JSON.parse(fs.readFileSync(ipsPath, 'utf8'));
+        const same = savedIps.length === currentIps.length &&
+                     savedIps.every((ip, i) => ip === currentIps[i]);
+        if (same) {
+          return {
+            cert: fs.readFileSync(certPath, 'utf8'),
+            key:  fs.readFileSync(keyPath,  'utf8'),
+          };
+        }
+      } catch (_) {}
+    }
+
+    // Build SAN list: localhost + 127.0.0.1 + all LAN IPs
+    const altNames = [
+      { type: 2, value: 'localhost' },
+      { type: 7, ip: '127.0.0.1' },
+      ...currentIps.map(ip => ({ type: 7, ip })),
+    ];
+
+    console.log('[ssl] generating self-signed certificate for IPs:', ['127.0.0.1', ...currentIps].join(', '));
+
+    // selfsigned v5: generate() is async and returns a Promise.
+    // 'days' option is ignored in v5 — use notAfterDate for 10-year validity.
+    const tenYearsLater = new Date();
+    tenYearsLater.setFullYear(tenYearsLater.getFullYear() + 10);
+
+    const pems = await selfsigned.generate(
+      [{ name: 'commonName', value: 'Hevi Explorer LAN' }],
+      {
+        notAfterDate: tenYearsLater,
+        algorithm:    'sha256',
+        keySize:      2048,
+        extensions: [
+          { name: 'subjectAltName', altNames },
+          { name: 'basicConstraints', cA: false },
+          { name: 'keyUsage', keyCertSign: false, digitalSignature: true, keyEncipherment: true, dataEncipherment: true },
+          { name: 'extKeyUsage', serverAuth: true },
+        ],
+      }
+    );
+
+    fs.writeFileSync(certPath, pems.cert);
+    fs.writeFileSync(keyPath,  pems.private);
+    fs.writeFileSync(ipsPath,  JSON.stringify(currentIps));
+    console.log('[ssl] certificate saved to', SSL_DIR);
+
+    return { cert: pems.cert, key: pems.private };
+  } catch (e) {
+    console.error('[ssl] certificate generation failed:', e.message);
+    return null;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -3191,6 +3278,31 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
     process.exit(1);
   }
 
+  // ── Start HTTPS server for LAN AeroGrab camera support ───────────────────
+  const HTTPS_PORT = PORT + 443;  // e.g. 5000 → 5443
+  const sslPems = ensureSslCert();
+  if (sslPems) {
+    const httpsPortFree = await isPortFree(HTTPS_PORT);
+    if (httpsPortFree) {
+      try {
+        const httpsServer = https.createServer({ cert: sslPems.cert, key: sslPems.key }, app);
+        // Attach same Socket.io instance so HTTP + HTTPS clients are in the same room
+        io.attach(httpsServer);
+        await new Promise((resolve, reject) => {
+          httpsServer.listen(HTTPS_PORT, HOST, () => {
+            ACTIVE_HTTPS_PORT = HTTPS_PORT;
+            resolve();
+          });
+          httpsServer.on('error', reject);
+        });
+      } catch (e) {
+        console.error('[ssl] HTTPS server failed to start:', e.message);
+      }
+    } else {
+      console.warn(`[ssl] HTTPS port ${HTTPS_PORT} is busy — HTTPS server skipped`);
+    }
+  }
+
   // Bootstrap the file index (load from disk or build in background)
   initIndex().catch(e => console.error('[index] init error:', e));
 
@@ -3314,20 +3426,33 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
       .flat()
       .filter(i => i && i.family === 'IPv4' && !i.internal);
 
-    const line = '═'.repeat(48);
+    const line = '═'.repeat(54);
     console.log(`\n╔${line}╗`);
-    console.log(`║${'  Hevi Explorer  •  File Manager'.padEnd(48)}║`);
+    console.log(`║${'  Hevi Explorer  •  File Manager'.padEnd(54)}║`);
     console.log(`╠${line}╣`);
-    console.log(`║  Environment : ${DETECTED_ENV.padEnd(31)}║`);
-    console.log(`║  Root Dir    : ${ROOT_DIR.substring(0, 31).padEnd(31)}║`);
+    console.log(`║  Environment : ${DETECTED_ENV.padEnd(37)}║`);
+    console.log(`║  Root Dir    : ${ROOT_DIR.substring(0, 37).padEnd(37)}║`);
     console.log(`╠${line}╣`);
-    console.log(`║  Local  → http://localhost:${PORT}`.padEnd(49) + '║');
+    console.log(`║  Local  (HTTP ) → http://localhost:${PORT}`.padEnd(55) + '║');
+    if (ACTIVE_HTTPS_PORT) {
+      console.log(`║  Local  (HTTPS) → https://localhost:${ACTIVE_HTTPS_PORT}`.padEnd(55) + '║');
+    }
     for (const iface of networkIPs) {
-      console.log(`║  Network→ http://${iface.address}:${PORT}`.padEnd(49) + '║');
+      console.log(`║  Network(HTTP ) → http://${iface.address}:${PORT}`.padEnd(55) + '║');
+      if (ACTIVE_HTTPS_PORT) {
+        console.log(`║  Network(HTTPS) → https://${iface.address}:${ACTIVE_HTTPS_PORT}  ← AeroGrab`.padEnd(55) + '║');
+      }
     }
     if (PORT !== PREFERRED_PORT) {
       console.log(`╠${line}╣`);
-      console.log(`║  ⚠  Port ${PREFERRED_PORT} was busy — using ${PORT} instead`.padEnd(49) + '║');
+      console.log(`║  ⚠  Port ${PREFERRED_PORT} busy — using ${PORT}`.padEnd(55) + '║');
+    }
+    if (ACTIVE_HTTPS_PORT) {
+      console.log(`╠${line}╣`);
+      console.log(`║  AeroGrab Camera Setup (one-time per device):`.padEnd(55) + '║');
+      console.log(`║  1. Open the HTTPS link above on your device`.padEnd(55) + '║');
+      console.log(`║  2. Click "Advanced" → "Proceed" (security warn)`.padEnd(55) + '║');
+      console.log(`║  3. Camera will work — AeroGrab ready!`.padEnd(55) + '║');
     }
     console.log(`╚${line}╝\n`);
     console.log('  Tip: set ROOT_DIR=/sdcard to browse a specific folder.\n');
