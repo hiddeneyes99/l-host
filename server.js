@@ -17,6 +17,7 @@ const path        = require('path');
 const os          = require('os');
 const net         = require('net');
 const crypto      = require('crypto');
+const dgram       = require('dgram');
 const { execFile, spawn } = require('child_process');
 const https  = require('https');
 const http   = require('http');
@@ -32,6 +33,10 @@ const io         = new IOServer(httpServer, {
 });
 const HOST = '0.0.0.0';
 let ACTIVE_PORT = 5000;
+const LAN_DISCOVERY_PORT = parseInt(process.env.AEROGRAB_DISCOVERY_PORT || '45555', 10);
+const LAN_DISCOVERY_INTERVAL_MS = 3000;
+const LAN_PEER_TTL_MS = 12000;
+const LAN_SERVER_ID = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 
 // ── Gzip responses — skip video (already compressed; gzip wastes CPU for 0 gain)
 const VIDEO_EXTS = new Set(['.mp4','.mkv','.avi','.mov','.webm','.flv','.m4v','.3gp','.ts','.wmv','.rmvb','.vob','.ogg','.ogv']);
@@ -3200,13 +3205,235 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
 
   // Device Registry: { socket.id → { socketId, deviceId, deviceName, avatar, joinedAt, lastSeen } }
   const heviDevices = new Map();
+  const lanServers = new Map();
+  let lanDiscoverySocket = null;
+
+  function getLanIPv4() {
+    const ifaces = Object.values(os.networkInterfaces()).flat();
+    const iface = ifaces.find(i => i && i.family === 'IPv4' && !i.internal);
+    return iface ? iface.address : '127.0.0.1';
+  }
+
+  function getLanBaseUrl() {
+    return `http://${getLanIPv4()}:${ACTIVE_PORT}`;
+  }
+
+  function makeLanSocketId(serverId, socketId) {
+    return `lan:${serverId}:${socketId}`;
+  }
+
+  function parseLanSocketId(socketId) {
+    if (typeof socketId !== 'string' || !socketId.startsWith('lan:')) return null;
+    const parts = socketId.split(':');
+    if (parts.length < 3) return null;
+    return { serverId: parts[1], socketId: parts.slice(2).join(':') };
+  }
+
+  function isPrivateIPv4(hostname) {
+    const parts = String(hostname || '').split('.').map(n => parseInt(n, 10));
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n) || n < 0 || n > 255)) return false;
+    const [a, b] = parts;
+    return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  }
+
+  function normaliseLanUrl(rawUrl, fallbackAddress, fallbackPort) {
+    try {
+      const url = new URL(rawUrl || `http://${fallbackAddress}:${fallbackPort || ACTIVE_PORT}`);
+      if (url.protocol !== 'http:') return null;
+      if (!isPrivateIPv4(url.hostname) && url.hostname !== fallbackAddress) return null;
+      return `${url.protocol}//${url.host}`;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function localDeviceSnapshot() {
+    return [...heviDevices.values()].map(d => ({
+      socketId: d.socketId,
+      deviceId: d.deviceId,
+      deviceName: d.deviceName,
+      avatar: d.avatar,
+      joinedAt: d.joinedAt,
+      lastSeen: d.lastSeen,
+    }));
+  }
+
+  function combinedDeviceList() {
+    const local = [...heviDevices.values()].map(d => ({
+      ...d,
+      serverId: LAN_SERVER_ID,
+      source: 'local',
+    }));
+    const now = Date.now();
+    const remote = [];
+    for (const [serverId, server] of lanServers.entries()) {
+      if (now - server.lastSeen > LAN_PEER_TTL_MS) continue;
+      for (const d of server.devices || []) {
+        remote.push({
+          socketId: makeLanSocketId(serverId, d.socketId),
+          deviceId: d.deviceId || d.socketId,
+          deviceName: d.deviceName || 'Hevi Device',
+          avatar: d.avatar || '📱',
+          joinedAt: d.joinedAt || server.lastSeen,
+          lastSeen: d.lastSeen || server.lastSeen,
+          serverId,
+          source: 'lan',
+          lanUrl: server.url,
+        });
+      }
+    }
+    return [...local, ...remote];
+  }
 
   function broadcastPeersUpdate() {
+    const devices = combinedDeviceList();
     io.emit('HEVI_PEERS_UPDATE', {
-      devices: [...heviDevices.values()],
-      total:   heviDevices.size,
+      devices,
+      total:   devices.length,
+      lan:     { serverId: LAN_SERVER_ID, url: getLanBaseUrl() },
     });
   }
+
+  async function postLan(server, pathname, body) {
+    if (!server || !server.url) throw new Error('LAN peer unavailable');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const resp = await fetch(`${server.url}${pathname}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+        signal: controller.signal,
+      });
+      if (!resp.ok) throw new Error(`LAN peer returned ${resp.status}`);
+      return await resp.json().catch(() => ({}));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function emitWebRtcSignal(fromSocketId, toSocketId, signal) {
+    const remote = parseLanSocketId(toSocketId);
+    if (remote && remote.serverId !== LAN_SERVER_ID) {
+      const server = lanServers.get(remote.serverId);
+      await postLan(server, '/api/aerograb/lan/signal', {
+        from: makeLanSocketId(LAN_SERVER_ID, fromSocketId),
+        to: remote.socketId,
+        signal,
+      });
+      return;
+    }
+    const localTo = remote && remote.serverId === LAN_SERVER_ID ? remote.socketId : toSocketId;
+    io.to(localTo).emit('webrtc_signal', { from: fromSocketId, signal });
+  }
+
+  function startLanDiscovery() {
+    if (process.env.AEROGRAB_LAN_DISCOVERY === '0') return;
+    lanDiscoverySocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    lanDiscoverySocket.on('error', err => {
+      console.warn('[AeroGrab LAN] discovery disabled:', err.message);
+      try { lanDiscoverySocket.close(); } catch (_) {}
+      lanDiscoverySocket = null;
+    });
+    lanDiscoverySocket.on('message', (buf, rinfo) => {
+      let msg;
+      try { msg = JSON.parse(buf.toString('utf8')); } catch (_) { return; }
+      if (!msg || msg.type !== 'HEVI_AEROGRAB_DISCOVERY' || msg.serverId === LAN_SERVER_ID) return;
+      const serverId = String(msg.serverId || '').slice(0, 64);
+      if (!serverId) return;
+      const url = normaliseLanUrl(msg.url, rinfo.address, msg.port);
+      if (!url) return;
+      const devices = Array.isArray(msg.devices) ? msg.devices.slice(0, 64).map(d => ({
+        socketId: String(d.socketId || '').slice(0, 120),
+        deviceId: String(d.deviceId || d.socketId || '').slice(0, 60),
+        deviceName: String(d.deviceName || 'Hevi Device').slice(0, 28),
+        avatar: String(d.avatar || '📱').slice(0, 4),
+        joinedAt: Number(d.joinedAt) || Date.now(),
+        lastSeen: Number(d.lastSeen) || Date.now(),
+      })).filter(d => d.socketId) : [];
+      lanServers.set(serverId, {
+        serverId,
+        url,
+        hostname: String(msg.hostname || '').slice(0, 80),
+        devices,
+        lastSeen: Date.now(),
+      });
+      broadcastPeersUpdate();
+    });
+    lanDiscoverySocket.bind(LAN_DISCOVERY_PORT, () => {
+      try { lanDiscoverySocket.setBroadcast(true); } catch (_) {}
+      const announce = () => {
+        if (!lanDiscoverySocket) return;
+        const payload = Buffer.from(JSON.stringify({
+          type: 'HEVI_AEROGRAB_DISCOVERY',
+          version: 1,
+          serverId: LAN_SERVER_ID,
+          hostname: os.hostname(),
+          port: ACTIVE_PORT,
+          url: getLanBaseUrl(),
+          devices: localDeviceSnapshot(),
+        }));
+        lanDiscoverySocket.send(payload, LAN_DISCOVERY_PORT, '255.255.255.255', () => {});
+      };
+      announce();
+      setInterval(announce, LAN_DISCOVERY_INTERVAL_MS);
+      console.log(`[AeroGrab LAN] Auto-discovery ON at ${getLanBaseUrl()} (UDP ${LAN_DISCOVERY_PORT})`);
+    });
+  }
+
+  app.post('/api/aerograb/lan/wake', express.json({ limit: '64kb' }), (req, res) => {
+    const { sessionId, targetSocketId, senderId, senderName, metadata, originServerId, originUrl } = req.body || {};
+    if (!sessionId || !senderId || !originServerId || !originUrl) return res.status(400).json({ error: 'bad_request' });
+    const timer = setTimeout(() => {
+      const s = aeroSessions.get(sessionId);
+      if (!s) return;
+      io.emit('SLEEP_CAMERAS', { sessionId });
+      aeroSessions.delete(sessionId);
+    }, 60000);
+    aeroSessions.set(sessionId, {
+      sessionId,
+      senderId,
+      metadata,
+      timer,
+      receiverId: null,
+      remote: true,
+      originServerId,
+      originUrl,
+    });
+    const wakePayload = { sessionId, senderId, senderName: senderName || 'A device', metadata };
+    if (targetSocketId && io.sockets.sockets.get(targetSocketId)) {
+      io.to(targetSocketId).emit('WAKE_UP_CAMERAS', wakePayload);
+    } else {
+      io.emit('WAKE_UP_CAMERAS', wakePayload);
+    }
+    res.json({ ok: true });
+  });
+
+  app.post('/api/aerograb/lan/drop', express.json({ limit: '64kb' }), (req, res) => {
+    const { sessionId, receiverId } = req.body || {};
+    const s = aeroSessions.get(sessionId);
+    if (!s || s.receiverId) return res.status(409).json({ error: 'taken' });
+    s.receiverId = receiverId;
+    io.to(s.senderId).emit('TRANSFER_APPROVED', { receiverId, sessionId });
+    io.except(s.senderId).emit('TRANSFER_TAKEN', { sessionId });
+    res.json({ ok: true });
+  });
+
+  app.post('/api/aerograb/lan/signal', express.json({ limit: '256kb' }), (req, res) => {
+    const { from, to, signal } = req.body || {};
+    if (!from || !to || !signal) return res.status(400).json({ error: 'bad_request' });
+    io.to(to).emit('webrtc_signal', { from, signal });
+    res.json({ ok: true });
+  });
+
+  app.post('/api/aerograb/lan/end', express.json({ limit: '32kb' }), (req, res) => {
+    const { sessionId } = req.body || {};
+    if (!sessionId) return res.status(400).json({ error: 'bad_request' });
+    const s = aeroSessions.get(sessionId);
+    if (s) { clearTimeout(s.timer); aeroSessions.delete(sessionId); }
+    io.emit('SLEEP_CAMERAS', { sessionId });
+    res.json({ ok: true });
+  });
 
   io.on('connection', (socket) => {
 
@@ -3230,8 +3457,8 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
     });
 
     // ── AeroGrab: sender grabs a file ─────────────────────────────────────
-    socket.on('FILE_GRABBED', ({ metadata, targetId } = {}) => {
-      const sessionId  = crypto.randomUUID();
+    socket.on('FILE_GRABBED', async ({ metadata, targetId } = {}) => {
+      const sessionId  = `ag:${LAN_SERVER_ID}:${crypto.randomUUID()}`;
       const sender     = heviDevices.get(socket.id);
       const senderName = sender ? sender.deviceName : 'A device';
       const timer = setTimeout(() => {
@@ -3245,31 +3472,92 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
         sessionId, senderId: socket.id, metadata, timer, receiverId: null,
       });
       const wakePayload = { sessionId, senderId: socket.id, senderName, metadata };
-      if (targetId && io.sockets.sockets.get(targetId)) {
+      const remoteTarget = parseLanSocketId(targetId);
+      if (remoteTarget && remoteTarget.serverId !== LAN_SERVER_ID) {
+        const server = lanServers.get(remoteTarget.serverId);
+        try {
+          await postLan(server, '/api/aerograb/lan/wake', {
+            sessionId,
+            targetSocketId: remoteTarget.socketId,
+            senderId: makeLanSocketId(LAN_SERVER_ID, socket.id),
+            senderName,
+            metadata,
+            originServerId: LAN_SERVER_ID,
+            originUrl: getLanBaseUrl(),
+          });
+        } catch (e) {
+          clearTimeout(timer);
+          aeroSessions.delete(sessionId);
+          socket.emit('SESSION_EXPIRED');
+        }
+      } else if (targetId && io.sockets.sockets.get(targetId)) {
         io.to(targetId).emit('WAKE_UP_CAMERAS', wakePayload);
       } else {
         socket.broadcast.emit('WAKE_UP_CAMERAS', wakePayload);
+        const now = Date.now();
+        for (const server of lanServers.values()) {
+          if (now - server.lastSeen > LAN_PEER_TTL_MS) continue;
+          postLan(server, '/api/aerograb/lan/wake', {
+            sessionId,
+            targetSocketId: null,
+            senderId: makeLanSocketId(LAN_SERVER_ID, socket.id),
+            senderName,
+            metadata,
+            originServerId: LAN_SERVER_ID,
+            originUrl: getLanBaseUrl(),
+          }).catch(e => console.warn('[AeroGrab LAN] broadcast wake failed:', e.message));
+        }
       }
     });
 
-    socket.on('DROP_HERE', ({ sessionId }) => {
+    socket.on('DROP_HERE', async ({ sessionId }) => {
       const s = aeroSessions.get(sessionId);
       if (!s || s.receiverId) {
         socket.emit('TRANSFER_TAKEN');
         return;
       }
       s.receiverId = socket.id;
+      if (s.remote) {
+        try {
+          const origin = { url: normaliseLanUrl(s.originUrl, '', ACTIVE_PORT) || s.originUrl };
+          await postLan(origin, '/api/aerograb/lan/drop', {
+            sessionId,
+            receiverId: makeLanSocketId(LAN_SERVER_ID, socket.id),
+            receiverServerId: LAN_SERVER_ID,
+            receiverUrl: getLanBaseUrl(),
+          });
+          socket.emit('YOU_ARE_RECEIVER', { senderId: s.senderId, sessionId, metadata: s.metadata });
+          socket.broadcast.emit('TRANSFER_TAKEN', { sessionId });
+        } catch (_) {
+          socket.emit('TRANSFER_TAKEN');
+        }
+        return;
+      }
       io.to(s.senderId).emit('TRANSFER_APPROVED', { receiverId: socket.id, sessionId });
       socket.emit('YOU_ARE_RECEIVER', { senderId: s.senderId, sessionId, metadata: s.metadata });
       io.except([s.senderId, socket.id]).emit('TRANSFER_TAKEN', { sessionId });
     });
 
     socket.on('webrtc_signal', ({ to, signal }) => {
-      io.to(to).emit('webrtc_signal', { from: socket.id, signal });
+      emitWebRtcSignal(socket.id, to, signal).catch(e => {
+        console.warn('[AeroGrab LAN] signal relay failed:', e.message);
+      });
     });
 
     socket.on('SESSION_END', ({ sessionId }) => {
       const s = aeroSessions.get(sessionId);
+      if (s && s.remote) {
+        const origin = { url: normaliseLanUrl(s.originUrl, '', ACTIVE_PORT) || s.originUrl };
+        postLan(origin, '/api/aerograb/lan/end', { sessionId })
+          .catch(e => console.warn('[AeroGrab LAN] remote session end failed:', e.message));
+      } else if (s && s.receiverId) {
+        const remote = parseLanSocketId(s.receiverId);
+        if (remote && remote.serverId !== LAN_SERVER_ID) {
+          const server = lanServers.get(remote.serverId);
+          postLan(server, '/api/aerograb/lan/end', { sessionId })
+            .catch(e => console.warn('[AeroGrab LAN] receiver session end failed:', e.message));
+        }
+      }
       if (s) { clearTimeout(s.timer); aeroSessions.delete(sessionId); }
       io.emit('SLEEP_CAMERAS', { sessionId });
     });
@@ -3305,6 +3593,17 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
     }
     if (changed) broadcastPeersUpdate();
   }, 15000);
+  setInterval(() => {
+    const cutoff = Date.now() - LAN_PEER_TTL_MS;
+    let changed = false;
+    for (const [id, server] of lanServers.entries()) {
+      if (server.lastSeen < cutoff) {
+        lanServers.delete(id);
+        changed = true;
+      }
+    }
+    if (changed) broadcastPeersUpdate();
+  }, 5000);
   // ─────────────────────────────────────────────────────────────────────────
 
   httpServer.listen(PORT, HOST, () => {
@@ -3331,6 +3630,7 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
     }
     console.log(`╚${line}╝\n`);
     console.log('  Tip: set ROOT_DIR=/sdcard to browse a specific folder.\n');
+    startLanDiscovery();
   });
 
   // ── Graceful shutdown: kill WAN tunnel + flush pending writes ──────────────
@@ -3339,6 +3639,10 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
     if (wanProc) {
       try { wanProc.kill('SIGTERM'); } catch (_) {}
       wanProc = null;
+    }
+    if (lanDiscoverySocket) {
+      try { lanDiscoverySocket.close(); } catch (_) {}
+      lanDiscoverySocket = null;
     }
     process.exit(0);
   }

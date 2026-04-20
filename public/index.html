@@ -175,7 +175,7 @@
           <svg class="hevi-net-chevron" id="heviNetChevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
         <div class="hevi-net-list hidden" id="heviNetList">
-          <div class="hevi-net-empty" id="heviNetEmpty">No other devices found on this network.</div>
+          <div class="hevi-net-empty" id="heviNetEmpty">Auto LAN is on. Open Hevi on another same-WiFi device and it will appear here.</div>
         </div>
       </div>
 
@@ -2525,11 +2525,12 @@
               const card = document.createElement('div');
               card.className = 'hevi-peer-card';
               card.dataset.socketId = d.socketId;
+              const sourceLabel = d.source === 'lan' ? 'Auto LAN' : 'This server';
               card.innerHTML =
                 `<span class="hevi-peer-avatar">${d.avatar || '📱'}</span>` +
                 `<div class="hevi-peer-info">` +
                   `<div class="hevi-peer-name">${safeName}</div>` +
-                  `<div class="hevi-peer-status"><span class="hevi-peer-dot"></span>Online</div>` +
+                  `<div class="hevi-peer-status"><span class="hevi-peer-dot"></span>Online · ${sourceLabel}</div>` +
                 `</div>` +
                 `<button class="hevi-peer-send" onclick="heviSendTo('${safeId}','${safeName}')">Send →</button>`;
               listEl.appendChild(card);

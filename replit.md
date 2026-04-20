@@ -39,6 +39,7 @@ package.json     - npm manifest
 - `express` for the HTTP server and API routes
 - `compression` for gzip response compression
 - `socket.io` for AeroGrab real-time signaling (WebSocket, session management)
+- Node UDP (`dgram`) for AeroGrab zero-config same-WiFi discovery between independently running Hevi servers
 - `exifr` for image metadata extraction
 - `music-metadata` for audio artwork and tag metadata
 - `heic2any` for browser-side HEIC/HEIF conversion when the user requests a preview
@@ -97,6 +98,7 @@ ROOT_DIR=/ node server.js
 - Search across indexed files
 - Grid/list view toggle
 - Persistent recent files and favorites
+- AeroGrab same-WiFi Auto LAN mode: independent Termux/Kali Hevi instances broadcast presence over UDP and relay signaling server-to-server, so users can keep using their own local app without typing another device's IP.
 
 ## Performance
 
@@ -139,3 +141,6 @@ ROOT_DIR=/ node server.js
 | GET | `/api/cloud/:accountId/file` | Proxy a cloud file for viewing/streaming |
 | DELETE | `/api/cloud/:accountId` | Disconnect a cloud account |
 | POST | `/api/cloud/:accountId/share` | Share a cloud account with another device |
+| POST | `/api/aerograb/lan/wake` | Internal same-WiFi AeroGrab wake relay between local servers |
+| POST | `/api/aerograb/lan/drop` | Internal same-WiFi AeroGrab receiver approval relay |
+| POST | `/api/aerograb/lan/signal` | Internal same-WiFi WebRTC signaling relay |
