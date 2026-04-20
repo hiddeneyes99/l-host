@@ -213,12 +213,6 @@
   // Only ONE getUserMedia call is made — the stream is passed directly to
   // initMediaPipe() to avoid "device in use" errors from double acquisition.
   async function requestCameraPermission() {
-    // Modern browsers block getUserMedia on non-secure (HTTP) origins
-    // except localhost. Show a clear error before even trying.
-    if (!window.isSecureContext) {
-      showCameraHttpsError();
-      return null;
-    }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showToast('Your browser does not support camera access.', 'error');
       return null;
@@ -263,26 +257,9 @@
     }
   }
 
-  // Shows a friendly error when HTTP (non-secure) is detected.
-  // Server runs HTTPS on httpPort + 443 (e.g. 5000 → 5443).
   function showCameraHttpsError() {
-    const loc = window.location;
-    // Compute the HTTPS URL: same host, same path, port = current port + 443
-    const httpPort   = parseInt(loc.port) || 80;
-    const httpsPort  = httpPort + 443;
-    const httpsUrl   = `https://${loc.hostname}:${httpsPort}${loc.pathname}`;
-
-    showToast(
-      `Camera blocked on HTTP. Open the HTTPS link and accept the security warning:\n${httpsUrl}`,
-      'error'
-    );
-
-    // Also copy URL to clipboard silently for quick access
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(httpsUrl).catch(() => {});
-    }
-
-    console.warn('[AeroGrab] Camera blocked — non-secure context. HTTPS URL:', httpsUrl);
+    showToast('Camera access requires HTTPS. Try accessing via https:// or from localhost.', 'error');
+    console.warn('[AeroGrab] Camera blocked — non-secure context.');
   }
 
   function showPermissionDialog() {
