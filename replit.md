@@ -99,6 +99,7 @@ ROOT_DIR=/ node server.js
 - Grid/list view toggle
 - Persistent recent files and favorites
 - AeroGrab same-WiFi Auto LAN mode: independent Termux/Kali Hevi instances broadcast presence over UDP and relay signaling server-to-server, so users can keep using their own local app without typing another device's IP.
+- AeroGrab live gesture mode: bottom-right camera preview with on-device MediaPipe hand landmarks, live curl-ratio debug label, fist-to-grab and open-palm-to-catch detection, plus manual grab fallback.
 
 ## Performance
 

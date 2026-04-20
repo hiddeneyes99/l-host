@@ -28,6 +28,15 @@
   let _capturedPhotoFile = null;          // photo taken via native <input type="file">
   let _activeOpenFile    = null;          // set by Hevi Explorer when a file is opened
   let _wakePayload       = null;          // sender's metadata received via WAKE_UP_CAMERAS
+  let _hands             = null;
+  let _camStream         = null;
+  let _camera            = null;
+  let _rafId             = null;
+  let _processingHands   = false;
+  let _frameCount        = 0;
+  let _detectCount       = 0;
+  let _lastGestureAt     = 0;
+  let _lastGesture       = null;
 
   // Expose the active-file hook so app.js can set it
   window.aeroGrabSetOpenFile = (fileMeta) => { _activeOpenFile = fileMeta; };
@@ -184,11 +193,186 @@
     if (enable === _enabled) return;
     if (enable) {
       _enabled = true;
-      if (_socket) announceToNetwork();
       showGreenDot(true);
-      showToast('AeroGrab active — select a file or tap 📷 to take a photo, then tap a device to send', 'info');
+      const ok = await initMediaPipe();
+      if (!ok) {
+        deactivateAeroGrab();
+        return;
+      }
+      if (_socket) announceToNetwork();
+      showToast('AeroGrab active — make a fist to grab, open palm to catch', 'info');
     } else {
       deactivateAeroGrab();
+    }
+  }
+
+  function showPermissionDialog() {
+    const dlg = $('aeroPermDialog');
+    if (!dlg) return Promise.resolve(true);
+    dlg.classList.remove('hidden');
+    return new Promise(resolve => {
+      const yes = $('aeroPermEnable');
+      const no = $('aeroPermCancel');
+      const done = value => {
+        dlg.classList.add('hidden');
+        if (yes) yes.onclick = null;
+        if (no) no.onclick = null;
+        resolve(value);
+      };
+      if (yes) yes.onclick = () => done(true);
+      if (no) no.onclick = () => done(false);
+    });
+  }
+
+  function showCameraMessage(message, type = 'warn') {
+    const lbl = $('aeroGestureLbl');
+    if (lbl) lbl.textContent = message;
+    showToast(message, type);
+  }
+
+  async function initMediaPipe() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showCameraMessage('Camera not available in this browser', 'error');
+      return false;
+    }
+    if (!window.isSecureContext) {
+      showCameraMessage('Camera needs HTTPS or localhost. Open this device on localhost for gestures.', 'error');
+      return false;
+    }
+    if (localStorage.getItem('ag_camera_ok') !== '1') {
+      const approved = await showPermissionDialog();
+      if (!approved) return false;
+    }
+    try {
+      if (!window.Hands) throw new Error('Hand AI not loaded');
+      const videoEl = $('aeroVideoEl');
+      const canvas = $('aeroGestureCanvas');
+      if (!videoEl || !canvas) throw new Error('Camera preview missing');
+      _camStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
+        audio: false,
+      });
+      localStorage.setItem('ag_camera_ok', '1');
+      videoEl.srcObject = _camStream;
+      videoEl.muted = true;
+      videoEl.playsInline = true;
+      await videoEl.play();
+      _hands = new Hands({
+        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+      });
+      _hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 0,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.5,
+        selfieMode: true,
+      });
+      _hands.onResults(processGestureResults);
+      const tick = async () => {
+        if (!_enabled || !_hands || !_camStream || _processingHands) return;
+        if (videoEl.readyState < 2) return;
+        _processingHands = true;
+        try {
+          await _hands.send({ image: videoEl });
+        } catch (e) {
+          console.warn('[AeroGrab] hand frame error:', e.message);
+        } finally {
+          _processingHands = false;
+        }
+      };
+      clearInterval(_rafId);
+      _rafId = setInterval(tick, 83);
+      showCameraMessage('Camera ready — show your hand', 'success');
+      return true;
+    } catch (e) {
+      let msg = `Camera error: ${e.message}`;
+      if (e.name === 'NotAllowedError') msg = 'Camera permission denied. Allow camera in browser settings.';
+      if (e.name === 'NotReadableError') msg = 'Camera is busy in another app. Close it and retry.';
+      showCameraMessage(msg, 'error');
+      return false;
+    }
+  }
+
+  function dist2D(a, b) {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function classifyGesture(lm) {
+    if (!lm || lm.length < 21) return { gesture: null, ratios: [] };
+    const handSize = Math.max(dist2D(lm[0], lm[9]), 0.001);
+    const tips = [8, 12, 16, 20];
+    const mcps = [5, 9, 13, 17];
+    const ratios = tips.map((tip, i) => dist2D(lm[tip], lm[mcps[i]]) / handSize);
+    const fist = ratios.every(r => r < 0.65);
+    const palm = ratios.every(r => r > 0.65);
+    return { gesture: fist ? 'FIST' : palm ? 'OPEN_PALM' : null, ratios };
+  }
+
+  function drawGesturePreview(results, lm) {
+    const canvas = $('aeroGestureCanvas');
+    const videoEl = $('aeroVideoEl');
+    if (!canvas || !videoEl) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (!lm) return;
+    const lines = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+    ctx.save();
+    ctx.strokeStyle = '#25f4d0';
+    ctx.lineWidth = 2;
+    ctx.fillStyle = '#ffffff';
+    lines.forEach(([a, b]) => {
+      ctx.beginPath();
+      ctx.moveTo(lm[a].x * w, lm[a].y * h);
+      ctx.lineTo(lm[b].x * w, lm[b].y * h);
+      ctx.stroke();
+    });
+    lm.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x * w, p.y * h, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  function processGestureResults(results) {
+    _frameCount += 1;
+    const lm = results && results.multiHandLandmarks && results.multiHandLandmarks[0];
+    drawGesturePreview(results, lm);
+    const lbl = $('aeroGestureLbl');
+    if (!lm) {
+      if (lbl) lbl.textContent = `👁 ${_frameCount} | no hand`;
+      _lastGesture = null;
+      return;
+    }
+    _detectCount += 1;
+    const { gesture, ratios } = classifyGesture(lm);
+    if (lbl) {
+      const shortRatios = ratios.map(r => r.toFixed(2)).join(',');
+      lbl.textContent = gesture ? `✅ ${gesture} | [${shortRatios}]` : `H:${_detectCount} [${shortRatios}]`;
+    }
+    if (!gesture) {
+      _lastGesture = null;
+      return;
+    }
+    const now = Date.now();
+    if (_lastGesture === gesture && now - _lastGestureAt < 1200) return;
+    _lastGesture = gesture;
+    _lastGestureAt = now;
+    onGestureDetected(gesture);
+  }
+
+  function onGestureDetected(gesture) {
+    if (!_enabled) return;
+    if (gesture === 'FIST' && _myRole === null) {
+      initiateGrab();
+      return;
+    }
+    if (gesture === 'OPEN_PALM' && _wakePayload && _myRole === null) {
+      signalReadyToReceive();
     }
   }
 
@@ -261,6 +445,15 @@
 
   // ── Determine what to grab based on Hevi Explorer state ───────────────────
   async function getAeroGrabPayload() {
+    if (_capturedPhotoFile) {
+      return {
+        name: _capturedPhotoFile.name || `aerograb-photo-${Date.now()}.jpg`,
+        size: _capturedPhotoFile.size,
+        type: _capturedPhotoFile.type || 'image/jpeg',
+        fileBlob: _capturedPhotoFile,
+      };
+    }
+
     // Priority 1: file currently open in viewer (_activeOpenFile set by app.js)
     if (_activeOpenFile) return _activeOpenFile;
 
@@ -363,6 +556,8 @@
         blob = await zipFolder(payload);
       } else if (payload.isMulti) {
         blob = await zipMultipleFiles(payload.paths);
+      } else if (payload.fileBlob) {
+        blob = payload.fileBlob;
       } else {
         const resp = await fetch(`/file?path=${encodeURIComponent(payload.path)}`);
         if (!resp.ok) throw new Error('File fetch failed');
@@ -521,6 +716,7 @@
     _recvReceived = 0;
     if (_peerConn) { try { _peerConn.close(); } catch (_) {} _peerConn = null; }
     _dataChannel = null;
+    _lastGesture = null;
   }
 
   // ── Deactivate AeroGrab completely ────────────────────────────────────────
@@ -542,7 +738,11 @@
     const videoEl = $('aeroVideoEl');
     if (videoEl) {
       videoEl.srcObject = null;
-      videoEl.style.cssText = 'display:none;position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+    }
+    const canvas = $('aeroGestureCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
     const lbl = $('aeroGestureLbl');
     if (lbl) lbl.textContent = '—';
@@ -612,6 +812,7 @@
     wireContextMenuButton();
     wireWakePanel();
     wireManualGrab();
+    wireCameraCapture();
     // Connect socket immediately for Hevi Network discovery (even if AeroGrab is OFF)
     initSocket();
     console.log('[AeroGrab] ready — by TWH');

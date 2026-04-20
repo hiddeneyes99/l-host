@@ -6786,12 +6786,36 @@ img.lazy-img:not([src]) {
   position: fixed;
   bottom: 154px;
   right: 12px;
-  width: 150px;
+  width: 168px;
   z-index: 851;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+}
+.ag-preview-wrap {
+  position: relative;
+  width: 168px;
+  height: 126px;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(37,244,208,0.55);
+  background: #050912;
+  box-shadow: 0 0 18px rgba(37,244,208,0.18);
+}
+.ag-preview-video,
+.ag-preview-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ag-preview-video {
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+.ag-preview-canvas {
+  pointer-events: none;
 }
 .ag-gesture-lbl {
   background: rgba(7,11,18,0.92);
