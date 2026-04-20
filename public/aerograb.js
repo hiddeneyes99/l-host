@@ -10,30 +10,24 @@
 
   // ── Constants ──────────────────────────────────────────────────────────────
   const CHUNK_SIZE       = 64 * 1024;        // 64 KB per WebRTC chunk
-  const GESTURE_FPS      = 12;               // MediaPipe target FPS
-  const CONFIDENCE_THRESH = 0.85;            // 85% gesture confidence
-  const PERM_KEY         = 'ag_cam_perm';    // localStorage key for camera permission
   const FOLDER_MAX_BYTES = 1024 * 1024 * 1024; // 1 GB
   const FOLDER_MAX_FILES = 20;
 
   // ── State ──────────────────────────────────────────────────────────────────
-  let _enabled        = false;
-  let _socket         = null;
-  let _hands          = null;          // MediaPipe Hands instance
-  let _camera         = null;          // MediaPipe Camera util
-  let _sessionId      = null;          // active AeroGrab session
-  let _myRole         = null;          // 'sender' | 'receiver' | null
-  let _peerConn       = null;          // RTCPeerConnection
-  let _dataChannel    = null;          // RTCDataChannel
-  let _recvBuffer     = [];            // incoming chunks
-  let _recvMeta       = null;          // { name, size, type }
-  let _recvReceived   = 0;             // bytes received so far
-  let _targetSocketId = null;          // if set, only this device gets WAKE_UP
-  let _heartbeatTimer = null;          // setInterval handle for HEVI_HEARTBEAT
-  let _lastGesture    = null;
-  let _gestureDebounce = null;
-  let _activeOpenFile = null;          // set by Hevi Explorer when a file is opened
-  let _wakePayload    = null;          // sender's metadata received via WAKE_UP_CAMERAS
+  let _enabled           = false;
+  let _socket            = null;
+  let _sessionId         = null;          // active AeroGrab session
+  let _myRole            = null;          // 'sender' | 'receiver' | null
+  let _peerConn          = null;          // RTCPeerConnection
+  let _dataChannel       = null;          // RTCDataChannel
+  let _recvBuffer        = [];            // incoming chunks
+  let _recvMeta          = null;          // { name, size, type }
+  let _recvReceived      = 0;             // bytes received so far
+  let _targetSocketId    = null;          // if set, only this device gets WAKE_UP
+  let _heartbeatTimer    = null;          // setInterval handle for HEVI_HEARTBEAT
+  let _capturedPhotoFile = null;          // photo taken via native <input type="file">
+  let _activeOpenFile    = null;          // set by Hevi Explorer when a file is opened
+  let _wakePayload       = null;          // sender's metadata received via WAKE_UP_CAMERAS
 
   // Expose the active-file hook so app.js can set it
   window.aeroGrabSetOpenFile = (fileMeta) => { _activeOpenFile = fileMeta; };
@@ -188,220 +182,54 @@
   // ── Toggle AeroGrab on/off ─────────────────────────────────────────────────
   async function toggleAeroGrab(enable) {
     if (enable === _enabled) return;
-
     if (enable) {
-      // requestCameraPermission now returns the MediaStream directly (or null on failure)
-      // This avoids the double getUserMedia call that caused "device in use" errors
-      const stream = await requestCameraPermission();
-      if (!stream) {
-        const toggle = $('aeroGrabToggle');
-        if (toggle) toggle.checked = false;
-        return;
-      }
       _enabled = true;
-      initSocket();
-      await initMediaPipe(stream);
+      if (_socket) announceToNetwork();
       showGreenDot(true);
-      showToast('AeroGrab active — make a fist to grab a file', 'info');
+      showToast('AeroGrab active — select a file or tap 📷 to take a photo, then tap a device to send', 'info');
     } else {
       deactivateAeroGrab();
     }
   }
 
-  // ── Camera permission dialog ───────────────────────────────────────────────
-  // Returns the MediaStream on success, or null on any failure.
-  // Only ONE getUserMedia call is made — the stream is passed directly to
-  // initMediaPipe() to avoid "device in use" errors from double acquisition.
-  async function requestCameraPermission() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showToast('Your browser does not support camera access.', 'error');
-      return null;
+  // ── Native camera capture via <input type="file" accept="image/*;capture=camera"> ──
+  // Works on HTTP LAN — no HTTPS or getUserMedia needed. Opens the device's
+  // native camera app. Photo is then held as the AeroGrab payload.
+  function wireCameraCapture() {
+    let inp = document.getElementById('aeroCameraInput');
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'file';
+      inp.id   = 'aeroCameraInput';
+      inp.setAttribute('accept', 'image/*;capture=camera');
+      inp.setAttribute('capture', 'environment');
+      inp.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+      document.body.appendChild(inp);
     }
 
-    // Show custom explanation dialog before the browser native prompt
-    const alreadyGranted = localStorage.getItem(PERM_KEY) === 'granted';
-    if (!alreadyGranted) {
-      const ok = await showPermissionDialog();
-      if (!ok) return null;
-    }
+    inp.addEventListener('change', () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      _capturedPhotoFile = file;
+      inp.value = '';  // reset so same file can be re-selected again
 
-    try {
-      // Request with actual constraints used by MediaPipe — only ONE getUserMedia call
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
-      });
-      localStorage.setItem(PERM_KEY, 'granted');
-      return stream;   // caller (toggleAeroGrab) passes this directly to initMediaPipe
-    } catch (e) {
-      localStorage.removeItem(PERM_KEY);  // clear cached grant so dialog shows next time
-      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-        showToast('Camera access denied. Go to browser Settings → Site permissions → Camera → Allow.', 'error');
-      } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
-        showToast('No camera found on this device.', 'error');
-      } else if (e.name === 'NotReadableError' || e.name === 'TrackStartError') {
-        showToast('Camera is being used by another app. Close it and try again.', 'error');
-      } else if (e.name === 'OverconstrainedError') {
-        // facingMode 'user' may not exist on desktop — retry without facingMode
-        try {
-          const fallback = await navigator.mediaDevices.getUserMedia({ video: true });
-          localStorage.setItem(PERM_KEY, 'granted');
-          return fallback;
-        } catch (e2) {
-          showToast('Camera error: ' + e2.message, 'error');
-        }
-      } else {
-        showToast('Camera error: ' + e.message, 'error');
+      // Show thumbnail preview where the old video feed used to appear
+      let preview = document.getElementById('aeroCapturedPreview');
+      if (preview) {
+        const url = URL.createObjectURL(file);
+        preview.src = url;
+        preview.style.display = 'block';
+        // Revoke after a while to free memory
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
       }
-      console.error('[AeroGrab] getUserMedia error:', e.name, e.message);
-      return null;
-    }
-  }
 
-  function showCameraHttpsError() {
-    showToast('Camera access requires HTTPS. Try accessing via https:// or from localhost.', 'error');
-    console.warn('[AeroGrab] Camera blocked — non-secure context.');
-  }
-
-  function showPermissionDialog() {
-    return new Promise(resolve => {
-      const overlay = $('aeroPermDialog');
-      if (!overlay) { resolve(true); return; }
-      overlay.classList.remove('hidden');
-      $('aeroPermEnable').onclick = () => { overlay.classList.add('hidden'); resolve(true);  };
-      $('aeroPermCancel').onclick = () => { overlay.classList.add('hidden'); resolve(false); };
+      showToast(`📷 Photo ready (${(file.size / 1024).toFixed(0)} KB) — tap a device in Hevi Network to send!`, 'success');
+      if (!_enabled) toggleAeroGrab(true);
     });
-  }
 
-  // ── MediaPipe Hands — direct getUserMedia (no Camera utility) ─────────────
-  let _rafId      = null;   // requestAnimationFrame id
-  let _camStream  = null;   // raw MediaStream
-
-  // existingStream: the MediaStream already acquired by requestCameraPermission().
-  // Passing it in avoids a second getUserMedia call ("device in use" errors).
-  async function initMediaPipe(existingStream) {
-    if (_hands) return;
-    try {
-      // Build Hands model
-      _hands = new Hands({
-        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-      });
-      _hands.setOptions({
-        maxNumHands:             1,
-        modelComplexity:         0,
-        minDetectionConfidence:  0.6,
-        minTrackingConfidence:   0.5,
-      });
-      _hands.onResults(processGestureResults);
-
-      // Use the stream already acquired in requestCameraPermission — no second getUserMedia call
-      _camStream = existingStream || await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
-      });
-
-      const videoEl = $('aeroVideoEl');
-      videoEl.srcObject = _camStream;
-      videoEl.style.cssText = 'position:fixed;bottom:80px;right:12px;width:150px;height:112px;border-radius:10px;object-fit:cover;z-index:850;border:2px solid var(--accent);opacity:0.9;';
-      await videoEl.play();
-
-      // Send frames at 12fps — skip frame if previous still processing
-      _rafId = setInterval(async () => {
-        if (_processingHands) return;           // don't overlap calls
-        if (videoEl.readyState < 2) return;     // video not ready
-        _processingHands = true;
-        try { await _hands.send({ image: videoEl }); }
-        catch (e) { _processingHands = false; console.warn('[AeroGrab] send err:', e); }
-      }, Math.round(1000 / GESTURE_FPS));
-
-      console.log('[AeroGrab] MediaPipe started, watching at', GESTURE_FPS, 'fps');
-    } catch (e) {
-      // Give specific error based on what failed
-      if (e.name === 'NotAllowedError') {
-        showToast('Camera access denied. Allow camera in browser settings and try again.', 'error');
-      } else if (e.name === 'NotReadableError') {
-        showToast('Camera is in use by another app. Close it and try again.', 'error');
-      } else if (e.message && e.message.includes('hands')) {
-        showToast('AeroGrab: Gesture model failed to load. Check your internet connection.', 'error');
-      } else {
-        showToast('AeroGrab: Camera failed to start. ' + e.message, 'error');
-      }
-      console.error('[AeroGrab] MediaPipe init failed:', e.name, e.message);
-      deactivateAeroGrab();
-    }
-  }
-
-  // ── Gesture classification ─────────────────────────────────────────────────
-  // IMPORTANT: Only use x,y — MediaPipe z is relative depth, NOT same scale as x,y.
-  function lmDist2D(a, b) {
-    return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-  }
-
-  let _frameCount     = 0;    // total frames sent to MediaPipe
-  let _detectCount    = 0;    // frames where a hand was found
-  let _processingHands = false; // prevent concurrent send() calls
-
-  function processGestureResults(results) {
-    _processingHands = false;   // unlock for next frame
-    _frameCount++;
-
-    const lbl = $('aeroGestureLbl');
-
-    if (!results.multiHandLandmarks || !results.multiHandLandmarks.length) {
-      // No hand detected — show frame counter so user knows model is running
-      if (lbl) lbl.textContent = `👁 ${_frameCount} | no hand`;
-      return;
-    }
-
-    _detectCount++;
-    const lm      = results.multiHandLandmarks[0];
-    const gesture = classifyGesture(lm);
-
-    // Show live debug: gesture + curl ratios
-    if (lbl) {
-      const fingerTips = [8, 12, 16, 20];
-      const fingerMCP  = [5, 9, 13, 17];
-      const handSize   = lmDist2D(lm[0], lm[9]);
-      const ratios     = fingerTips.map((t, i) =>
-        (lmDist2D(lm[t], lm[fingerMCP[i]]) / handSize).toFixed(2));
-      lbl.textContent  = gesture
-        ? `✅ ${gesture}`
-        : `H:${handSize.toFixed(2)} [${ratios.join(',')}]`;
-    }
-
-    if (gesture && gesture !== _lastGesture) {
-      _lastGesture = gesture;
-      clearTimeout(_gestureDebounce);
-      _gestureDebounce = setTimeout(() => { _lastGesture = null; }, 1500);
-      onGestureDetected(gesture);
-    }
-  }
-
-  function classifyGesture(lm) {
-    // Hand size = wrist(0) to middle-finger-MCP(9) in 2D normalised space
-    const handSize = lmDist2D(lm[0], lm[9]);
-    if (handSize < 0.03) return null;  // too small / too far — ignore
-
-    // Finger tips vs their MCP (knuckle) in 2D
-    const fingerTips = [8, 12, 16, 20];
-    const fingerMCP  = [5,  9, 13, 17];
-
-    const curlRatios = fingerTips.map((tip, i) =>
-      lmDist2D(lm[tip], lm[fingerMCP[i]]) / handSize
-    );
-
-    // Lenient thresholds — wide enough to catch real gestures
-    // Curl ratio: small → finger folded, large → finger extended
-    const allCurled   = curlRatios.every(r => r < 0.65);   // fist
-    const allExtended = curlRatios.every(r => r > 0.65);   // open palm
-
-    if (allCurled)   return 'FIST';
-    if (allExtended) return 'OPEN_PALM';
-    return null;
-  }
-
-  function onGestureDetected(gesture) {
-    console.log('[AeroGrab] gesture:', gesture);
-    if (gesture === 'FIST'      && _myRole === null) initiateGrab();
-    if (gesture === 'OPEN_PALM' && _wakePayload)     signalReadyToReceive();
+    // Camera button click → open native camera
+    const btn = document.getElementById('aeroCameraBtn');
+    if (btn) btn.addEventListener('click', () => inp.click());
   }
 
   // ── Sender: initiate grab ──────────────────────────────────────────────────
