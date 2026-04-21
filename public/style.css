@@ -7349,7 +7349,6 @@ img.lazy-img:not([src]) {
   position: fixed;
   top: max(18px, env(safe-area-inset-top, 18px));
   right: max(18px, env(safe-area-inset-right, 18px));
-  z-index: 999999;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 9px 14px 9px 11px;
   background: rgba(255, 70, 80, 0.18);
@@ -7362,7 +7361,7 @@ img.lazy-img:not([src]) {
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 6px 20px rgba(0,0,0,0.4);
   transition: background 0.18s, border-color 0.18s, transform 0.12s;
-  z-index: 50;
+  z-index: 2147483647;
   letter-spacing: 0.2px;
 }
 .ag-cancel-btn:hover { background: rgba(255, 70, 80, 0.85); border-color: rgba(255,255,255,0.6); }

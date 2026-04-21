@@ -743,6 +743,11 @@
     // Show cancel button IMMEDIATELY (don't wait for first progress chunk)
     if (aeroAnim && aeroAnim.showCancelButton) aeroAnim.showCancelButton();
 
+    // Power-saver: disable the camera video track while bytes fly. Inference
+    // is already paused; turning off the track frees the ISP/encoder pipeline
+    // and noticeably reduces device heating during long transfers.
+    try { if (_videoTrack) _videoTrack.enabled = false; } catch (_) {}
+
     // Determine the SAFE max chunk size for this peer connection. Some mobile
     // browsers cap SCTP messages at 64 KB; sending larger fails silently and
     // tanks the transfer. Honour the negotiated limit, capped at 256 KB.
@@ -853,6 +858,8 @@
         _transferActive = true;
         // Show cancel button on receiver IMMEDIATELY when transfer starts
         if (aeroAnim && aeroAnim.showCancelButton) aeroAnim.showCancelButton();
+        // Power-saver: pause camera track on receiver too while bytes arrive.
+        try { if (_videoTrack) _videoTrack.enabled = false; } catch (_) {}
       } catch (_) {}
       return;
     }
@@ -1010,6 +1017,8 @@
     _recvMeta    = null;
     _recvReceived = 0;
     _transferActive = false;
+    // Re-enable the camera track so the next gesture session can see hands.
+    try { if (_videoTrack) _videoTrack.enabled = true; } catch (_) {}
     if (_peerConn) { try { _peerConn.close(); } catch (_) {} _peerConn = null; }
     _dataChannel = null;
     _lastGesture = null;
