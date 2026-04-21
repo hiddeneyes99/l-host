@@ -8,8 +8,8 @@
 //   • Everything else            → Network-first
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_SHELL   = 'lhost-shell-v16';
-const CACHE_THUMBS  = 'lhost-thumbs-v16';
+const CACHE_SHELL   = 'lhost-shell-v17';
+const CACHE_THUMBS  = 'lhost-thumbs-v17';
 
 const SHELL_ASSETS = [
   '/',
@@ -19,6 +19,7 @@ const SHELL_ASSETS = [
   '/aerograb.js',
   '/aerograb-animation.js',
   '/manifest.json',
+  '/brand.svg',
   '/twh-logo.png',
 ];
 
