@@ -43,10 +43,12 @@
 
   // ML thresholds — Tasks Vision returns labelled gestures with confidence
   // scores. We accept ONLY two gestures, and only above a strict threshold.
-  const ML_MIN_CONFIDENCE  = 0.80;
-  const FIRE_FRAME_COUNT   = 6;
-  const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 5;
+  const ML_MIN_CONFIDENCE  = 0.88;        // gesture confidence floor (was 0.80)
+  const FIRE_FRAME_COUNT   = 10;          // hold for ~0.8s @ 12fps  (was 6 / 0.5s)
+  const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 6;
   const GESTURE_COOLDOWN_MS = 3500;
+  const NEUTRAL_ARM_FRAMES = 4;           // need this many neutral frames before any new fire
+  const MIN_HAND_BBOX      = 0.18;        // hand must occupy >=18% of frame on its longer axis
   const TASKS_VISION_VERSION = '0.10.14';
   const TASKS_VISION_BUNDLE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/vision_bundle.mjs`;
   const TASKS_VISION_WASM   = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
@@ -364,7 +366,7 @@
       if (lbl) lbl.textContent = `👁 ${_frameCount} | no hand`;
       _candidateGesture = null;
       _candidateStreak = 0;
-      _neutralStreak += 1;
+      _neutralStreak  = 0;     // hand left frame — must rebuild neutral run again
       _sawNeutralSinceHandAppeared = false;
       return;
     }
@@ -377,6 +379,22 @@
       _candidateStreak = 0;
       return;
     }
+    // Hand-size guard: reject when hand is too small in frame (far away,
+    // partial fingers, or random body part misclassified as a hand).
+    let minX = 1, minY = 1, maxX = 0, maxY = 0;
+    for (let i = 0; i < lm.length; i++) {
+      const p = lm[i];
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+    }
+    const handBbox = Math.max(maxX - minX, maxY - minY);
+    if (handBbox < MIN_HAND_BBOX) {
+      if (lbl) lbl.textContent = `🔍 hand too small ${(handBbox * 100).toFixed(0)}%`;
+      _candidateGesture = null;
+      _candidateStreak = 0;
+      // Tiny detection counts as neutral — we don't reset _neutralStreak.
+      return;
+    }
     _detectCount += 1;
     const top = (results.gestures && results.gestures[0] && results.gestures[0][0]) || null;
     const rawLabel = top ? top.categoryName : 'None';
@@ -387,21 +405,22 @@
       const pct = Math.round(score * 100);
       lbl.textContent = gesture
         ? `${gesture === 'FIST' ? '✊' : '✋'} ${rawLabel} ${pct}% (${armed}/${FIRE_FRAME_COUNT})`
-        : `${rawLabel || '·'} ${pct}%`;
+        : `· ${rawLabel || 'neutral'} ${pct}% (n${_neutralStreak}/${NEUTRAL_ARM_FRAMES})`;
     }
     if (!gesture) {
+      // Hand visible but not a confident FIST/OPEN_PALM — count as neutral.
       _candidateGesture = null;
       _candidateStreak = 0;
       _neutralStreak += 1;
       _sawNeutralSinceHandAppeared = true;
       return;
     }
-    // First time hand enters frame, force the user to pass through a neutral
-    // pose (anything that is not Closed_Fist or Open_Palm at >=80%) before
-    // any gesture can fire — prevents auto-fire when hand enters already
-    // curled.
-    if (!_sawNeutralSinceHandAppeared) {
-      if (lbl) lbl.textContent = `↺ relax hand first`;
+    // Require a fresh neutral run BEFORE every fire, not just the first one.
+    // This forces the user to deliberately go: relax → close (or relax → open).
+    // A snap from FIST→OPEN or OPEN→FIST without a neutral in between is
+    // ignored — major source of false triggers in v3 testing.
+    if (_neutralStreak < NEUTRAL_ARM_FRAMES) {
+      if (lbl) lbl.textContent = `↺ relax hand first (${_neutralStreak}/${NEUTRAL_ARM_FRAMES})`;
       _candidateGesture = null;
       _candidateStreak = 0;
       return;
@@ -723,46 +742,67 @@
     _recvBuffer = [];
     _recvMeta = null;
     const blob = new Blob(chunks, { type: meta.type || 'application/octet-stream' });
-    const url  = URL.createObjectURL(blob);
-    // Trigger silent save to the device's download folder.
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = meta.name || `aerograb-${Date.now()}`;
-    a.rel      = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { a.remove(); }, 1000);
-    // Auto-open the file in a new tab — no "Open" button, no user tap required.
-    // Browsers may block popups outside a user gesture, so we try several
-    // strategies in order of reliability:
-    //   1. window.open(_blank) — works on desktop & most modern mobile browsers
-    //   2. Programmatic anchor click with target=_blank — works when (1) is blocked
-    //   3. If both blocked, fall back to a tappable Open button (last resort)
-    let opened = false;
+
+    // Stream the blob to THIS device's own Hevi server, which writes it into
+    // ROOT_DIR/HeviExplorer/<name>. Then open it inside Hevi Explorer's own
+    // viewer (image / video / audio / pdf / archive / text) — no popup, no
+    // new tab. This solves both the popup-block problem and the "new tab
+    // doesn't have Hevi UI" problem in one shot.
+    saveAndOpenInHevi(blob, meta);
+
+    if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
+    resetSession();
+  }
+
+  async function saveAndOpenInHevi(blob, meta) {
+    const fileName = meta.name || `aerograb-${Date.now()}`;
+    const mimeType = meta.type || 'application/octet-stream';
+    let savedItem  = null;
     try {
-      const w = window.open(url, '_blank', 'noopener');
-      if (w) opened = true;
-    } catch (_) { /* ignored */ }
+      const qs = `?name=${encodeURIComponent(fileName)}&type=${encodeURIComponent(mimeType)}`;
+      const resp = await fetch('/api/aerograb/save' + qs, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: blob,
+      });
+      if (resp.ok) {
+        const json = await resp.json().catch(() => null);
+        if (json && json.item) savedItem = json.item;
+      }
+    } catch (e) {
+      console.warn('[AeroGrab] save to HeviExplorer failed:', e && e.message);
+    }
+
+    if (savedItem && typeof window.openFile === 'function') {
+      // Saved to disk + open inside Hevi Explorer using its native viewer.
+      showToast(`Saved to HeviExplorer · ${fileName}`, 'success');
+      try { window.openFile(savedItem); } catch (e) { console.warn('[AeroGrab] openFile error:', e.message); }
+      // Animation: success card without any button.
+      aeroAnim.onReceiverComplete(meta, null);
+      return;
+    }
+
+    // ── Fallback path (server save failed or openFile missing) ──────────────
+    // Behave like the old flow: trigger a browser download + try to auto-open.
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName; a.rel = 'noopener';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { a.remove(); }, 1000);
+    let opened = false;
+    try { const w = window.open(url, '_blank', 'noopener'); if (w) opened = true; } catch (_) {}
     if (!opened) {
       try {
         const oa = document.createElement('a');
-        oa.href = url;
-        oa.target = '_blank';
-        oa.rel = 'noopener';
-        document.body.appendChild(oa);
-        oa.click();
+        oa.href = url; oa.target = '_blank'; oa.rel = 'noopener';
+        document.body.appendChild(oa); oa.click();
         setTimeout(() => { oa.remove(); }, 1000);
         opened = true;
-      } catch (_) { /* ignored */ }
+      } catch (_) {}
     }
-    showToast(`Received: ${meta.name}`, 'success');
-    // Pass openUrl only when auto-open failed, so the animation layer shows
-    // the fallback "Open" button. When auto-open worked, no button is shown.
+    showToast(`Received: ${fileName}`, 'success');
     aeroAnim.onReceiverComplete(meta, opened ? null : url);
-    // Revoke later so the file stays openable for a while.
     setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
-    if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
-    resetSession();
   }
 
   // ── Folder zip using JSZip ─────────────────────────────────────────────────

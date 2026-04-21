@@ -1570,6 +1570,76 @@ app.post('/api/upload', (req, res) => {
   req.pipe(bb);
 });
 
+// ── AeroGrab: save received file into HeviExplorer/ folder ─────────────────
+// Receiver browser POSTs the received blob to its OWN local Hevi server.
+// Server writes it to ROOT_DIR/HeviExplorer/<unique-name>, then responds
+// with a Hevi item descriptor so the client can open it inside the app
+// using the normal openFile() viewer (no popup, no new tab).
+app.post('/api/aerograb/save', (req, res) => {
+  try {
+    const rawName  = decodeURIComponent(req.query.name || '').trim();
+    const mimeType = decodeURIComponent(req.query.type || '') || 'application/octet-stream';
+    const safeName = path.basename(rawName).replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') || `aerograb-${Date.now()}`;
+
+    const folderAbs = path.join(ROOT_DIR, 'HeviExplorer');
+    try { fs.mkdirSync(folderAbs, { recursive: true }); } catch (_) {}
+
+    // Resolve filename collisions: foo.jpg → foo (1).jpg → foo (2).jpg ...
+    const ext  = path.extname(safeName);
+    const base = safeName.slice(0, safeName.length - ext.length);
+    let finalName = safeName;
+    let n = 1;
+    while (fs.existsSync(path.join(folderAbs, finalName))) {
+      finalName = `${base} (${n})${ext}`;
+      n += 1;
+      if (n > 9999) { finalName = `${base}-${Date.now()}${ext}`; break; }
+    }
+    const destAbs = path.join(folderAbs, finalName);
+
+    const ws = fs.createWriteStream(destAbs);
+    let written = 0;
+    let aborted = false;
+    req.on('data', (chunk) => {
+      written += chunk.length;
+      if (written > MAX_UPLOAD_BYTES) {
+        aborted = true;
+        ws.destroy();
+        try { fs.unlinkSync(destAbs); } catch (_) {}
+        if (!res.headersSent) res.status(413).json({ error: 'File exceeds 2 GB limit' });
+      }
+    });
+    req.on('error', () => {
+      try { ws.destroy(); fs.unlinkSync(destAbs); } catch (_) {}
+      if (!res.headersSent) res.status(500).json({ error: 'Upload stream error' });
+    });
+    ws.on('error', () => {
+      if (!res.headersSent) res.status(500).json({ error: 'Disk write error' });
+    });
+    ws.on('finish', () => {
+      if (aborted) return;
+      const relPath  = path.relative(ROOT_DIR, destAbs).replace(/\\/g, '/');
+      const lowerExt = (path.extname(finalName) || '').toLowerCase();
+      const stat = (() => { try { return fs.statSync(destAbs); } catch(_) { return null; } })();
+      const item = {
+        name:     finalName,
+        path:     relPath,
+        type:     'file',
+        size:     stat ? stat.size : written,
+        ext:      lowerExt,
+        category: getCategory(lowerExt),
+        mimeType,
+        modified: stat ? stat.mtimeMs : Date.now(),
+      };
+      // Refresh index so the file shows up in browse views immediately.
+      try { incrementalUpdateDir(folderAbs).catch(() => {}); } catch (_) {}
+      res.json({ ok: true, item, folder: 'HeviExplorer' });
+    });
+    req.pipe(ws);
+  } catch (e) {
+    if (!res.headersSent) res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Create folder ──────────────────────────────────────────────────────────
 app.post('/api/mkdir', express.json(), (req, res) => {
   const relPath = decodeURIComponent(req.query.path || '');

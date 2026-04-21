@@ -3576,6 +3576,9 @@ async function doSearch(q) {
 }
 
 // ── Open file ──────────────────────────────────────────────────────────────
+// Exposed on window so AeroGrab (and other modules) can open received files
+// inside Hevi Explorer's own viewer instead of opening a new browser tab.
+window.openFile = openFile;
 function openFile(item, imageSet = [], audioSet = [], videoSet = []) {
   // Notify AeroGrab about the currently opened file (Priority Override)
   if (typeof window.aeroGrabSetOpenFile === 'function') {
