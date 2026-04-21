@@ -43,12 +43,18 @@
 
   // ML thresholds — Tasks Vision returns labelled gestures with confidence
   // scores. We accept ONLY two gestures, and only above a strict threshold.
-  const ML_MIN_CONFIDENCE  = 0.88;        // gesture confidence floor (was 0.80)
-  const FIRE_FRAME_COUNT   = 10;          // hold for ~0.8s @ 12fps  (was 6 / 0.5s)
-  const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 6;
+  const ML_MIN_CONFIDENCE  = 0.92;        // gesture confidence floor (was 0.88)
+  const FIRE_FRAME_COUNT   = 14;          // hold ~1.1s @ 12fps  (was 10)
+  const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 8;
   const GESTURE_COOLDOWN_MS = 3500;
-  const NEUTRAL_ARM_FRAMES = 4;           // need this many neutral frames before any new fire
-  const MIN_HAND_BBOX      = 0.18;        // hand must occupy >=18% of frame on its longer axis
+  const NEUTRAL_ARM_FRAMES = 6;           // need this many neutral frames before any new fire (was 4)
+  const MIN_HAND_BBOX      = 0.22;        // hand must occupy >=22% of frame on its longer axis (was 0.18)
+  // After a WAKE_UP arrives, force the receiver to actively re-arm: the camera
+  // must first see "no hand" or sustained neutral before any OPEN_PALM is
+  // accepted. Prevents auto-receive when a relaxed hand is already in frame.
+  const WAKE_REARM_NEUTRAL_FRAMES = 10;
+  let _wakeArmed             = false;     // becomes true only after re-arm rule is met
+  let _wakeRearmNeutralCount = 0;
   const TASKS_VISION_VERSION = '0.10.14';
   const TASKS_VISION_BUNDLE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/vision_bundle.mjs`;
   const TASKS_VISION_WASM   = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
@@ -146,6 +152,14 @@
     _socket.on('WAKE_UP_CAMERAS', ({ sessionId, senderId, senderName, metadata }) => {
       if (_myRole === 'sender') return;
       _wakePayload = { sessionId, senderId, metadata };
+      // Force the receiver to deliberately re-show their open palm. Reset
+      // re-arm state so a hand already in frame can't accidentally fire.
+      _wakeArmed             = false;
+      _wakeRearmNeutralCount = 0;
+      _candidateGesture      = null;
+      _candidateStreak       = 0;
+      _neutralStreak         = 0;
+      _sawNeutralSinceHandAppeared = false;
       showWakeUpNotification(metadata, senderName);
     });
 
@@ -375,6 +389,11 @@
       _candidateStreak = 0;
       _neutralStreak  = 0;     // hand left frame — must rebuild neutral run again
       _sawNeutralSinceHandAppeared = false;
+      // Receiver re-arm: a "no hand" state (user lowered their hand after the
+      // wake) is the strongest possible arm signal — flip immediately.
+      if (_wakePayload && !_wakeArmed) {
+        _wakeArmed = true;
+      }
       return;
     }
     // Block any gesture firing while we are mid-session (already sender or
@@ -420,6 +439,16 @@
       _candidateStreak = 0;
       _neutralStreak += 1;
       _sawNeutralSinceHandAppeared = true;
+      // Receiver re-arm: a sustained neutral hand also counts toward arming
+      // after a wake — but only if a hand is actively in view (not "no hand").
+      if (_wakePayload && !_wakeArmed) {
+        _wakeRearmNeutralCount += 1;
+        if (_wakeRearmNeutralCount >= WAKE_REARM_NEUTRAL_FRAMES) {
+          _wakeArmed = true;
+        } else if (lbl) {
+          lbl.textContent = `↺ re-arm catch (${_wakeRearmNeutralCount}/${WAKE_REARM_NEUTRAL_FRAMES})`;
+        }
+      }
       return;
     }
     // Require a fresh neutral run BEFORE every fire, not just the first one.
@@ -428,6 +457,15 @@
     // ignored — major source of false triggers in v3 testing.
     if (_neutralStreak < NEUTRAL_ARM_FRAMES) {
       if (lbl) lbl.textContent = `↺ relax hand first (${_neutralStreak}/${NEUTRAL_ARM_FRAMES})`;
+      _candidateGesture = null;
+      _candidateStreak = 0;
+      return;
+    }
+    // Receiver guard: after a WAKE_UP, OPEN_PALM cannot fire until the user
+    // has actively re-armed (showed sustained neutral / lowered hand). This
+    // prevents auto-receive when a hand happens to already be in view.
+    if (gesture === 'OPEN_PALM' && _wakePayload && !_wakeArmed) {
+      if (lbl) lbl.textContent = `✋ relax hand first to arm catch (${_wakeRearmNeutralCount}/${WAKE_REARM_NEUTRAL_FRAMES})`;
       _candidateGesture = null;
       _candidateStreak = 0;
       return;
@@ -859,6 +897,8 @@
     const panel = $('aeroWakePanel');
     if (panel) panel.classList.add('hidden');
     _wakePayload = null;
+    _wakeArmed = false;
+    _wakeRearmNeutralCount = 0;
   }
 
   // ── Green dot + camera overlay ────────────────────────────────────────────
@@ -972,6 +1012,17 @@
     });
   }
 
+  // ── Close button on the live camera preview ───────────────────────────────
+  function wireCamCloseBtn() {
+    const btn = $('agCamClose');
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deactivateAeroGrab();
+      showToast('Camera closed. AeroGrab turned off — toggle it back on from the sidebar anytime.', 'info');
+    });
+  }
+
   // ── Draggable camera preview ──────────────────────────────────────────────
   // Persists position to localStorage so it survives reloads.
   function wireDraggablePreview() {
@@ -1031,6 +1082,7 @@
     wireContextMenuButton();
     wireWakePanel();
     wireManualGrab();
+    wireCamCloseBtn();
     wireCameraCapture();
     wireDraggablePreview();
     // Connect socket immediately for Hevi Network discovery (even if AeroGrab is OFF)

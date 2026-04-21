@@ -8,8 +8,8 @@
 //   • Everything else            → Network-first
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_SHELL   = 'lhost-shell-v14';
-const CACHE_THUMBS  = 'lhost-thumbs-v14';
+const CACHE_SHELL   = 'lhost-shell-v15';
+const CACHE_THUMBS  = 'lhost-thumbs-v15';
 
 const SHELL_ASSETS = [
   '/',
@@ -18,6 +18,8 @@ const SHELL_ASSETS = [
   '/index.html',
   '/aerograb.js',
   '/aerograb-animation.js',
+  '/manifest.json',
+  '/twh-logo.png',
 ];
 
 // ── Install: precache shell assets and skip waiting ───────────────────────────

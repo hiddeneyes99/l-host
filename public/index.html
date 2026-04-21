@@ -7,8 +7,13 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
     <title>Hevi Explorer — Private Media Vault</title>
-    <link rel="stylesheet" href="/style.css?v=17" />
+    <link rel="stylesheet" href="/style.css?v=18" />
     <meta name="theme-color" content="#0b1220" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Hevi" />
+    <link rel="apple-touch-icon" href="/twh-logo.png" />
     <link
       rel="icon"
       href="/brand.svg"
@@ -1365,6 +1370,21 @@
               </div>
             </div>
 
+            <!-- Install as App (PWA) -->
+            <div class="st-group-label">App</div>
+            <div class="st-group" id="installAppGroup">
+              <div class="st-row st-row-action" id="installAppRow">
+                <div class="st-ri st-ri-teal">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+                </div>
+                <div class="st-row-left">
+                  <span class="st-row-label">Install Hevi as an App</span>
+                  <span class="st-row-sub" id="installAppSub">Install Hevi Explorer on your device like a real app — opens in its own window, works offline, and lives on your home screen.</span>
+                </div>
+                <button class="btn-primary" id="installAppBtn" style="white-space:nowrap">Install</button>
+              </div>
+            </div>
+
             <!-- Security -->
             <div class="st-group-label">Security</div>
             <div class="st-group">
@@ -1671,6 +1691,9 @@
                 </div>
               </div>
               <div class="ab-features">
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-teal">✊</span><div><b>AeroGrab — Gesture-Powered File Transfer</b><span>A first-of-its-kind way to send files between devices using just your hand. Open a file, make a fist (✊) for ~1 second to "grab" it, then on the receiving device show an open palm (✋) to "catch" it. Built on real on-device hand AI (MediaPipe Tasks Vision), end-to-end peer-to-peer over WebRTC — files never touch a server. Designed and built from scratch by Afsar Ali (TWH) — exclusive to Hevi Explorer.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-green">📡</span><div><b>Hevi Network — Auto Device Discovery</b><span>Every Hevi device on the same Wi-Fi or hotspot finds every other Hevi device automatically — no scanning, no pairing, no IP typing. The sidebar's Hevi Network panel lists all nearby devices live, with name and avatar, so you can target any one of them and send instantly. Works hand-in-hand with AeroGrab and the standard transfer flow.</span></div></div>
+                <div class="ab-feat"><span class="ab-feat-icon ab-fi-purple">📲</span><div><b>Install as a Real App (PWA)</b><span>Hevi Explorer is a Progressive Web App — install it directly from the browser onto Android, iOS, Windows, macOS, Linux, or ChromeOS. Once installed it opens in its own window, lives on your home screen or app drawer, works offline for the UI shell, and behaves like a native app — no Play Store, no App Store, no installer.</span></div></div>
                 <div class="ab-feat"><span class="ab-feat-icon ab-fi-blue">📁</span><div><b>Full File Manager</b><span>Browse folders, create new directories, rename files and folders, copy, move, and delete — everything from one clean interface with no installation required on client devices.</span></div></div>
                 <div class="ab-feat"><span class="ab-feat-icon ab-fi-blue">☁️</span><div><b>Cloud Storage Integration</b><span>Connect Google Drive, Dropbox, OneDrive, and MEGA accounts directly inside Hevi Explorer. Browse cloud files in the same grid layout as local files, stream cloud videos and images without downloading, and access connected accounts instantly from the sidebar or home screen. Multiple accounts from different providers can be connected at the same time. Shared accounts let other devices on your vault browse the same cloud storage.</span></div></div>
                 <div class="ab-feat"><span class="ab-feat-icon ab-fi-purple">🎬</span><div><b>Video Streaming</b><span>Stream MP4, MKV, AVI, MOV, WebM, and many other formats directly in the browser. Custom-built player with gesture support, speed control, volume overlay, sleep timer, and fullscreen mode.</span></div></div>
@@ -2051,6 +2074,7 @@
               <p class="ab-para">Afsar Ali is a 21-year-old self-taught developer and cybersecurity educator from Kolkata, India. A proud dropout who chose real-world skill building over a traditional academic path, Afsar has spent years deep in the world of ethical hacking, Linux systems, network security, OSINT, Python automation, and practical tech education.</p>
               <p class="ab-para">He is the founder and sole architect of Technical White Hat (TWH) — a cybersecurity education initiative and community that has grown to thousands of active members across YouTube and Telegram. TWH produces practical, real-world tutorials on ethical hacking, custom security tools, scripting, and digital defense.</p>
               <p class="ab-para">Hevi Explorer is a direct product of that mindset: build the tool you need, make it private, make it fast, and make it work on any device you actually use. No bloat, no unnecessary complexity, no dependency on anyone else's infrastructure.</p>
+              <p class="ab-para"><b>AeroGrab</b>, the gesture-based file transfer system inside Hevi Explorer, was also designed and built from scratch by Afsar — combining on-device hand AI, peer-to-peer WebRTC, and a custom signaling layer into a single one-handed flow. The same hands that build TWH's security tutorials also built the very first hand-gesture file transfer in Hevi.</p>
             </section>
 
             <!-- 11 TWH -->
@@ -2448,6 +2472,7 @@
       <div class="ag-preview-wrap">
         <video id="aeroVideoEl" class="ag-preview-video" playsinline muted></video>
         <canvas id="aeroGestureCanvas" class="ag-preview-canvas" width="150" height="112"></canvas>
+        <button class="ag-cam-close" id="agCamClose" type="button" title="Close camera & turn off AeroGrab" aria-label="Close camera preview">×</button>
       </div>
       <span class="ag-gesture-lbl" id="aeroGestureLbl">—</span>
       <button class="ag-manual-grab" id="aeroManualGrab" title="Grab current file manually">✊ Grab</button>
@@ -2483,17 +2508,28 @@
           <p class="ag-tut-body">When a friend grabs nearby, show your open palm for ~1 second.<br>The file lands inside Hevi automatically.</p>
         </div>
 
-        <div class="ag-tut-step hidden" data-step="3">
-          <div class="ag-tut-art">
-            <div class="ag-tut-tips">
-              <div class="ag-tut-tip"><div class="ag-tut-tip-icon">📷</div><div>Keep your hand close to the camera</div></div>
-              <div class="ag-tut-tip"><div class="ag-tut-tip-icon">⏱️</div><div>Hold the gesture for about 1 second</div></div>
-              <div class="ag-tut-tip"><div class="ag-tut-tip-icon">👀</div><div>Watch the live status label for hints</div></div>
+        <div class="ag-tut-step ag-tut-step-tips hidden" data-step="3">
+          <div class="ag-tut-kicker">Step 3 of 3</div>
+          <h3 class="ag-tut-title">Quick <span>Tips</span></h3>
+          <p class="ag-tut-body">A few simple habits make AeroGrab feel instant — on phone or PC.</p>
+          <div class="ag-tut-tips">
+            <div class="ag-tut-tip">
+              <div class="ag-tut-tip-icon">📷</div>
+              <div class="ag-tut-tip-text"><b>Stay in frame</b><span>Keep your hand close to the camera, palm or fist fully visible.</span></div>
+            </div>
+            <div class="ag-tut-tip">
+              <div class="ag-tut-tip-icon">⏱️</div>
+              <div class="ag-tut-tip-text"><b>Hold ~1 second</b><span>Don't flash the gesture — hold steady until the bar fills.</span></div>
+            </div>
+            <div class="ag-tut-tip">
+              <div class="ag-tut-tip-icon">✋</div>
+              <div class="ag-tut-tip-text"><b>Relax between</b><span>Lower or relax your hand briefly before the next gesture.</span></div>
+            </div>
+            <div class="ag-tut-tip">
+              <div class="ag-tut-tip-icon">👀</div>
+              <div class="ag-tut-tip-text"><b>Watch the label</b><span>The live status under the camera tells you exactly what AeroGrab sees.</span></div>
             </div>
           </div>
-          <div class="ag-tut-kicker">Step 3 of 3</div>
-          <h3 class="ag-tut-title">Quick Tips</h3>
-          <p class="ag-tut-body">That's it! AeroGrab will guide you with on-screen hints whenever it can't read your gesture.</p>
         </div>
 
         <div class="ag-tut-foot">
@@ -2519,8 +2555,78 @@
     <script src="/aerograb.js?v=10"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js?v=14').then(reg => reg.update()).catch(() => {});
+        navigator.serviceWorker.register('/sw.js?v=15').then(reg => reg.update()).catch(() => {});
       }
+
+      // ── PWA "Install as App" support ──────────────────────────────────────
+      (function() {
+        let _deferredPrompt = null;
+        const btn   = document.getElementById('installAppBtn');
+        const sub   = document.getElementById('installAppSub');
+        const row   = document.getElementById('installAppRow');
+        if (!btn) return;
+
+        const isStandalone = () =>
+          window.matchMedia('(display-mode: standalone)').matches ||
+          window.navigator.standalone === true;
+
+        function setInstalled() {
+          btn.textContent = 'Installed';
+          btn.disabled = true;
+          btn.style.opacity = '0.55';
+          btn.style.cursor = 'default';
+          if (sub) sub.textContent = 'Hevi Explorer is installed on this device. Open it from your home screen or app drawer.';
+        }
+
+        function setNotSupported() {
+          btn.textContent = 'How to install';
+          if (sub) {
+            const ua = navigator.userAgent;
+            if (/iPhone|iPad|iPod/i.test(ua)) {
+              sub.textContent = 'On iPhone/iPad: tap the Share button in Safari, then choose "Add to Home Screen".';
+            } else if (/Firefox/i.test(ua) && /Android/i.test(ua)) {
+              sub.textContent = 'In Firefox Android: tap the menu (⋮) and choose "Install" or "Add to Home Screen".';
+            } else {
+              sub.textContent = 'Open this site in Chrome, Edge, or Brave on Android/Desktop, then use the browser menu → "Install app".';
+            }
+          }
+          btn.addEventListener('click', () => {
+            if (typeof toast === 'function') toast(sub ? sub.textContent : 'Use your browser menu to install.', 'info');
+          });
+        }
+
+        if (isStandalone()) { setInstalled(); return; }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          _deferredPrompt = e;
+          btn.textContent = 'Install';
+          btn.disabled = false;
+          btn.style.opacity = '';
+          btn.style.cursor = '';
+        });
+
+        btn.addEventListener('click', async () => {
+          if (!_deferredPrompt) return;
+          btn.disabled = true;
+          try {
+            _deferredPrompt.prompt();
+            const choice = await _deferredPrompt.userChoice;
+            if (choice && choice.outcome === 'accepted') {
+              setInstalled();
+              if (typeof toast === 'function') toast('Installing Hevi Explorer…', 'success');
+            } else {
+              btn.disabled = false;
+            }
+          } catch (_) { btn.disabled = false; }
+          _deferredPrompt = null;
+        });
+
+        window.addEventListener('appinstalled', () => { _deferredPrompt = null; setInstalled(); });
+
+        // Fallback: if no beforeinstallprompt arrives within 2s, show platform tips.
+        setTimeout(() => { if (!_deferredPrompt && !isStandalone()) setNotSupported(); }, 2000);
+      })();
 
       // ── Hevi Network: peer list rendering ─────────────────────────────────
       (function() {

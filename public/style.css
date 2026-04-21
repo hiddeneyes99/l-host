@@ -6642,6 +6642,8 @@ img.lazy-img:not([src]) {
   position: relative;
   width: 100%;
   max-width: 380px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   background: linear-gradient(160deg, rgba(20,40,52,0.98), rgba(10,22,30,0.98));
   border: 1px solid rgba(37,244,208,0.32);
   border-radius: 26px;
@@ -6649,6 +6651,10 @@ img.lazy-img:not([src]) {
   padding: 28px 24px 22px;
   display: flex; flex-direction: column;
   gap: 18px;
+}
+/* Step 3 (tips) gets more breathing room on tablets/desktops */
+.ag-tut-card:has(.ag-tut-step-tips:not(.hidden)) {
+  max-width: 720px;
 }
 .ag-tut-skip {
   position: absolute; top: 14px; right: 16px;
@@ -6702,27 +6708,75 @@ img.lazy-img:not([src]) {
 }
 
 /* ── Tips (step 3) ──────────────────────────────────────────────────────── */
+.ag-tut-step-tips { width: 100%; align-items: stretch; text-align: left; }
+.ag-tut-step-tips .ag-tut-kicker,
+.ag-tut-step-tips .ag-tut-title,
+.ag-tut-step-tips .ag-tut-body { text-align: center; }
+.ag-tut-step-tips .ag-tut-body { margin-left: auto; margin-right: auto; }
+
 .ag-tut-tips {
-  display: flex; flex-direction: column; gap: 8px; width: 100%;
-  padding: 0 4px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  width: 100%;
+  padding: 4px 2px 0;
+  margin-top: 6px;
 }
+@media (min-width: 560px) {
+  .ag-tut-tips { grid-template-columns: 1fr 1fr; gap: 12px; }
+}
+@media (min-width: 820px) {
+  .ag-tut-tips { grid-template-columns: 1fr 1fr; gap: 14px; }
+}
+
 .ag-tut-tip {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px;
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 14px;
   background: rgba(37,244,208,0.07);
   border: 1px solid rgba(37,244,208,0.2);
-  border-radius: 12px;
-  font-size: 13px;
+  border-radius: 14px;
   color: #d8fff8;
   text-align: left;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+.ag-tut-tip:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37,244,208,0.45);
+  background: rgba(37,244,208,0.12);
 }
 .ag-tut-tip-icon {
   font-size: 22px;
-  width: 36px; height: 36px;
+  width: 38px; height: 38px;
   display: flex; align-items: center; justify-content: center;
   background: rgba(37,244,208,0.12);
+  border: 1px solid rgba(37,244,208,0.2);
   border-radius: 10px;
   flex-shrink: 0;
+}
+.ag-tut-tip-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ag-tut-tip-text b {
+  font-size: 13.5px; font-weight: 700; color: #ffffff; letter-spacing: 0.1px;
+}
+.ag-tut-tip-text span {
+  font-size: 12.5px; color: rgba(216,255,248,0.72); line-height: 1.45;
+}
+
+/* ── Tutorial responsive tuning ─────────────────────────────────────────── */
+@media (max-width: 380px) {
+  .ag-tut { padding: 12px; }
+  .ag-tut-card { padding: 22px 16px 16px; border-radius: 22px; gap: 14px; }
+  .ag-tut-art  { width: 132px; height: 132px; }
+  .ag-tut-emoji { font-size: 72px; }
+  .ag-tut-title { font-size: 19px; }
+  .ag-tut-body  { font-size: 12.5px; }
+  .ag-tut-tip   { padding: 10px 12px; }
+  .ag-tut-tip-icon { width: 34px; height: 34px; font-size: 20px; }
+}
+@media (min-width: 720px) {
+  .ag-tut-step .ag-tut-art { width: 200px; height: 200px; }
+  .ag-tut-step .ag-tut-emoji { font-size: 110px; }
+  .ag-tut-title { font-size: 26px; }
+  .ag-tut-body  { font-size: 14.5px; max-width: 460px; }
 }
 
 /* ── Text ───────────────────────────────────────────────────────────────── */
@@ -7210,6 +7264,34 @@ img.lazy-img:not([src]) {
 .ag-preview-canvas {
   pointer-events: none;
 }
+.ag-cam-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(7, 11, 18, 0.85);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  z-index: 3;
+  transition: transform 0.12s ease, background 0.18s ease, border-color 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.ag-cam-close:hover {
+  background: rgba(255, 70, 70, 0.85);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: scale(1.1);
+}
+.ag-cam-close:active { transform: scale(0.92); }
 .ag-gesture-lbl {
   background: rgba(7,11,18,0.92);
   color: var(--accent);
