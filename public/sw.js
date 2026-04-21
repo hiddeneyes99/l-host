@@ -8,8 +8,8 @@
 //   • Everything else            → Network-first
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_SHELL   = 'lhost-shell-v17';
-const CACHE_THUMBS  = 'lhost-thumbs-v17';
+const CACHE_SHELL   = 'lhost-shell-v18';
+const CACHE_THUMBS  = 'lhost-thumbs-v18';
 
 const SHELL_ASSETS = [
   '/',

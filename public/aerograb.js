@@ -770,6 +770,8 @@
     _transferActive = true;
     _transferStartedAt = Date.now();
 
+    // Reset the sticky cancel-button guard so this fresh transfer can show it.
+    if (aeroAnim && aeroAnim.armCancelButton) aeroAnim.armCancelButton();
     // Show cancel button IMMEDIATELY (don't wait for first progress chunk)
     if (aeroAnim && aeroAnim.showCancelButton) aeroAnim.showCancelButton();
 
@@ -903,6 +905,8 @@
         _recvBuffer   = [];
         _recvReceived = 0;
         _transferActive = true;
+        // Reset the sticky cancel-button guard for the new incoming transfer.
+        if (aeroAnim && aeroAnim.armCancelButton) aeroAnim.armCancelButton();
         // Show cancel button on receiver IMMEDIATELY when transfer starts
         if (aeroAnim && aeroAnim.showCancelButton) aeroAnim.showCancelButton();
         // Power-saver: pause camera track on receiver too while bytes arrive.

@@ -431,8 +431,10 @@
   }
 
   // ── Body-fixed cancel button (immune to stage clears, always clickable) ───
-  let _cancelBtnEl = null;
+  let _cancelBtnEl    = null;
+  let _cancelDisabled = false;   // once true, ensureCancelButton refuses to re-create
   function ensureCancelButton() {
+    if (_cancelDisabled) return;                                      // sticky guard
     if (_cancelBtnEl && document.body.contains(_cancelBtnEl)) return;
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -448,8 +450,17 @@
     _cancelBtnEl = btn;
   }
   function removeCancelButton() {
+    // Set sticky flag so any late progress update can't resurrect the button.
+    _cancelDisabled = true;
     if (_cancelBtnEl && _cancelBtnEl.parentNode) _cancelBtnEl.parentNode.removeChild(_cancelBtnEl);
     _cancelBtnEl = null;
+    // Also nuke any orphaned button that may have been created by another path.
+    const orphan = document.getElementById('aeroCancelBtn');
+    if (orphan && orphan.parentNode) orphan.parentNode.removeChild(orphan);
+  }
+  function armCancelButton() {
+    // Called by aerograb.js at the START of each new transfer to reset the guard.
+    _cancelDisabled = false;
   }
 
   function onCancelled(msg) {
@@ -565,6 +576,7 @@
     onCancelled,
     showCancelButton: ensureCancelButton,
     hideCancelButton: removeCancelButton,
+    armCancelButton: armCancelButton,
   };
 
 })();
