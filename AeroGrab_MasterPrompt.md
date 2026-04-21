@@ -768,3 +768,62 @@ A single coherent **energy-transfer narrative**:
 - [ ] Progress ring fills smoothly from 0 → 100, white shine cap orbits continuously while filling.
 - [ ] On completion → SVG check draws on (circle then tick), 3-color confetti rains, card auto-hides.
 - [ ] On a device with `prefers-reduced-motion: reduce` → ambient loops disable but transitions still play.
+
+---
+
+## v8 — Live Receiver Progress + Recent Receives Panel (April 21, 2026)
+
+### Bug fix: receiver progress ring stuck at 0 % on small/medium files
+
+**Root cause** (in v2 animation engine):
+The receiver landing scene takes ~1.2 s to play (sky beam → comet descent → impact shockwave → card unfold). The progress card containing `#agPringFill` and `#agRecvPct` is only mounted into the DOM at the end of that sequence (inside `revealReceiverCard`).
+
+But WebRTC chunks start arriving as soon as the data channel is open — often within 100–300 ms of `showReceiverLanding` being called. During that 1.2 s window, every call to `aeroAnim.updateReceiverProgress(pct)` was hitting `document.getElementById('agPringFill')` which returned `null`, and the update was silently dropped. By the time the card mounted, transfers ≤ 2 s had already finished and the ring never animated — it would jump straight from "not visible" to "Saving…".
+
+**Fix** (`public/aerograb-animation.js`):
+- Added module-scope `_pendingRecvPct` cache.
+- `updateReceiverProgress(pct)` now stores pct AND attempts the DOM update.
+- `showReceiverLanding` resets `_pendingRecvPct = 0` at scene start.
+- `revealReceiverCard` calls `applyRecvPct(_pendingRecvPct)` immediately after mounting the card → any pct that arrived during the landing sequence is replayed onto the freshly-mounted ring, and the ring now animates from the correct starting %.
+
+### Feature: "Recent AeroGrab" history panel
+
+Located **directly below Cloud Storage** on the home view, hidden when the history is empty. Activates the moment the user successfully receives their first file.
+
+**Storage** (`localStorage['aerograb_history']`):
+- Capped at 30 entries (oldest dropped at write time).
+- De-duped by `path` — receiving the same file again moves it to the top instead of duplicating.
+- Each entry is a Hevi-shaped item (`{name, path, type, size, ext, category, mimeType, modified}`) plus our own `receivedAt: Date.now()` field.
+
+**Hooks added in `public/aerograb.js`:**
+- `recordReceiveHistory(savedItem)` — called from inside `saveAndOpenInHevi` right after the server confirms the save and returns the item, BEFORE the openFile call. Ensures even if openFile fails the item still appears in history.
+- `renderAeroHistory()` — re-renders the section. Hidden when empty.
+- `clearAeroHistory()` — wired to the section's "Clear" button (with confirm dialog noting that disk files are NOT deleted).
+- `initAeroHistory()` — runs on DOMContentLoaded; binds Clear button + does first render.
+
+**Click behaviour:**
+- `HEAD /file?path=...` first to verify the file still exists on disk (cheap — server returns 404 if missing without streaming any bytes).
+- If 404 → the row gets `.ag-hist-missing` class (dimmed, grey arrow) + toast "File no longer exists on disk".
+- If 200 → `window.openFile(item)` opens it in Hevi's native viewer (image / video / audio / pdf / archive / text — same flow as receiving fresh).
+
+**UI** (`public/index.html` + `public/style.css`):
+- Section ID `aeroHistorySection`, header reads "📥 Recent AeroGrab" with a "Clear" button (matches `view-all-btn` style of the Cloud header).
+- Each row: 38 px square cyan-tinted icon (auto-picked emoji by extension) → name + relative time + size → cyan chevron.
+- Hover: row gets stronger cyan glow + border. Tap: 0.98 scale.
+- Sub-line uses `fmtRelative(ts)` → "just now / 5m ago / 3h ago / 2d ago / DD/MM/YYYY".
+
+### Files changed in v8
+- `public/aerograb-animation.js` — added `_pendingRecvPct` cache + `applyRecvPct()` helper; `updateReceiverProgress` now caches; `showReceiverLanding` resets cache; `revealReceiverCard` replays cached pct on mount.
+- `public/aerograb.js` — added `recordReceiveHistory()` call inside `saveAndOpenInHevi`; appended ~130 lines of history module (`loadHistory`, `saveHistory`, `recordReceiveHistory`, `clearAeroHistory`, `fmtRelative`, `fmtSize`, `iconForItem`, `renderAeroHistory`, `escAtt`, `initAeroHistory`).
+- `public/index.html` — new `<section id="aeroHistorySection">` after `cloudSection`; bumped `aerograb-animation.js?v=5`, `aerograb.js?v=9`.
+- `public/style.css` — new `.ag-history-list` + `.ag-hist-item` + `.ag-hist-icon` + `.ag-hist-meta` + `.ag-hist-name` + `.ag-hist-sub` + `.ag-hist-arrow` + `.ag-hist-missing` blocks (added before the Animation Engine v2.0 section).
+
+### v8 testing checklist
+- [ ] Send a 50–200 MB file → on receiver, ring fills smoothly from 0 → 100 (not stuck at 0 then jumping to 100).
+- [ ] Send a tiny 100 KB file → ring shows at least one intermediate value before "Saving…".
+- [ ] After first received file → "Recent AeroGrab" section appears below Cloud Storage.
+- [ ] Click a history row → file opens in Hevi's native viewer (same as browsing into HeviExplorer/).
+- [ ] Receive the same file twice → only one row, moved to top, with updated timestamp.
+- [ ] Manually delete the file from disk via browser → click that history row → row dims, toast "File no longer exists".
+- [ ] Click "Clear" → confirm dialog → section disappears, files on disk untouched.
+- [ ] Reload the page → history persists (localStorage).

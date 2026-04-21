@@ -6625,6 +6625,59 @@ img.lazy-img:not([src]) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   AeroGrab — Recent Receives history panel
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ag-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ag-hist-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(145deg, rgba(37,244,208,0.06), rgba(255,255,255,0.025));
+  border: 1px solid rgba(37,244,208,0.18);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.ag-hist-item:hover  { background: linear-gradient(145deg, rgba(37,244,208,0.12), rgba(255,255,255,0.04)); border-color: rgba(37,244,208,0.32); }
+.ag-hist-item:active { transform: scale(0.98); }
+.ag-hist-icon {
+  width: 38px; height: 38px;
+  border-radius: 11px;
+  background: rgba(37,244,208,0.12);
+  border: 1px solid rgba(37,244,208,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; line-height: 1;
+  flex-shrink: 0;
+}
+.ag-hist-meta { flex: 1; min-width: 0; }
+.ag-hist-name {
+  font-size: 13.5px; font-weight: 700;
+  color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.ag-hist-sub {
+  font-size: 11.5px;
+  color: var(--text3);
+  display: flex; gap: 8px; align-items: center;
+}
+.ag-hist-sub .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text3); opacity: 0.6; }
+.ag-hist-arrow {
+  color: var(--accent);
+  font-size: 18px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.ag-hist-item.ag-hist-missing { opacity: 0.55; }
+.ag-hist-item.ag-hist-missing .ag-hist-arrow { color: var(--text3); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
    AeroGrab Animation Engine v2.0 — premium SVG scenes
    ═══════════════════════════════════════════════════════════════════════════ */
 .ag-anim-stage {

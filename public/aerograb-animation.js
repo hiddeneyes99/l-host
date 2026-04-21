@@ -286,6 +286,7 @@
     if (!stage) return;
     clearStage();
     showStage();
+    _pendingRecvPct = 0;
 
     // ── Backdrop aura ────────────────────────────────────────────────────────
     const aura = document.createElement('div');
@@ -373,7 +374,8 @@
       duration: 600,
       easing:  'easeOutBack',
     });
-    // Start the shimmer-cap rotation (CSS animation handles spin)
+    // Replay any pct that arrived during the landing scene before the ring mounted.
+    if (_pendingRecvPct > 0) applyRecvPct(_pendingRecvPct);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -381,12 +383,14 @@
   // ═══════════════════════════════════════════════════════════════════════════
   const PRING_CIRC = 2 * Math.PI * 42;
 
-  function updateSenderProgress(pct) {
-    const sub = $('agSenderProgress');
-    if (sub) sub.innerHTML = `Sending… <b>${pct}%</b>`;
-  }
+  // The receiver landing scene takes ~1.2 s before the progress card mounts.
+  // If WebRTC chunks arrive during that window, updateReceiverProgress is
+  // called against a DOM that doesn't have #agPringFill yet → updates lost,
+  // ring appears stuck at 0 % until the next chunk fires after card mount.
+  // Cache the latest pct and replay it as soon as the card mounts.
+  let _pendingRecvPct = 0;
 
-  function updateReceiverProgress(pct) {
+  function applyRecvPct(pct) {
     const fill  = $('agPringFill');
     const label = $('agRecvPct');
     if (fill) {
@@ -394,6 +398,16 @@
       fill.style.strokeDashoffset = offset;
     }
     if (label) label.textContent = pct >= 100 ? 'Saving…' : `Receiving ${pct}%`;
+  }
+
+  function updateSenderProgress(pct) {
+    const sub = $('agSenderProgress');
+    if (sub) sub.innerHTML = `Sending… <b>${pct}%</b>`;
+  }
+
+  function updateReceiverProgress(pct) {
+    _pendingRecvPct = pct;
+    applyRecvPct(pct);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

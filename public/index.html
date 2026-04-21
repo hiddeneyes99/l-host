@@ -363,6 +363,15 @@
             <div class="loader-wrap"><div class="loader"></div></div>
           </div>
         </section>
+
+        <!-- ── AEROGRAB · RECENT RECEIVES (only shown when history non-empty) ── -->
+        <section class="section hidden" id="aeroHistorySection">
+          <div class="section-header">
+            <span class="section-title">📥 Recent AeroGrab</span>
+            <button class="view-all-btn" id="aeroHistoryClearBtn">Clear</button>
+          </div>
+          <div class="ag-history-list" id="aeroHistoryList"></div>
+        </section>
       </div>
 
       <!-- BROWSER VIEW -->
@@ -2455,8 +2464,8 @@
 
     <script src="/iv.js?v=11"></script>
     <script src="/app.js?v=13"></script>
-    <script src="/aerograb-animation.js?v=4"></script>
-    <script src="/aerograb.js?v=8"></script>
+    <script src="/aerograb-animation.js?v=5"></script>
+    <script src="/aerograb.js?v=9"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js?v=14').then(reg => reg.update()).catch(() => {});

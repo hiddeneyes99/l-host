@@ -776,6 +776,7 @@
     if (savedItem && typeof window.openFile === 'function') {
       // Saved to disk + open inside Hevi Explorer using its native viewer.
       showToast(`Saved to HeviExplorer · ${fileName}`, 'success');
+      recordReceiveHistory(savedItem);
       try { window.openFile(savedItem); } catch (e) { console.warn('[AeroGrab] openFile error:', e.message); }
       // Animation: success card without any button.
       aeroAnim.onReceiverComplete(meta, null);
@@ -1034,6 +1035,139 @@
     document.addEventListener('DOMContentLoaded', boot);
   } else {
     boot();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RECENT RECEIVES — persistent history panel below Cloud Storage
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Stored in localStorage so it survives reloads. Capped at 30 entries.
+  // Each entry is a Hevi-shaped item ({name, path, type, size, ext, category,
+  // mimeType, modified}) plus our own `receivedAt` timestamp. Clicking an
+  // entry calls window.openFile(item) — same as clicking the file inside the
+  // HeviExplorer/ folder.
+  // ─────────────────────────────────────────────────────────────────────────
+  const HIST_KEY     = 'aerograb_history';
+  const HIST_MAX     = 30;
+
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem(HIST_KEY);
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (_) { return []; }
+  }
+
+  function saveHistory(arr) {
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(arr.slice(0, HIST_MAX))); }
+    catch (_) {}
+  }
+
+  function recordReceiveHistory(item) {
+    if (!item || !item.path) return;
+    const list = loadHistory();
+    // De-dupe by path — newest wins.
+    const filtered = list.filter(x => x.path !== item.path);
+    filtered.unshift({ ...item, receivedAt: Date.now() });
+    saveHistory(filtered);
+    renderAeroHistory();
+  }
+
+  function clearAeroHistory() {
+    try { localStorage.removeItem(HIST_KEY); } catch (_) {}
+    renderAeroHistory();
+  }
+
+  function fmtRelative(ts) {
+    const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
+    if (s < 60)        return 'just now';
+    if (s < 3600)      return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400)     return `${Math.floor(s / 3600)}h ago`;
+    if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
+    return new Date(ts).toLocaleDateString();
+  }
+
+  function fmtSize(bytes) {
+    if (bytes == null || isNaN(bytes)) return '';
+    const u = ['B','KB','MB','GB','TB'];
+    let i = 0, n = bytes;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${u[i]}`;
+  }
+
+  function iconForItem(item) {
+    const name = (item.name || '').toLowerCase();
+    if (/\.(mp4|mkv|avi|mov|webm)$/.test(name))           return '🎬';
+    if (/\.(mp3|flac|ogg|wav|aac|opus)$/.test(name))      return '🎵';
+    if (/\.(jpg|jpeg|png|gif|webp|heic|svg)$/.test(name)) return '🖼️';
+    if (/\.(pdf)$/.test(name))                             return '📄';
+    if (/\.(zip|rar|7z|tar|gz)$/.test(name))              return '🗜️';
+    if (/\.(apk)$/.test(name))                             return '📱';
+    if (/\.(doc|docx|txt|md)$/.test(name))                return '📝';
+    return '📦';
+  }
+
+  function renderAeroHistory() {
+    const sec  = document.getElementById('aeroHistorySection');
+    const list = document.getElementById('aeroHistoryList');
+    if (!sec || !list) return;
+    const items = loadHistory();
+    if (!items.length) { sec.classList.add('hidden'); list.innerHTML = ''; return; }
+    sec.classList.remove('hidden');
+    list.innerHTML = items.map((it, i) => `
+      <div class="ag-hist-item" data-idx="${i}">
+        <div class="ag-hist-icon">${iconForItem(it)}</div>
+        <div class="ag-hist-meta">
+          <div class="ag-hist-name">${escAtt(it.name || 'file')}</div>
+          <div class="ag-hist-sub">
+            <span>${fmtRelative(it.receivedAt || Date.now())}</span>
+            ${it.size ? `<span class="dot"></span><span>${fmtSize(it.size)}</span>` : ''}
+          </div>
+        </div>
+        <div class="ag-hist-arrow">›</div>
+      </div>
+    `).join('');
+    // Wire up clicks — open via Hevi's own viewer.
+    list.querySelectorAll('.ag-hist-item').forEach(el => {
+      el.addEventListener('click', async () => {
+        const idx = Number(el.dataset.idx);
+        const item = loadHistory()[idx];
+        if (!item) return;
+        // Verify the file still exists on disk before trying to open
+        // (HEAD against /file is cheap — server returns 404 if missing).
+        try {
+          const r = await fetch(`/file?path=${encodeURIComponent(item.path)}`, { method: 'HEAD' });
+          if (!r.ok) {
+            el.classList.add('ag-hist-missing');
+            showToast('File no longer exists on disk', 'error');
+            return;
+          }
+        } catch (_) { /* network error — try opening anyway */ }
+        if (typeof window.openFile === 'function') {
+          try { window.openFile(item); } catch (e) { console.warn('[AeroGrab] openFile error:', e.message); }
+        }
+      });
+    });
+  }
+
+  function escAtt(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                    .replace(/"/g,'&quot;');
+  }
+
+  // Wire the Clear button + initial render once DOM is ready.
+  function initAeroHistory() {
+    const btn = document.getElementById('aeroHistoryClearBtn');
+    if (btn) btn.addEventListener('click', () => {
+      if (!loadHistory().length) return;
+      if (confirm('Clear AeroGrab receive history? (Files on disk are NOT deleted.)')) clearAeroHistory();
+    });
+    renderAeroHistory();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAeroHistory);
+  } else {
+    initAeroHistory();
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
