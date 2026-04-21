@@ -27,6 +27,7 @@
   let _recvReceived      = 0;             // bytes received so far
   let _targetSocketId    = null;          // if set, only this device gets WAKE_UP
   let _heartbeatTimer    = null;          // setInterval handle for HEVI_HEARTBEAT
+  let _heartbeatVisHooked = false;        // visibilitychange listener attached?
   let _capturedPhotoFile = null;          // photo taken via native <input type="file">
   let _activeOpenFile    = null;          // set by Hevi Explorer when a file is opened
   let _wakePayload       = null;          // sender's metadata received via WAKE_UP_CAMERAS
@@ -117,9 +118,21 @@
   }
   function startHeartbeat() {
     clearInterval(_heartbeatTimer);
-    _heartbeatTimer = setInterval(() => {
+    // Adaptive: 15s when tab is visible & in-use, 60s when hidden/background.
+    // Saves wake-ups → less CPU/radio chatter → less battery drain.
+    const tick = () => {
       if (_socket && _socket.connected) _socket.emit('HEVI_HEARTBEAT');
-    }, 15000);
+    };
+    const schedule = () => {
+      clearInterval(_heartbeatTimer);
+      const gap = (typeof document !== 'undefined' && document.hidden) ? 60000 : 15000;
+      _heartbeatTimer = setInterval(tick, gap);
+    };
+    schedule();
+    if (typeof document !== 'undefined' && !_heartbeatVisHooked) {
+      _heartbeatVisHooked = true;
+      document.addEventListener('visibilitychange', schedule);
+    }
   }
   function stopHeartbeat() {
     clearInterval(_heartbeatTimer);
@@ -334,6 +347,9 @@
       const tick = () => {
         if (!_enabled || !_recognizer || !_camStream || _processingHands) return;
         if (videoEl.readyState < 2) return;
+        // Pause inference when tab/screen is hidden — phone in pocket / app
+        // backgrounded → zero ML work, big battery save.
+        if (typeof document !== 'undefined' && document.hidden) return;
         // Pause inference during transfer — saves significant CPU/GPU and heat.
         if (_transferActive || _myRole) return;
         // Adaptive throttling
