@@ -8,8 +8,9 @@
 //   • Everything else            → Network-first
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_SHELL   = 'lhost-shell-v18';
-const CACHE_THUMBS  = 'lhost-thumbs-v18';
+const CACHE_SHELL   = 'lhost-shell-v19';
+const CACHE_THUMBS  = 'lhost-thumbs-v19';
+const THUMBS_MAX_ENTRIES = 200;   // LRU cap so cache can't grow unbounded
 
 const SHELL_ASSETS = [
   '/',
@@ -67,18 +68,31 @@ self.addEventListener('fetch', e => {
   e.respondWith(networkFirst(request));
 });
 
-// ── Helper: cache-first ───────────────────────────────────────────────────────
+// ── Helper: cache-first (with LRU trim for thumb cache) ──────────────────────
 async function cacheFirst(cacheName, request) {
   const cache  = await caches.open(cacheName);
   const cached = await cache.match(request);
   if (cached) return cached;
   try {
     const response = await fetch(request);
-    if (response.ok) cache.put(request, response.clone());
+    if (response.ok) {
+      cache.put(request, response.clone());
+      trimCache(cache, THUMBS_MAX_ENTRIES);   // fire-and-forget
+    }
     return response;
   } catch (_) {
     return new Response('Offline', { status: 503 });
   }
+}
+
+// LRU trim: when cache exceeds max, drop the oldest entries (FIFO order = insertion).
+async function trimCache(cache, maxEntries) {
+  try {
+    const keys = await cache.keys();
+    const overflow = keys.length - maxEntries;
+    if (overflow <= 0) return;
+    for (let i = 0; i < overflow; i++) await cache.delete(keys[i]);
+  } catch (_) {}
 }
 
 // ── Helper: network-first ─────────────────────────────────────────────────────

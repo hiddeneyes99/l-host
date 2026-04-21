@@ -10,7 +10,7 @@
 
   // ── Constants ──────────────────────────────────────────────────────────────
   const CHUNK_SIZE       = 512 * 1024;       // 512 KB per WebRTC chunk (auto-clamped to SCTP max)
-  const BUFFER_HIGH_WATER = 16 * 1024 * 1024; // pause when >16 MB buffered (more in-flight = faster)
+  const BUFFER_HIGH_WATER = 8 * 1024 * 1024;  // 8 MB in-flight — fast yet RAM-friendly on phones
   const BUFFER_LOW_WATER  = 4 * 1024 * 1024;  // resume earlier so the pipe never goes dry
   const FOLDER_MAX_BYTES = 1024 * 1024 * 1024; // 1 GB
   const FOLDER_MAX_FILES = 20;
@@ -43,6 +43,7 @@
   let _candidateStreak   = 0;
   let _neutralStreak     = 0;
   let _lastVideoTs       = -1;
+  let _lastHandSeenAt    = 0;     // ms — used by adaptive-fps idle tier
   let _transferActive    = false;
   let _transferStartedAt = 0;
   let _lastSenderUiAt    = 0;
@@ -325,9 +326,11 @@
       _camStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'user',
-          width:     { ideal: 320 },
-          height:    { ideal: 240 },
-          frameRate: { ideal: 15, max: 20 },
+          // 256x192 is plenty for hand-landmark detection and ~35% lower
+          // ISP/encoder load vs 320x240 — measurably less heating.
+          width:     { ideal: 256 },
+          height:    { ideal: 192 },
+          frameRate: { ideal: 12, max: 15 },
         },
         audio: false,
       });
@@ -366,9 +369,13 @@
         if (typeof document !== 'undefined' && document.hidden) return;
         // Pause inference during transfer — saves significant CPU/GPU and heat.
         if (_transferActive || _myRole) return;
-        // Adaptive throttling
+        // Adaptive throttling — three tiers for max battery save:
+        //   • Active arming/wake-pending → 12 fps  (~83 ms)
+        //   • Hand visible but neutral   → 5 fps   (200 ms)
+        //   • Idle (no hand for a while) → 2 fps   (500 ms) — phone barely warms
         const isActive  = _candidateStreak > 0 || _wakePayload || _neutralStreak < NEUTRAL_ARM_FRAMES;
-        const minGap    = isActive ? 66 : 200;
+        const isIdle    = !isActive && _frameCount > 30 && (performance.now() - (_lastHandSeenAt || 0)) > 4000;
+        const minGap    = isActive ? 83 : (isIdle ? 500 : 200);
         const now = performance.now();
         if (now - _tickAccum < minGap) return;
         _tickAccum = now;
@@ -440,6 +447,7 @@
   function processGestureResults(results) {
     _frameCount += 1;
     const lm = results && results.landmarks && results.landmarks[0];
+    if (lm) _lastHandSeenAt = performance.now();
     drawGesturePreview(results, lm);
     const lbl = $('aeroGestureLbl');
     if (!lm) {
@@ -831,9 +839,10 @@
           const buf       = superBuf.slice(subOffset, subEnd);
           _dataChannel.send(buf);
           offset += buf.byteLength;
-          // Throttle progress UI to ~30 fps to avoid layout thrash
+          // Throttle progress UI to ~10 fps — enough for smooth perception,
+          // way less layout thrash on phones during multi-GB transfers.
           const now = performance.now();
-          if (now - _lastSenderUiAt > 33) {
+          if (now - _lastSenderUiAt > 100) {
             _lastSenderUiAt = now;
             const pct = Math.round((offset / totalSize) * 100);
             aeroAnim.updateSenderProgress(pct);
