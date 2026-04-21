@@ -28,9 +28,8 @@
   let _capturedPhotoFile = null;          // photo taken via native <input type="file">
   let _activeOpenFile    = null;          // set by Hevi Explorer when a file is opened
   let _wakePayload       = null;          // sender's metadata received via WAKE_UP_CAMERAS
-  let _hands             = null;
+  let _recognizer        = null;          // MediaPipe Tasks Vision GestureRecognizer
   let _camStream         = null;
-  let _camera            = null;
   let _rafId             = null;
   let _processingHands   = false;
   let _frameCount        = 0;
@@ -40,13 +39,18 @@
   let _candidateGesture  = null;
   let _candidateStreak   = 0;
   let _neutralStreak     = 0;
+  let _lastVideoTs       = -1;
 
-  // Tighter thresholds + frame debounce keep a resting hand from auto-firing.
-  const FIST_MAX_RATIO  = 0.50;
-  const PALM_MIN_RATIO  = 0.85;
-  const FIRE_FRAME_COUNT = 6;
+  // ML thresholds — Tasks Vision returns labelled gestures with confidence
+  // scores. We accept ONLY two gestures, and only above a strict threshold.
+  const ML_MIN_CONFIDENCE  = 0.80;
+  const FIRE_FRAME_COUNT   = 6;
   const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 5;
   const GESTURE_COOLDOWN_MS = 3500;
+  const TASKS_VISION_VERSION = '0.10.14';
+  const TASKS_VISION_BUNDLE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/vision_bundle.mjs`;
+  const TASKS_VISION_WASM   = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
+  const GESTURE_MODEL_URL   = 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task';
   let _sawNeutralSinceHandAppeared = false;
 
   // Expose the active-file hook so app.js can set it
@@ -255,9 +259,8 @@
       if (!approved) return false;
     }
     try {
-      if (!window.Hands) throw new Error('Hand AI not loaded');
       const videoEl = $('aeroVideoEl');
-      const canvas = $('aeroGestureCanvas');
+      const canvas  = $('aeroGestureCanvas');
       if (!videoEl || !canvas) throw new Error('Camera preview missing');
       _camStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
@@ -268,57 +271,57 @@
       videoEl.muted = true;
       videoEl.playsInline = true;
       await videoEl.play();
-      _hands = new Hands({
-        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-      });
-      _hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 0,
-        minDetectionConfidence: 0.6,
+
+      // ── Load real on-device ML gesture recogniser (MediaPipe Tasks Vision)
+      // ~7.5 MB model, downloaded once then served from browser cache.
+      showCameraMessage('Loading hand AI model (~7 MB, one-time)…', 'info');
+      const vision = await import(TASKS_VISION_BUNDLE);
+      const { GestureRecognizer, FilesetResolver } = vision;
+      const fileset = await FilesetResolver.forVisionTasks(TASKS_VISION_WASM);
+      _recognizer = await GestureRecognizer.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: GESTURE_MODEL_URL, delegate: 'GPU' },
+        numHands: 1,
+        runningMode: 'VIDEO',
+        minHandDetectionConfidence: 0.6,
+        minHandPresenceConfidence: 0.6,
         minTrackingConfidence: 0.5,
-        selfieMode: true,
       });
-      _hands.onResults(processGestureResults);
-      const tick = async () => {
-        if (!_enabled || !_hands || !_camStream || _processingHands) return;
+
+      const tick = () => {
+        if (!_enabled || !_recognizer || !_camStream || _processingHands) return;
         if (videoEl.readyState < 2) return;
+        const ts = performance.now();
+        if (ts === _lastVideoTs) return;
+        _lastVideoTs = ts;
         _processingHands = true;
         try {
-          await _hands.send({ image: videoEl });
+          const result = _recognizer.recognizeForVideo(videoEl, ts);
+          processGestureResults(result);
         } catch (e) {
-          console.warn('[AeroGrab] hand frame error:', e.message);
+          console.warn('[AeroGrab] recognise error:', e.message);
         } finally {
           _processingHands = false;
         }
       };
       clearInterval(_rafId);
-      _rafId = setInterval(tick, 83);
-      showCameraMessage('Camera ready — show your hand', 'success');
+      _rafId = setInterval(tick, 80);
+      showCameraMessage('Hand AI ready — show your hand', 'success');
       return true;
     } catch (e) {
-      let msg = `Camera error: ${e.message}`;
-      if (e.name === 'NotAllowedError') msg = 'Camera permission denied. Allow camera in browser settings.';
-      if (e.name === 'NotReadableError') msg = 'Camera is busy in another app. Close it and retry.';
+      let msg = `Camera/AI error: ${e.message}`;
+      if (e && e.name === 'NotAllowedError') msg = 'Camera permission denied. Allow camera in browser settings.';
+      if (e && e.name === 'NotReadableError') msg = 'Camera is busy in another app. Close it and retry.';
       showCameraMessage(msg, 'error');
       return false;
     }
   }
 
-  function dist2D(a, b) {
-    const dx = a.x - b.x;
-    const dy = a.y - b.y;
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
-  function classifyGesture(lm) {
-    if (!lm || lm.length < 21) return { gesture: null, ratios: [] };
-    const handSize = Math.max(dist2D(lm[0], lm[9]), 0.001);
-    const tips = [8, 12, 16, 20];
-    const mcps = [5, 9, 13, 17];
-    const ratios = tips.map((tip, i) => dist2D(lm[tip], lm[mcps[i]]) / handSize);
-    const fist = ratios.every(r => r < FIST_MAX_RATIO);
-    const palm = ratios.every(r => r > PALM_MIN_RATIO);
-    return { gesture: fist ? 'FIST' : palm ? 'OPEN_PALM' : null, ratios };
+  // Map MediaPipe Tasks Vision gesture labels to our internal vocabulary.
+  // Anything else (Pointing_Up, Thumb_Up, Victory, ILoveYou, None) is ignored.
+  function mapMlGesture(label) {
+    if (label === 'Closed_Fist') return 'FIST';
+    if (label === 'Open_Palm')   return 'OPEN_PALM';
+    return null;
   }
 
   function drawGesturePreview(results, lm) {
@@ -335,15 +338,18 @@
     ctx.strokeStyle = '#25f4d0';
     ctx.lineWidth = 2;
     ctx.fillStyle = '#ffffff';
+    // Video is CSS-mirrored (selfie view) but Tasks Vision returns raw pixel
+    // coords — flip x so landmarks line up with what the user sees.
+    const fx = p => (1 - p.x) * w;
     lines.forEach(([a, b]) => {
       ctx.beginPath();
-      ctx.moveTo(lm[a].x * w, lm[a].y * h);
-      ctx.lineTo(lm[b].x * w, lm[b].y * h);
+      ctx.moveTo(fx(lm[a]), lm[a].y * h);
+      ctx.lineTo(fx(lm[b]), lm[b].y * h);
       ctx.stroke();
     });
     lm.forEach(p => {
       ctx.beginPath();
-      ctx.arc(p.x * w, p.y * h, 2.4, 0, Math.PI * 2);
+      ctx.arc(fx(p), p.y * h, 2.4, 0, Math.PI * 2);
       ctx.fill();
     });
     ctx.restore();
@@ -351,7 +357,7 @@
 
   function processGestureResults(results) {
     _frameCount += 1;
-    const lm = results && results.multiHandLandmarks && results.multiHandLandmarks[0];
+    const lm = results && results.landmarks && results.landmarks[0];
     drawGesturePreview(results, lm);
     const lbl = $('aeroGestureLbl');
     if (!lm) {
@@ -362,21 +368,26 @@
       _sawNeutralSinceHandAppeared = false;
       return;
     }
-    // Block any gesture firing while a session is already in progress.
-    if (_myRole || _wakePayload) {
-      if (lbl) lbl.textContent = `🔒 session in progress`;
+    // Block any gesture firing while we are mid-session (already sender or
+    // already receiver). Wake-pending alone does NOT block — the receiver
+    // still has to actively show Open_Palm to its own camera.
+    if (_myRole) {
+      if (lbl) lbl.textContent = `🔒 ${_myRole} mode`;
       _candidateGesture = null;
       _candidateStreak = 0;
       return;
     }
     _detectCount += 1;
-    const { gesture, ratios } = classifyGesture(lm);
-    const shortRatios = ratios.map(r => r.toFixed(2)).join(',');
+    const top = (results.gestures && results.gestures[0] && results.gestures[0][0]) || null;
+    const rawLabel = top ? top.categoryName : 'None';
+    const score    = top ? top.score : 0;
+    const gesture  = (score >= ML_MIN_CONFIDENCE) ? mapMlGesture(rawLabel) : null;
     if (lbl) {
       const armed = _candidateGesture === gesture ? _candidateStreak : 0;
+      const pct = Math.round(score * 100);
       lbl.textContent = gesture
-        ? `${gesture === 'FIST' ? '✊' : '✋'} ${gesture} ${armed}/${FIRE_FRAME_COUNT} [${shortRatios}]`
-        : `· hold steady [${shortRatios}]`;
+        ? `${gesture === 'FIST' ? '✊' : '✋'} ${rawLabel} ${pct}% (${armed}/${FIRE_FRAME_COUNT})`
+        : `${rawLabel || '·'} ${pct}%`;
     }
     if (!gesture) {
       _candidateGesture = null;
@@ -386,8 +397,9 @@
       return;
     }
     // First time hand enters frame, force the user to pass through a neutral
-    // pose before any gesture can fire — prevents auto-fire when hand enters
-    // already curled.
+    // pose (anything that is not Closed_Fist or Open_Palm at >=80%) before
+    // any gesture can fire — prevents auto-fire when hand enters already
+    // curled.
     if (!_sawNeutralSinceHandAppeared) {
       if (lbl) lbl.textContent = `↺ relax hand first`;
       _candidateGesture = null;
@@ -416,7 +428,14 @@
       initiateGrab();
       return;
     }
-    if (gesture === 'OPEN_PALM' && _wakePayload && _myRole === null) {
+    if (gesture === 'OPEN_PALM' && _myRole === null) {
+      // Receiver-side rule: only catch if a wake notification is currently
+      // pending (someone has actually grabbed something). Without a pending
+      // wake, an Open_Palm is just a hand wave — do nothing.
+      if (!_wakePayload) {
+        showToast('Nobody is sending right now. Open palm ignored.', 'info');
+        return;
+      }
       signalReadyToReceive();
     }
   }
@@ -805,8 +824,8 @@
 
     if (_rafId)     { clearInterval(_rafId); _rafId = null; }
     if (_camStream) { _camStream.getTracks().forEach(t => t.stop()); _camStream = null; }
-    if (_camera)    { try { _camera.stop(); } catch (_) {} _camera = null; }
-    if (_hands)     { try { _hands.close(); } catch (_) {} _hands  = null; }
+    if (_recognizer) { try { _recognizer.close(); } catch (_) {} _recognizer = null; }
+    _lastVideoTs = -1;
     _processingHands = false;
     _frameCount = 0; _detectCount = 0;
     // NOTE: Socket + heartbeat stay alive for Hevi Network discovery
@@ -883,6 +902,59 @@
     });
   }
 
+  // ── Draggable camera preview ──────────────────────────────────────────────
+  // Persists position to localStorage so it survives reloads.
+  function wireDraggablePreview() {
+    const overlay = $('agCamOverlay');
+    const handle  = $('agDragHandle');
+    if (!overlay || !handle) return;
+    const STORE_KEY = 'ag_preview_pos';
+    const apply = pos => {
+      if (!pos) return;
+      overlay.style.left   = `${pos.x}px`;
+      overlay.style.top    = `${pos.y}px`;
+      overlay.style.right  = 'auto';
+      overlay.style.bottom = 'auto';
+    };
+    try { apply(JSON.parse(localStorage.getItem(STORE_KEY) || 'null')); } catch (_) {}
+
+    let dragging = false, startX = 0, startY = 0, baseX = 0, baseY = 0;
+    const start = e => {
+      const t = e.touches ? e.touches[0] : e;
+      const r = overlay.getBoundingClientRect();
+      dragging = true;
+      startX = t.clientX; startY = t.clientY;
+      baseX  = r.left;    baseY  = r.top;
+      overlay.classList.add('ag-dragging');
+      e.preventDefault();
+    };
+    const move = e => {
+      if (!dragging) return;
+      const t = e.touches ? e.touches[0] : e;
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      const w  = overlay.offsetWidth;
+      const h  = overlay.offsetHeight;
+      const nx = Math.max(4, Math.min(window.innerWidth  - w - 4, baseX + dx));
+      const ny = Math.max(4, Math.min(window.innerHeight - h - 4, baseY + dy));
+      apply({ x: nx, y: ny });
+    };
+    const end = () => {
+      if (!dragging) return;
+      dragging = false;
+      overlay.classList.remove('ag-dragging');
+      const r = overlay.getBoundingClientRect();
+      try { localStorage.setItem(STORE_KEY, JSON.stringify({ x: r.left, y: r.top })); } catch (_) {}
+    };
+    handle.addEventListener('mousedown',  start);
+    handle.addEventListener('touchstart', start, { passive: false });
+    window.addEventListener('mousemove',  move);
+    window.addEventListener('touchmove',  move, { passive: false });
+    window.addEventListener('mouseup',    end);
+    window.addEventListener('touchend',   end);
+    window.addEventListener('touchcancel', end);
+  }
+
   // ── Boot ──────────────────────────────────────────────────────────────────
   function boot() {
     wireToggle();
@@ -890,9 +962,10 @@
     wireWakePanel();
     wireManualGrab();
     wireCameraCapture();
+    wireDraggablePreview();
     // Connect socket immediately for Hevi Network discovery (even if AeroGrab is OFF)
     initSocket();
-    console.log('[AeroGrab] ready — by TWH');
+    console.log('[AeroGrab] ready — by TWH (v6 / ML)');
   }
 
   if (document.readyState === 'loading') {

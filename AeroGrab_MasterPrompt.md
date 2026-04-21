@@ -557,3 +557,53 @@ When two devices are available, verify ALL of these:
 - [ ] Tapping "Open file" opens the file in a new tab without a popup-blocked banner.
 - [ ] File is also already in Downloads (silent-save still works in parallel).
 
+
+---
+
+## v5 — Real On-Device ML + Draggable Preview + Strict Receiver Gate (April 21, 2026)
+
+### Problems reported in v4 testing
+1. **Phone B started receiving the moment Phone A made a fist** — i.e. the wake notification arrived and the receiver's UI auto-fired the catch. Root cause: the ratio-based math classifier on Phone B's camera was misreading the user's idle hand as `OPEN_PALM`, and because `_wakePayload` was set, it immediately fired `signalReadyToReceive()`.
+2. **File would download but never auto-open**, or sometimes never even reach the Downloads folder — symptom of the silent finalise path racing the WebRTC tear-down.
+3. **The "in-air" transfer window appeared on both phones without user intent** — same root cause as #1: false-positive palm on receiver as soon as a wake fired.
+4. **Live camera preview hides the AeroGrab toggle** — fixed bottom-right position blocks the toggle button on smaller phones; user wants to drag it anywhere.
+
+### Solutions added in v5
+
+**1. Real on-device ML model (MediaPipe Tasks Vision GestureRecognizer)**
+- Removed the old hand-rolled `classifyGesture()` that used finger-tip / knuckle distance ratios.
+- Removed CDN script tags for `@mediapipe/hands` and `@mediapipe/camera_utils`.
+- `aerograb.js` now lazy-imports `@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs` as ESM, then constructs a `GestureRecognizer` with the official `gesture_recognizer.task` model (~7.5 MB float16, served from Google's CDN, browser-cached after first load).
+- Recogniser runs in `VIDEO` mode at ~12 FPS via `recognizeForVideo()`. Returns labelled gestures with confidence scores.
+- Only `Closed_Fist` is mapped to `FIST`; only `Open_Palm` is mapped to `OPEN_PALM`. Every other label (`Pointing_Up`, `Thumb_Up`, `Thumb_Down`, `Victory`, `ILoveYou`, `None`) is ignored.
+- Hard threshold: `score >= 0.80` required before a gesture even becomes a candidate. Frame-debounce (`6/6`) and cool-down (`3500 ms`) preserved on top.
+
+**2. Strict receiver gate**
+- Receiver branch in `onGestureDetected` no longer fires just because `_wakePayload` is set. The receiver MUST see `Open_Palm` on its OWN camera, with ML confidence ≥ 0.80, for 6 consecutive frames.
+- Added explicit toast `"Nobody is sending right now. Open palm ignored."` if the user opens a palm without an active wake.
+- Removed the `_wakePayload` block from the session-lock so a pending wake doesn't freeze gesture detection — receiver still needs to actively palm-open.
+
+**3. Draggable camera preview**
+- New `<div class="ag-drag-handle" id="agDragHandle">⋮⋮ drag</div>` above the preview.
+- `wireDraggablePreview()` adds mouse + touch listeners, clamps to viewport, and persists `{x,y}` to `localStorage['ag_preview_pos']` so position survives reloads.
+- Overlay style sets `touch-action: none` and switches to absolute `left/top` once dragged. Default position remains bottom-right `12px / 154px`.
+
+**4. Landmark overlay alignment**
+- Tasks Vision returns raw (non-mirrored) landmarks. Video element is CSS-mirrored (`transform: scaleX(-1)`). Now drawing flips landmark x via `(1 - p.x)` so the skeleton overlay matches what the user sees.
+
+**5. Cache busting**
+- Bumped `aerograb.js?v=6`, kept `aerograb-animation.js?v=2`, removed unused MediaPipe Hands script tags from `index.html`.
+- Service worker bumped to `lhost-shell-v14` / `lhost-thumbs-v14` and registration query string `sw.js?v=14` so old shell caches are evicted.
+
+**6. No server / start.sh changes required**
+- The ML model is fetched directly by the browser from Google's `storage.googleapis.com` CDN. `server.js`, UDP discovery, and `start.sh` need no changes.
+
+### v5 testing checklist
+- [ ] First time turning AeroGrab on, label shows `Loading hand AI model (~7 MB, one-time)…` then `Hand AI ready`.
+- [ ] Showing a `Thumb_Up`, `Victory`, or `Pointing_Up` does NOT fire grab or catch (label shows e.g. `Thumb_Up 91%` but no firing).
+- [ ] Closed fist held for ~0.5 s → grab fires; label progresses `(0/6) → (6/6) → fire`.
+- [ ] Open palm on RECEIVER (with a wake pending) → catch fires; on RECEIVER without wake → toast "Nobody is sending right now."
+- [ ] Drag the live preview by the `⋮⋮ drag` handle — moves freely, sticks where dropped, position survives a refresh.
+- [ ] Receiver completes → green "Open file" button appears; file is also in Downloads.
+- [ ] Closing AeroGrab releases camera + recogniser; turning it on again loads from cache (instant).
+

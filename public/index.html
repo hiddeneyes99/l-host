@@ -2435,6 +2435,7 @@
 
     <!-- ── AEROGRAB: Live gesture label (shown on camera preview) ── -->
     <div class="ag-cam-overlay hidden" id="agCamOverlay">
+      <div class="ag-drag-handle" id="agDragHandle" title="Drag to move">⋮⋮ drag</div>
       <div class="ag-preview-wrap">
         <video id="aeroVideoEl" class="ag-preview-video" playsinline muted></video>
         <canvas id="aeroGestureCanvas" class="ag-preview-canvas" width="150" height="112"></canvas>
@@ -2449,16 +2450,16 @@
     <!-- ── CDN Scripts ── -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <!-- AeroGrab v5 uses MediaPipe Tasks Vision (real ML), loaded lazily as
+         an ESM bundle from inside aerograb.js. No CDN script tags needed. -->
 
     <script src="/iv.js?v=11"></script>
     <script src="/app.js?v=12"></script>
     <script src="/aerograb-animation.js?v=2"></script>
-    <script src="/aerograb.js?v=5"></script>
+    <script src="/aerograb.js?v=6"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js?v=11').then(reg => reg.update()).catch(() => {});
+        navigator.serviceWorker.register('/sw.js?v=14').then(reg => reg.update()).catch(() => {});
       }
 
       // ── Hevi Network: peer list rendering ─────────────────────────────────
