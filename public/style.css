@@ -6399,6 +6399,34 @@ img.lazy-img:not([src]) {
 }
 .sidebar-twh-credit svg { color: var(--text3); flex-shrink: 0; }
 
+/* ── YouTube Subscribe CTA (sidebar) ───────────────────────────────────────── */
+.yt-subscribe-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 12px 4px;
+  padding: 10px 14px;
+  background: #FF0000;                /* official YouTube red */
+  color: #ffffff;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(255, 0, 0, 0.28);
+  transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+.yt-subscribe-btn:hover {
+  background: #cc0000;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(255, 0, 0, 0.42);
+}
+.yt-subscribe-btn:active { transform: translateY(0); }
+.yt-subscribe-btn svg { color: #ffffff; flex-shrink: 0; }
+
 /* ── SETTINGS TWH FOOTER ── */
 .st-twh-footer {
   display: flex;
