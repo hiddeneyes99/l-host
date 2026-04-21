@@ -687,6 +687,9 @@
       _dataChannel.binaryType = 'arraybuffer';
       _dataChannel.onopen = () => startFileTransfer();
       _dataChannel.onclose = () => console.log('[AeroGrab] data channel closed');
+      // CRITICAL: sender must also listen for messages from receiver, so that
+      // a __TRANSFER_CANCEL__ from the receiver actually halts the sender.
+      _dataChannel.onmessage = onSenderControlMessage;
     } else {
       _peerConn.ondatachannel = ({ channel }) => {
         _dataChannel = channel;
@@ -793,6 +796,20 @@
     }
 
     pump();
+  }
+
+  // ── Sender-side control message handler (receiver → sender notifications) ──
+  function onSenderControlMessage(event) {
+    const data = event.data;
+    if (typeof data !== 'string') return;
+    if (data === '__TRANSFER_CANCEL__') {
+      // Receiver pressed Cancel mid-transfer.
+      _transferActive = false;
+      showToast('Receiver cancelled the transfer.', 'warn');
+      if (aeroAnim && aeroAnim.onCancelled) aeroAnim.onCancelled('Receiver cancelled');
+      if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
+      setTimeout(resetSession, 600);
+    }
   }
 
   // ── File Transfer — Receiver side ──────────────────────────────────────────

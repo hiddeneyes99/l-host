@@ -430,23 +430,30 @@
     ensureCancelButton();
   }
 
-  // ── Cancel button injected into the active animation stage ────────────────
+  // ── Body-fixed cancel button (immune to stage clears, always clickable) ───
+  let _cancelBtnEl = null;
   function ensureCancelButton() {
-    const stage = getStage();
-    if (!stage) return;
-    if (stage.querySelector('.ag-cancel-btn')) return;
+    if (_cancelBtnEl && document.body.contains(_cancelBtnEl)) return;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'ag-cancel-btn';
+    btn.id = 'aeroCancelBtn';
     btn.setAttribute('aria-label', 'Cancel transfer');
     btn.innerHTML = '<span class="ag-cancel-x">×</span><span class="ag-cancel-lbl">Cancel</span>';
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       if (window.aeroGrabCancel) window.aeroGrabCancel();
     });
-    stage.appendChild(btn);
+    document.body.appendChild(btn);
+    _cancelBtnEl = btn;
+  }
+  function removeCancelButton() {
+    if (_cancelBtnEl && _cancelBtnEl.parentNode) _cancelBtnEl.parentNode.removeChild(_cancelBtnEl);
+    _cancelBtnEl = null;
   }
 
   function onCancelled(msg) {
+    removeCancelButton();
     const stage = getStage();
     if (!stage) { return; }
     clearStage();
@@ -470,6 +477,7 @@
   // SUCCESS BLOOM
   // ═══════════════════════════════════════════════════════════════════════════
   function onSenderComplete() {
+    removeCancelButton();
     const stage = getStage();
     if (!stage) return;
     clearStage();
@@ -486,6 +494,7 @@
   }
 
   function onReceiverComplete(meta, openUrl) {
+    removeCancelButton();
     const stage = getStage();
     if (!stage) return;
     clearStage();

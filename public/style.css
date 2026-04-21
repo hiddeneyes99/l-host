@@ -7307,10 +7307,12 @@ img.lazy-img:not([src]) {
 }
 .ag-cam-close:active { transform: scale(0.92); }
 
-/* ── AeroGrab cancel button (overlay during transfer) ────────────────────── */
+/* ── AeroGrab cancel button (body-fixed during transfer) ─────────────────── */
 .ag-cancel-btn {
-  position: absolute;
-  top: 18px; right: 18px;
+  position: fixed;
+  top: max(18px, env(safe-area-inset-top, 18px));
+  right: max(18px, env(safe-area-inset-right, 18px));
+  z-index: 999999;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 9px 14px 9px 11px;
   background: rgba(255, 70, 80, 0.18);

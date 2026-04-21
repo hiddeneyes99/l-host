@@ -716,6 +716,7 @@ function mpFisherYates(len) {
 }
 
 function openAudio(item, url, queue = []) {
+  closeOtherMediaModals('audio');
   mp.queue = queue.length ? queue : [item];
   mp.index = mp.queue.findIndex(i => i.path === item.path);
   if (mp.index < 0) mp.index = 0;
@@ -2150,7 +2151,35 @@ function vpNext() {
   openVideo(vp.videoSet[vp.videoIdx], vp.videoSet, vp.videoIdx);
 }
 
+function closeOtherMediaModals(except) {
+  // Media modals are mutually exclusive — opening one auto-closes the rest so
+  // back-nav doesn't reveal a stale modal underneath (no flash, single back).
+  try {
+    if (except !== 'video' && !$('videoModal').classList.contains('hidden')) {
+      const v = $('videoPlayer'); if (v) { try { v.pause(); } catch(_){} }
+      $('videoModal').classList.add('hidden');
+    }
+    if (except !== 'audio' && !$('audioModal').classList.contains('hidden')) {
+      const a = $('mpAudio') || document.querySelector('audio'); if (a) { try { a.pause(); } catch(_){} }
+      $('audioModal').classList.add('hidden');
+    }
+    if (except !== 'image' && !$('imageModal').classList.contains('hidden')) {
+      $('imageModal').classList.add('hidden');
+    }
+    if (except !== 'pdf' && $('pdfModal') && !$('pdfModal').classList.contains('hidden')) {
+      $('pdfModal').classList.add('hidden');
+    }
+    if (except !== 'text' && $('textModal') && !$('textModal').classList.contains('hidden')) {
+      $('textModal').classList.add('hidden');
+    }
+    if (except !== 'archive' && $('archiveModal') && !$('archiveModal').classList.contains('hidden')) {
+      $('archiveModal').classList.add('hidden');
+    }
+  } catch (_) {}
+}
+
 function openVideo(item, videoSet, videoIdx) {
+  closeOtherMediaModals('video');
   if (videoSet && Array.isArray(videoSet)) {
     vp.videoSet = videoSet;
     vp.videoIdx = (videoIdx !== undefined) ? videoIdx : videoSet.findIndex(v => v.path === item.path);
@@ -3845,6 +3874,7 @@ $('archiveSearchInput').addEventListener('input', () => {
 
 // ── Image viewer (delegates to iv.js) ─────────────────────────────────────
 function openImage(item, imageSet, url) {
+  closeOtherMediaModals('image');
   const list = (imageSet && imageSet.length) ? imageSet : [item];
   const idx  = list.findIndex(i => i.path === item.path);
   const startIdx = idx >= 0 ? idx : 0;
