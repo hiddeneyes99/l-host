@@ -9,7 +9,9 @@
 (function AeroGrab() {
 
   // ── Constants ──────────────────────────────────────────────────────────────
-  const CHUNK_SIZE       = 64 * 1024;        // 64 KB per WebRTC chunk
+  const CHUNK_SIZE       = 256 * 1024;       // 256 KB per WebRTC chunk (SCTP max-safe)
+  const BUFFER_HIGH_WATER = 8 * 1024 * 1024; // pause when >8 MB buffered
+  const BUFFER_LOW_WATER  = 1 * 1024 * 1024; // resume when <1 MB buffered
   const FOLDER_MAX_BYTES = 1024 * 1024 * 1024; // 1 GB
   const FOLDER_MAX_FILES = 20;
 
@@ -40,6 +42,10 @@
   let _candidateStreak   = 0;
   let _neutralStreak     = 0;
   let _lastVideoTs       = -1;
+  let _transferActive    = false;
+  let _transferStartedAt = 0;
+  let _lastSenderUiAt    = 0;
+  let _videoTrack        = null;     // for pause/resume during transfer
 
   // ML thresholds — Tasks Vision returns labelled gestures with confidence
   // scores. We accept ONLY two gestures, and only above a strict threshold.
@@ -290,9 +296,15 @@
       const canvas  = $('aeroGestureCanvas');
       if (!videoEl || !canvas) throw new Error('Camera preview missing');
       _camStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
+        video: {
+          facingMode: 'user',
+          width:     { ideal: 320 },
+          height:    { ideal: 240 },
+          frameRate: { ideal: 15, max: 20 },
+        },
         audio: false,
       });
+      _videoTrack = _camStream.getVideoTracks()[0] || null;
       localStorage.setItem('ag_camera_ok', '1');
       videoEl.srcObject = _camStream;
       videoEl.muted = true;
@@ -314,10 +326,23 @@
         minTrackingConfidence: 0.5,
       });
 
+      // Adaptive frame loop — saves battery & heat:
+      //  • Mid-transfer: skip ML entirely (camera still on but no GPU work)
+      //  • Idle (no candidate, no wake): 5 fps (200 ms)
+      //  • Active arming or wake-pending: 15 fps (66 ms)
+      let _tickAccum = 0;
       const tick = () => {
         if (!_enabled || !_recognizer || !_camStream || _processingHands) return;
         if (videoEl.readyState < 2) return;
-        const ts = performance.now();
+        // Pause inference during transfer — saves significant CPU/GPU and heat.
+        if (_transferActive || _myRole) return;
+        // Adaptive throttling
+        const isActive  = _candidateStreak > 0 || _wakePayload || _neutralStreak < NEUTRAL_ARM_FRAMES;
+        const minGap    = isActive ? 66 : 200;
+        const now = performance.now();
+        if (now - _tickAccum < minGap) return;
+        _tickAccum = now;
+        const ts = now;
         if (ts === _lastVideoTs) return;
         _lastVideoTs = ts;
         _processingHands = true;
@@ -331,7 +356,7 @@
         }
       };
       clearInterval(_rafId);
-      _rafId = setInterval(tick, 80);
+      _rafId = setInterval(tick, 50);   // poll fast, but tick body throttles itself
       showCameraMessage('Hand AI ready — show your hand', 'success');
       return true;
     } catch (e) {
@@ -709,49 +734,65 @@
   function streamFileOverBridge(blob, name) {
     const totalSize = blob.size;
     let offset      = 0;
+    _transferActive = true;
+    _transferStartedAt = Date.now();
 
     // Send metadata header first
     const headerStr = JSON.stringify({ name, size: totalSize, type: blob.type });
     _dataChannel.send(headerStr);
 
-    function sendNextChunk() {
-      if (offset >= totalSize) {
-        try { _dataChannel.send('__TRANSFER_DONE__'); } catch (_) {}
-        // Drain WebRTC buffer before tearing down the channel; otherwise the
-        // last chunks + DONE marker can be silently dropped, leaving the
-        // receiver stuck on the landing animation with an incomplete file.
-        const drainAndClose = () => {
-          if (_dataChannel && _dataChannel.bufferedAmount > 0) {
-            setTimeout(drainAndClose, 80);
-            return;
+    // Use proper SCTP backpressure: pause sending when buffer fills, resume
+    // via the bufferedamountlow event. Way faster than setTimeout polling.
+    _dataChannel.bufferedAmountLowThreshold = BUFFER_LOW_WATER;
+    _dataChannel.onbufferedamountlow = () => { if (_transferActive) pump(); };
+
+    async function pump() {
+      while (_transferActive && offset < totalSize) {
+        if (!_dataChannel || _dataChannel.readyState !== 'open') return;
+        if (_dataChannel.bufferedAmount > BUFFER_HIGH_WATER) return; // wait for low event
+        const end   = Math.min(offset + CHUNK_SIZE, totalSize);
+        const slice = blob.slice(offset, end);
+        try {
+          // Modern Blob → ArrayBuffer (single Promise, no FileReader churn)
+          const buf = await slice.arrayBuffer();
+          if (!_transferActive || !_dataChannel || _dataChannel.readyState !== 'open') return;
+          _dataChannel.send(buf);
+          offset += buf.byteLength;
+          // Throttle progress UI to ~30 fps to avoid layout thrash
+          const now = performance.now();
+          if (now - _lastSenderUiAt > 33) {
+            _lastSenderUiAt = now;
+            const pct = Math.round((offset / totalSize) * 100);
+            aeroAnim.updateSenderProgress(pct);
           }
-          showToast('File sent successfully!', 'success');
-          if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
-          aeroAnim.onSenderComplete();
-          // Give the receiver a moment to flush its onmessage queue before
-          // we close the peer connection.
-          setTimeout(resetSession, 800);
-        };
-        drainAndClose();
-        return;
-      }
-      if (_dataChannel.readyState !== 'open') return;
-      const slice = blob.slice(offset, offset + CHUNK_SIZE);
-      const reader = new FileReader();
-      reader.onload = e => {
-        _dataChannel.send(e.target.result);
-        offset += e.target.result.byteLength;
-        const pct = Math.round((offset / totalSize) * 100);
-        aeroAnim.updateSenderProgress(pct);
-        if (_dataChannel.bufferedAmount < 16 * CHUNK_SIZE) {
-          sendNextChunk();
-        } else {
-          setTimeout(sendNextChunk, 50);
+        } catch (e) {
+          console.warn('[AeroGrab] send error:', e.message);
+          return;
         }
-      };
-      reader.readAsArrayBuffer(slice);
+      }
+      if (offset >= totalSize) finishSenderTransfer();
     }
-    sendNextChunk();
+
+    function finishSenderTransfer() {
+      try { _dataChannel.send('__TRANSFER_DONE__'); } catch (_) {}
+      aeroAnim.updateSenderProgress(100);
+      const drainAndClose = () => {
+        if (_dataChannel && _dataChannel.bufferedAmount > 0) {
+          setTimeout(drainAndClose, 80);
+          return;
+        }
+        const elapsed = (Date.now() - _transferStartedAt) / 1000;
+        const mbps = ((totalSize / (1024 * 1024)) / Math.max(elapsed, 0.01)).toFixed(1);
+        showToast(`File sent (${mbps} MB/s)`, 'success');
+        if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
+        aeroAnim.onSenderComplete();
+        _transferActive = false;
+        setTimeout(resetSession, 800);
+      };
+      drainAndClose();
+    }
+
+    pump();
   }
 
   // ── File Transfer — Receiver side ──────────────────────────────────────────
@@ -762,11 +803,21 @@
         finaliseReceivedFile();
         return;
       }
+      if (data === '__TRANSFER_CANCEL__') {
+        showToast('Sender cancelled the transfer.', 'warn');
+        _recvBuffer = []; _recvMeta = null; _recvReceived = 0;
+        _transferActive = false;
+        if (aeroAnim && aeroAnim.onCancelled) aeroAnim.onCancelled('Sender cancelled');
+        if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
+        setTimeout(resetSession, 600);
+        return;
+      }
       // JSON header with metadata
       try {
         _recvMeta     = JSON.parse(data);
         _recvBuffer   = [];
         _recvReceived = 0;
+        _transferActive = true;
       } catch (_) {}
       return;
     }
@@ -774,7 +825,7 @@
     _recvBuffer.push(data);
     _recvReceived += data.byteLength;
     if (_recvMeta && _recvMeta.size > 0) {
-      const pct = Math.round((_recvReceived / _recvMeta.size) * 100);
+      const pct = (_recvReceived / _recvMeta.size) * 100;
       aeroAnim.updateReceiverProgress(pct);
       // Auto-finalise once all bytes are in, even if the DONE marker was
       // dropped because the sender tore down the channel too fast.
@@ -923,6 +974,7 @@
     _recvBuffer  = [];
     _recvMeta    = null;
     _recvReceived = 0;
+    _transferActive = false;
     if (_peerConn) { try { _peerConn.close(); } catch (_) {} _peerConn = null; }
     _dataChannel = null;
     _lastGesture = null;
@@ -930,6 +982,22 @@
     _candidateStreak = 0;
     _neutralStreak = NEUTRAL_FRAMES_BEFORE_RETRIGGER;
   }
+
+  // ── Cancel an in-progress transfer (sender or receiver) ───────────────────
+  function cancelTransfer() {
+    if (!_transferActive && !_myRole && !_dataChannel) return;
+    try {
+      if (_dataChannel && _dataChannel.readyState === 'open') {
+        _dataChannel.send('__TRANSFER_CANCEL__');
+      }
+    } catch (_) {}
+    _transferActive = false;
+    if (aeroAnim && aeroAnim.onCancelled) aeroAnim.onCancelled('Cancelled');
+    if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
+    showToast('Transfer cancelled.', 'warn');
+    setTimeout(resetSession, 400);
+  }
+  window.aeroGrabCancel = cancelTransfer;
 
   // ── Deactivate AeroGrab completely ────────────────────────────────────────
   function deactivateAeroGrab() {

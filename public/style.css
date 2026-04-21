@@ -7307,6 +7307,49 @@ img.lazy-img:not([src]) {
 }
 .ag-cam-close:active { transform: scale(0.92); }
 
+/* ── AeroGrab cancel button (overlay during transfer) ────────────────────── */
+.ag-cancel-btn {
+  position: absolute;
+  top: 18px; right: 18px;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 14px 9px 11px;
+  background: rgba(255, 70, 80, 0.18);
+  border: 1px solid rgba(255, 90, 100, 0.55);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  transition: background 0.18s, border-color 0.18s, transform 0.12s;
+  z-index: 50;
+  letter-spacing: 0.2px;
+}
+.ag-cancel-btn:hover { background: rgba(255, 70, 80, 0.85); border-color: rgba(255,255,255,0.6); }
+.ag-cancel-btn:active { transform: scale(0.94); }
+.ag-cancel-btn .ag-cancel-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 50%;
+  font-size: 16px; line-height: 1; font-weight: 700;
+}
+.ag-cancelled .ag-cancel-ring {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 70, 80, 0.18);
+  border: 2px solid rgba(255, 90, 100, 0.6);
+  color: #ff6b78;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+  box-shadow: 0 0 30px rgba(255, 70, 80, 0.4);
+}
+@media (max-width: 480px) {
+  .ag-cancel-btn { top: 14px; right: 14px; padding: 8px 12px 8px 9px; font-size: 12px; }
+  .ag-cancel-btn .ag-cancel-lbl { display: none; }
+}
+
 /* ── PWA "How to install" modal ──────────────────────────────────────────── */
 .pwa-help {
   position: fixed; inset: 0; z-index: 1000;

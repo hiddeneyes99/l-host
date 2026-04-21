@@ -402,12 +402,68 @@
 
   function updateSenderProgress(pct) {
     const sub = $('agSenderProgress');
-    if (sub) sub.innerHTML = `Sending… <b>${pct}%</b>`;
+    if (sub) sub.innerHTML = `Sending… <b>${Math.round(pct)}%</b>`;
+    ensureCancelButton();
   }
 
+  // Smooth easing toward target pct so the receiver ring/label animate
+  // continuously even when chunks arrive in bursts.
+  let _recvCurrentPct = 0;
+  let _recvTargetPct  = 0;
+  let _recvRafId      = null;
+  function smoothRecvLoop() {
+    const diff = _recvTargetPct - _recvCurrentPct;
+    if (Math.abs(diff) < 0.05) {
+      _recvCurrentPct = _recvTargetPct;
+      applyRecvPct(_recvCurrentPct);
+      _recvRafId = null;
+      return;
+    }
+    _recvCurrentPct += diff * 0.18;        // ease toward target
+    applyRecvPct(_recvCurrentPct);
+    _recvRafId = requestAnimationFrame(smoothRecvLoop);
+  }
   function updateReceiverProgress(pct) {
     _pendingRecvPct = pct;
-    applyRecvPct(pct);
+    _recvTargetPct  = Math.max(0, Math.min(100, pct));
+    if (_recvRafId == null) _recvRafId = requestAnimationFrame(smoothRecvLoop);
+    ensureCancelButton();
+  }
+
+  // ── Cancel button injected into the active animation stage ────────────────
+  function ensureCancelButton() {
+    const stage = getStage();
+    if (!stage) return;
+    if (stage.querySelector('.ag-cancel-btn')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ag-cancel-btn';
+    btn.setAttribute('aria-label', 'Cancel transfer');
+    btn.innerHTML = '<span class="ag-cancel-x">×</span><span class="ag-cancel-lbl">Cancel</span>';
+    btn.addEventListener('click', () => {
+      if (window.aeroGrabCancel) window.aeroGrabCancel();
+    });
+    stage.appendChild(btn);
+  }
+
+  function onCancelled(msg) {
+    const stage = getStage();
+    if (!stage) { return; }
+    clearStage();
+    const wrap = document.createElement('div');
+    wrap.className = 'ag-success ag-cancelled';
+    wrap.innerHTML = `
+      <div class="ag-cancel-ring">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </div>
+      <div class="ag-success-label">${escHtml(msg || 'Cancelled')}</div>
+      <div class="ag-success-sub">Transfer stopped on both devices</div>
+    `;
+    stage.appendChild(wrap);
+    if (window.anime) anime({ targets: wrap, scale: [0.4, 1.05, 1], opacity: [0, 1], duration: 460, easing: 'easeOutBack' });
+    _recvCurrentPct = 0; _recvTargetPct = 0;
+    if (_recvRafId) { cancelAnimationFrame(_recvRafId); _recvRafId = null; }
+    setTimeout(hideStage, 1600);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -497,6 +553,7 @@
     updateReceiverProgress,
     onSenderComplete,
     onReceiverComplete,
+    onCancelled,
   };
 
 })();
