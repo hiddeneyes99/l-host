@@ -6624,182 +6624,325 @@ img.lazy-img:not([src]) {
   text-align: center;
 }
 
-/* ── Animation stage ──────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   AeroGrab Animation Engine v2.0 — premium SVG scenes
+   ═══════════════════════════════════════════════════════════════════════════ */
 .ag-anim-stage {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(7,11,18,0.88);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-/* ── File box ─────────────────────────────────────────────────────────────── */
-.ag-file-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 24px 32px;
-  background: var(--bg3);
-  border: 1px solid rgba(37,244,208,0.2);
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(37,244,208,0.06);
-  position: relative;
-}
-.ag-box-icon { font-size: 48px; line-height: 1; }
-.ag-box-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text2);
-  max-width: 200px;
-  text-align: center;
+  position: fixed; inset: 0; z-index: 900;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(10,30,40,0.92), rgba(3,7,12,0.96));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* ── Energy ring ──────────────────────────────────────────────────────────── */
-.ag-energy-ring {
+/* ── Backdrop aura ───────────────────────────────────────────────────────── */
+.ag-aura {
   position: absolute;
-  width: 120px;
-  height: 120px;
+  width: 600px; height: 600px;
   border-radius: 50%;
-  border: 3px solid var(--accent);
-  box-shadow: 0 0 20px rgba(37,244,208,0.4);
+  background: radial-gradient(circle, rgba(37,244,208,0.28) 0%, rgba(37,244,208,0.08) 40%, transparent 70%);
+  filter: blur(20px);
   pointer-events: none;
+  opacity: 0;
+}
+.ag-flash {
+  position: absolute;
+  width: 240px; height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0%, #7afbe5 25%, transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
 }
 
-/* ── Rocket ───────────────────────────────────────────────────────────────── */
-.ag-rocket {
-  font-size: 52px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* ── File card (sender start) ────────────────────────────────────────────── */
+.ag-file-card {
   position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 28px 36px;
+  background: linear-gradient(145deg, rgba(20,40,52,0.95), rgba(10,22,30,0.95));
+  border: 1px solid rgba(37,244,208,0.35);
+  border-radius: 22px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6),
+              0 0 60px rgba(37,244,208,0.18),
+              inset 0 1px 0 rgba(255,255,255,0.06);
+  z-index: 2;
 }
-.ag-rocket-land {
+.ag-card-glow {
+  position: absolute; inset: -40px;
+  border-radius: 40px;
+  background: conic-gradient(from 0deg, transparent, rgba(37,244,208,0.4), transparent 40%);
+  animation: agSpin 2.4s linear infinite;
+  opacity: 0.65;
+  z-index: -1;
+  filter: blur(8px);
+}
+.ag-card-icon { font-size: 56px; line-height: 1; filter: drop-shadow(0 0 12px rgba(37,244,208,0.5)); }
+.ag-card-name {
+  font-size: 13px; font-weight: 600; color: #d8fff8;
+  max-width: 220px; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+@keyframes agSpin { to { transform: rotate(360deg); } }
+
+/* ── Inflow energy strings ───────────────────────────────────────────────── */
+.ag-string {
   position: absolute;
+  width: 3px; height: 50px;
+  background: linear-gradient(to bottom, rgba(122,251,229,0.0), #7afbe5, #25f4d0);
+  border-radius: 2px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px #25f4d0);
+  transform-origin: center bottom;
 }
 
-/* ── Waiting state ────────────────────────────────────────────────────────── */
-.ag-waiting {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-.ag-waiting-rocket { font-size: 48px; }
-.ag-waiting-orbit {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  border: 2px dashed rgba(37,244,208,0.4);
-}
-.ag-waiting-label {
-  font-size: 15px;
-  color: var(--text2);
-  text-align: center;
-  line-height: 1.6;
-}
-
-/* ── Pulse ring (receiver) ────────────────────────────────────────────────── */
-.ag-pulse-ring {
+/* ── Energy orb (intermediate state) ─────────────────────────────────────── */
+.ag-orb {
   position: absolute;
-  width: 100px;
-  height: 100px;
+  width: 100px; height: 100px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(37,244,208,0.3), transparent 70%);
+  background: radial-gradient(circle at 35% 35%, #ffffff, #7afbe5 30%, #25f4d0 60%, #0a8c79 100%);
+  box-shadow: 0 0 50px #25f4d0, 0 0 100px rgba(37,244,208,0.5),
+              inset 0 0 30px rgba(255,255,255,0.4);
   pointer-events: none;
 }
 
-/* ── Beam (receiver) ──────────────────────────────────────────────────────── */
-.ag-beam {
+/* ── Comet (sender launch + receiver descent) ────────────────────────────── */
+.ag-comet {
   position: absolute;
-  width: 60px;
-  top: 0;
-  bottom: 0;
-  background: linear-gradient(to bottom, rgba(37,244,208,0.0), rgba(37,244,208,0.25), rgba(37,244,208,0.0));
-  border-radius: 30px;
+  display: flex; flex-direction: column; align-items: center;
+  pointer-events: none;
+}
+.ag-comet-trail {
+  position: absolute;
+  width: 18px; height: 200px;
+  bottom: -200px;
+  background: linear-gradient(to top, rgba(37,244,208,0), rgba(122,251,229,0.5) 30%, #ffffff 100%);
+  border-radius: 50%;
+  filter: blur(4px);
+  opacity: 0.9;
+}
+.ag-comet-trail-down {
+  bottom: auto; top: -200px;
+  background: linear-gradient(to bottom, rgba(37,244,208,0), rgba(122,251,229,0.5) 30%, #ffffff 100%);
+}
+.ag-comet-head { position: relative; z-index: 2; }
+.ag-rocket-svg {
+  width: 64px; height: 96px;
+  filter: drop-shadow(0 0 12px rgba(37,244,208,0.7));
+}
+.ag-comet-rocket-down { transform: rotate(180deg); }
+.ag-rocket-flame { transform-origin: 32px 64px; animation: agFlame 0.18s linear infinite alternate; }
+@keyframes agFlame { from { transform: scaleY(1); } to { transform: scaleY(1.25); } }
+
+/* ── Sender radar waiting ────────────────────────────────────────────────── */
+.ag-radar {
+  position: relative;
+  width: 280px; height: 280px;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+}
+.ag-radar-pulse {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(37,244,208,0.4);
+  animation: agRadarPulse 3.6s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes agRadarPulse {
+  0%   { transform: scale(0.4); opacity: 0; }
+  10%  { opacity: 0.9; }
+  100% { transform: scale(1.0); opacity: 0; }
+}
+.ag-radar-sweep {
+  position: absolute; inset: 20px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(37,244,208,0.5) 30deg, transparent 60deg);
+  animation: agSpin 2.8s linear infinite;
+  pointer-events: none;
+  mask: radial-gradient(circle, transparent 35%, black 36%);
+  -webkit-mask: radial-gradient(circle, transparent 35%, black 36%);
+}
+.ag-radar-core {
+  position: relative;
+  width: 84px; height: 84px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgba(20,40,52,0.95), rgba(10,22,30,0.95));
+  border: 1.5px solid rgba(37,244,208,0.6);
+  box-shadow: 0 0 30px rgba(37,244,208,0.4);
+  display: flex; align-items: center; justify-content: center;
+  animation: agBreathe 2.2s ease-in-out infinite;
+}
+@keyframes agBreathe {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 30px rgba(37,244,208,0.4); }
+  50%      { transform: scale(1.06); box-shadow: 0 0 50px rgba(37,244,208,0.7); }
+}
+.ag-radar-icon { font-size: 40px; filter: drop-shadow(0 0 8px rgba(37,244,208,0.6)); }
+.ag-radar-label {
+  position: absolute; top: 100%; margin-top: 24px;
+  text-align: center; line-height: 1.5;
+}
+.ag-radar-title { font-size: 16px; font-weight: 700; color: #d8fff8; letter-spacing: 0.4px; }
+.ag-radar-sub   { font-size: 13px; color: rgba(216,255,248,0.65); margin-top: 4px; }
+.ag-radar-sub b { color: #25f4d0; }
+
+/* ── Receiver landing scene ──────────────────────────────────────────────── */
+.ag-sky-beam {
+  position: absolute;
+  width: 80px;
+  top: 0; bottom: 50%;
+  background: linear-gradient(to bottom, transparent, rgba(122,251,229,0.6), rgba(37,244,208,0.2));
+  border-radius: 0 0 40px 40px;
+  filter: blur(2px);
   transform-origin: top center;
   pointer-events: none;
 }
-
-/* ── Progress ring ────────────────────────────────────────────────────────── */
-.ag-progress-wrap {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ag-ring-svg {
+.ag-landing-pad {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-  stroke: none;
+  width: 160px; height: 160px;
+  display: flex; align-items: center; justify-content: center;
 }
-.ag-ring-bg {
-  fill: none;
-  stroke: var(--bg4);
-  stroke-width: 6;
+.ag-pad-ring {
+  position: absolute; inset: 0;
+  border: 2px dashed rgba(37,244,208,0.6);
+  border-radius: 50%;
+  animation: agSpin 8s linear infinite;
 }
-.ag-ring-fill {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 6;
-  stroke-linecap: round;
-  stroke-dasharray: 213.63;
-  stroke-dashoffset: 213.63;
-  transition: stroke-dashoffset 0.3s ease;
+.ag-pad-ring2 {
+  inset: 24px;
+  border-style: solid; border-width: 1px;
+  border-color: rgba(37,244,208,0.3);
+  animation: agSpin 6s linear infinite reverse;
 }
-.ag-ring-pct {
-  position: relative;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--accent);
-  z-index: 1;
+.ag-pad-core {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #7afbe5;
+  box-shadow: 0 0 20px #25f4d0, 0 0 40px rgba(37,244,208,0.6);
+  animation: agBreathe 1.4s ease-in-out infinite;
+}
+.ag-shockwave {
+  position: absolute;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  border: 3px solid #7afbe5;
+  box-shadow: 0 0 30px #25f4d0;
+  pointer-events: none;
 }
 
-/* ── Done state ───────────────────────────────────────────────────────────── */
-.ag-done {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
+/* ── Receiver card with progress ring ─────────────────────────────────────── */
+.ag-recv-card {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 28px 32px;
+  background: linear-gradient(145deg, rgba(20,40,52,0.95), rgba(10,22,30,0.95));
+  border: 1px solid rgba(37,244,208,0.35);
+  border-radius: 22px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 60px rgba(37,244,208,0.2);
+  z-index: 2;
 }
-.ag-done-icon { font-size: 56px; }
-.ag-done-label {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--success);
+.ag-recv-ring-wrap {
+  position: relative;
+  width: 110px; height: 110px;
+  display: flex; align-items: center; justify-content: center;
+}
+.ag-recv-icon { font-size: 40px; filter: drop-shadow(0 0 10px rgba(37,244,208,0.6)); }
+.ag-recv-name {
+  font-size: 14px; font-weight: 600; color: #d8fff8;
+  max-width: 240px; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ag-recv-sub { font-size: 12px; color: #25f4d0; letter-spacing: 0.4px; font-weight: 600; }
+
+/* Progress ring SVG */
+.ag-pring-svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+.ag-pring-fill {
+  transition: stroke-dashoffset 0.3s ease;
+  filter: drop-shadow(0 0 6px rgba(37,244,208,0.6));
+}
+.ag-pring-shine {
+  filter: drop-shadow(0 0 8px #ffffff);
+  transform-origin: 50px 50px;
+  animation: agSpin 1.6s linear infinite;
+}
+
+/* ── Particles + confetti ────────────────────────────────────────────────── */
+.ag-particle {
+  position: absolute;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+}
+.ag-confetti {
+  position: absolute;
+  width: 8px; height: 14px;
+  border-radius: 2px;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* ── Success bloom (sender + receiver final) ─────────────────────────────── */
+.ag-success {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 32px 36px;
+  background: linear-gradient(145deg, rgba(20,40,52,0.92), rgba(10,22,30,0.95));
+  border: 1px solid rgba(37,244,208,0.4);
+  border-radius: 22px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 80px rgba(37,244,208,0.25);
+  z-index: 2;
+}
+.ag-check-svg { width: 72px; height: 72px; }
+.ag-check-circle {
+  stroke-dasharray: 176;
+  stroke-dashoffset: 176;
+  transform-origin: 32px 32px;
+  transform: rotate(-90deg);
+  animation: agDrawCircle 0.7s ease-out 0.1s forwards;
+}
+.ag-check-tick {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation: agDrawTick 0.5s ease-out 0.65s forwards;
+}
+@keyframes agDrawCircle { to { stroke-dashoffset: 0; } }
+@keyframes agDrawTick   { to { stroke-dashoffset: 0; } }
+.ag-success-label {
+  font-size: 18px; font-weight: 700; color: #25f4d0;
+  text-align: center; max-width: 80vw; word-break: break-word;
+  letter-spacing: 0.3px;
+}
+.ag-success-sub {
+  font-size: 12px; color: rgba(216,255,248,0.65);
   text-align: center;
-  max-width: 80vw;
-  word-break: break-word;
-}
-.ag-done-sub {
-  font-size: 12px;
-  color: var(--text-muted, #888);
 }
 .ag-open-btn {
-  margin-top: 8px;
+  margin-top: 10px;
   padding: 12px 28px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #001a14;
-  background: var(--accent);
+  background: linear-gradient(145deg, #7afbe5, #25f4d0);
   border: none;
   border-radius: 999px;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(37, 244, 208, 0.4);
+  box-shadow: 0 6px 20px rgba(37, 244, 208, 0.4);
+  letter-spacing: 0.3px;
 }
 .ag-open-btn:active { transform: scale(0.96); }
+
+/* ── Reduced-motion respect ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .ag-card-glow, .ag-radar-pulse, .ag-radar-sweep, .ag-radar-core,
+  .ag-pad-ring, .ag-pad-ring2, .ag-pad-core, .ag-pring-shine,
+  .ag-rocket-flame { animation: none !important; }
+}
 
 /* ── AeroGrab camera overlay ─────────────────────────────────────────────── */
 .ag-cam-overlay {

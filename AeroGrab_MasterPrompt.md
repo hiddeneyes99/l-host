@@ -695,3 +695,76 @@ body: raw bytes (Content-Type: application/octet-stream)
 - [ ] Snap from open → fist → open without pausing → only the FIRST gesture (open) fires; the snap-fist is rejected with `↺ relax hand first`.
 - [ ] Holding fist solidly for ~0.8 s → label counter goes `(0/10) → (10/10) → fire`.
 - [ ] Walking with closed hand visible to camera → no spurious receive triggers as long as hand bbox stays small or confidence stays below 0.88.
+
+---
+
+## v7 — Premium Animation Engine v2.0 (April 21, 2026)
+
+### Why
+v1 animations were emoji-based (🚀, ✅) and felt cheap relative to the rest of Hevi's polish. The "send" was a flying emoji; the "receive" was a bouncing emoji + green tick. No coherent visual story, no use of the brand accent (#25f4d0), no "wow" moment.
+
+### Concept
+A single coherent **energy-transfer narrative**:
+- **Sender** "compresses" the file into pure energy → "shoots it as a comet" upward.
+- **Receiver** sees the "comet descend from sky" → "decompress on impact" → file unfolds at centre with progress.
+
+### Scenes (top to bottom of the engine)
+
+**1. Sender — Energy Compression** (`showSenderLaunch`)
+- File card lands at centre with conic-gradient rotating glow border (`.ag-card-glow`) and dropshadow.
+- 14 energy "strings" (`.ag-string`) fly INTO the card from random angles around the perimeter — gives a tactile "the file is being grabbed and condensed" feel.
+- Card pulses (1.0 → 1.05 → 0.92 → 1.18) during compression.
+
+**2. Sender — Comet Launch** (`morphAndLaunch`)
+- Card collapses into a glowing white-cyan **orb** (`.ag-orb`) with radial-gradient highlight.
+- Brief white **flash** with `mix-blend-mode: screen` for the "ignition" moment.
+- Custom **SVG rocket** (`rocketSVG()`): linear-gradient body (`#7afbe5 → #25f4d0 → #0a8c79`), radial-gradient flame ellipse with a 0.18s `agFlame` flicker keyframe, port-hole window with reflection, fins. Drop-shadow glow.
+- Comet has a **multi-layer blurred trail** (`.ag-comet-trail`) — linear-gradient from transparent to white at the rocket end, blurred with `filter: blur(4px)`.
+- Travels `-window.innerHeight * 0.85` upward in 1200 ms with `easeInCubic`.
+
+**3. Sender — Radar Waiting** (`showSenderRadar`)
+- 280 × 280 px **radar dish**: 3 staggered concentric **pulse rings** (`.ag-radar-pulse`, 3.6 s loop, 1.2 s stagger via inline `animation-delay`).
+- Rotating **conic sweep cone** (`.ag-radar-sweep`) — masked with `radial-gradient` to create a hollow ring.
+- Centre **core** (`.ag-radar-core`) with the file emoji, 2.2 s breathing pulse (`agBreathe`).
+- Status label below: "In flight…" + dynamic "Sending… X%" once bytes start flowing.
+
+**4. Receiver — Sky Beam + Landing** (`showReceiverLanding`)
+- Sky **beam** (`.ag-sky-beam`) descends from top with `scaleY` 0 → 1, fades from 0.6 → 0.2 opacity.
+- **Landing pad**: 2 dashed/solid concentric rings rotating in opposite directions, glowing core dot in centre with breathing pulse.
+- **Inverted rocket** (`ag-comet-rocket-down`) descends from `-window.innerHeight * 0.65` with white motion-blur trail above it (instead of below).
+
+**5. Receiver — Impact Shockwave** (`onLandingImpact`)
+- **Shockwave ring** (`.ag-shockwave`): cyan 3 px border + 30 px box-shadow, scales 0 → 4.5 in 750 ms with `easeOutExpo`.
+- **28-particle 360° burst** in two cyan tones (`#25f4d0`, `#7afbe5`) — even arc spacing with random ±10° jitter, 80–160 px throw distance.
+- Comet + landing pad fade out simultaneously.
+
+**6. Receiver — File Card Unfold** (`revealReceiverCard`)
+- Card with embedded **progress ring** wrapping the file emoji.
+- Progress ring is an SVG (`progressRingSVG`):
+  - Background circle (rgba(37,244,208,0.15) stroke).
+  - Foreground arc with `linearGradient #7afbe5 → #25f4d0`, `stroke-linecap: round`, drop-shadow glow.
+  - Tiny white **shine cap** dot (`.ag-pring-shine`) that rotates around the ring 1.6 s/turn — gives a "data-streaming" feel.
+- Subtitle updates "Receiving X%" → "Saving…" at 100%.
+
+**7. Success Bloom** (`onSenderComplete` / `onReceiverComplete`)
+- Custom **SVG checkmark** with stroke-dash draw-on:
+  - Circle: `stroke-dasharray:176`, draws over 0.7 s.
+  - Tick: `stroke-dasharray:60`, draws over 0.5 s, starts at 0.65 s (after circle is mostly drawn).
+- 32-piece **3-color confetti** burst (`#25f4d0`, `#7afbe5`, `#ffffff`) with arc trajectory: shoots up 120–240 px then falls 280–380 px with rotation. `box-shadow: 0 0 6px currentColor` gives glow.
+- Card auto-hides after 2.2 s (sender) / 4.2 s (receiver auto-opened) / 12 s (receiver with manual open button).
+
+### Files changed in v7
+- `public/aerograb-animation.js` — full rewrite to v2.0 (321 → ~330 lines but now SVG-driven, six new scene functions, three particle helpers).
+- `public/style.css` — replaced AeroGrab animation block (lines 6627–6802 area) with v2.0 styles. New keyframes: `agSpin`, `agFlame`, `agRadarPulse`, `agBreathe`, `agDrawCircle`, `agDrawTick`. Added `prefers-reduced-motion` opt-out.
+- `public/index.html` — bumped `aerograb-animation.js?v=4`.
+
+### API surface (unchanged from v1 → v2)
+`window.aeroAnim` still exposes `showSenderLaunch`, `showReceiverLanding`, `updateSenderProgress`, `updateReceiverProgress`, `onSenderComplete`, `onReceiverComplete`. So `aerograb.js` needs zero changes.
+
+### v7 testing checklist
+- [ ] Trigger send → centre card appears with rotating conic glow, energy strings flow in, card morphs to orb, white flash, custom SVG rocket comet streaks up with blurred trail.
+- [ ] After launch → radar scene appears with 3 pulsing rings + rotating sweep + breathing core; sub-label updates with live "Sending… X%".
+- [ ] On receiver → sky beam descends, landing pad rings rotate, inverted rocket falls with trail above it, shockwave + burst on impact, card unfolds with shimmer-cap progress ring.
+- [ ] Progress ring fills smoothly from 0 → 100, white shine cap orbits continuously while filling.
+- [ ] On completion → SVG check draws on (circle then tick), 3-color confetti rains, card auto-hides.
+- [ ] On a device with `prefers-reduced-motion: reduce` → ambient loops disable but transitions still play.
