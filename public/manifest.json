@@ -1,6 +1,6 @@
 {
-  "name": "Hevi Explorer — by TWH",
-  "short_name": "Hevi",
+  "name": "Hevi Explorer",
+  "short_name": "Hevi Explorer",
   "description": "Local-first file manager, media server and AeroGrab gesture file transfer — by Technical White Hat.",
   "start_url": "/",
   "scope": "/",

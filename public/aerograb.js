@@ -217,13 +217,16 @@
     });
 
     // ── Peer cancelled the transfer (relayed via socket as backup)
-    _socket.on('TRANSFER_CANCELLED_REMOTE', ({ sessionId }) => {
-      if (sessionId !== _sessionId) return;
-      if (!_transferActive && !_myRole) return;
+    _socket.on('TRANSFER_CANCELLED_REMOTE', ({ sessionId } = {}) => {
+      // Bulletproof: kill the cancel button + reset whenever the server tells
+      // us the other side cancelled. Don't gate on local state — if there's
+      // any role/session/cancel button, we want it gone.
+      console.log('[AeroGrab] remote cancel received', sessionId, _sessionId);
       _transferActive = false;
       _recvBuffer = []; _recvMeta = null; _recvReceived = 0;
-      showToast('Other side cancelled the transfer.', 'warn');
+      if (aeroAnim && aeroAnim.hideCancelButton) aeroAnim.hideCancelButton();
       if (aeroAnim && aeroAnim.onCancelled) aeroAnim.onCancelled('Cancelled');
+      showToast('Other side cancelled the transfer.', 'warn');
       setTimeout(resetSession, 600);
     });
 
@@ -797,16 +800,33 @@
     _dataChannel.bufferedAmountLowThreshold = BUFFER_LOW_WATER;
     _dataChannel.onbufferedamountlow = () => { if (_transferActive) pump(); };
 
+    // Big-read optimisation: read 4 MB at a time from the Blob, then send
+    // as many SCTP-sized sub-chunks as possible synchronously. This removes
+    // the per-chunk Blob.arrayBuffer() await that was the main bottleneck.
+    const SUPER_CHUNK = 4 * 1024 * 1024; // 4 MB read window
+    let superBuf      = null;            // ArrayBuffer for current window
+    let superBufStart = 0;               // file offset where superBuf begins
     async function pump() {
       while (_transferActive && offset < totalSize) {
         if (!_dataChannel || _dataChannel.readyState !== 'open') return;
         if (_dataChannel.bufferedAmount > BUFFER_HIGH_WATER) return; // wait for low event
-        const end   = Math.min(offset + chunkSize, totalSize);
-        const slice = blob.slice(offset, end);
-        try {
-          // Modern Blob → ArrayBuffer (single Promise, no FileReader churn)
-          const buf = await slice.arrayBuffer();
+        // Refill the super-buffer if we've drained it
+        if (!superBuf || offset >= superBufStart + superBuf.byteLength) {
+          const sliceEnd = Math.min(offset + SUPER_CHUNK, totalSize);
+          try {
+            superBuf      = await blob.slice(offset, sliceEnd).arrayBuffer();
+            superBufStart = offset;
+          } catch (e) {
+            console.warn('[AeroGrab] read error:', e.message);
+            return;
+          }
           if (!_transferActive || !_dataChannel || _dataChannel.readyState !== 'open') return;
+        }
+        try {
+          const end       = Math.min(offset + chunkSize, superBufStart + superBuf.byteLength, totalSize);
+          const subOffset = offset - superBufStart;
+          const subEnd    = end    - superBufStart;
+          const buf       = superBuf.slice(subOffset, subEnd);
           _dataChannel.send(buf);
           offset += buf.byteLength;
           // Throttle progress UI to ~30 fps to avoid layout thrash

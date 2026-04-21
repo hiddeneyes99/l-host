@@ -3617,11 +3617,34 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
     // Backup cancel relay — guarantees the other peer hides its UI even when
     // the WebRTC data channel is too choked to deliver the in-band CANCEL.
     socket.on('TRANSFER_CANCEL_RELAY', ({ sessionId } = {}) => {
+      console.log('[AeroGrab] cancel relay:', sessionId, 'from', socket.id);
       const s = aeroSessions.get(sessionId);
-      if (!s) return;
-      const otherId = (s.senderId === socket.id) ? s.receiverId : s.senderId;
-      if (otherId && io.sockets.sockets.get(otherId)) {
-        io.to(otherId).emit('TRANSFER_CANCELLED_REMOTE', { sessionId });
+      let delivered = false;
+      if (s) {
+        const otherId = (s.senderId === socket.id) ? s.receiverId : s.senderId;
+        if (otherId && io.sockets.sockets.get(otherId)) {
+          io.to(otherId).emit('TRANSFER_CANCELLED_REMOTE', { sessionId });
+          delivered = true;
+        }
+        // Cross-LAN: forward to the other server if the peer lives there
+        if (!delivered && otherId && typeof parseLanSocketId === 'function') {
+          try {
+            const remote = parseLanSocketId(otherId);
+            if (remote && remote.serverId !== LAN_SERVER_ID) {
+              const server = lanServers && lanServers.get && lanServers.get(remote.serverId);
+              if (server) {
+                postLan(server, '/api/aerograb/lan/cancel', { sessionId })
+                  .catch(e => console.warn('[AeroGrab LAN] cancel relay failed:', e.message));
+                delivered = true;
+              }
+            }
+          } catch (_) {}
+        }
+      }
+      // Last resort: broadcast to everyone except sender — receivers filter
+      // by sessionId on the client, so this is safe.
+      if (!delivered) {
+        socket.broadcast.emit('TRANSFER_CANCELLED_REMOTE', { sessionId });
       }
     });
 
