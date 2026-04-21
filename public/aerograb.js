@@ -43,12 +43,16 @@
 
   // ML thresholds — Tasks Vision returns labelled gestures with confidence
   // scores. We accept ONLY two gestures, and only above a strict threshold.
-  const ML_MIN_CONFIDENCE  = 0.92;        // gesture confidence floor (was 0.88)
-  const FIRE_FRAME_COUNT   = 14;          // hold ~1.1s @ 12fps  (was 10)
-  const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 8;
-  const GESTURE_COOLDOWN_MS = 3500;
-  const NEUTRAL_ARM_FRAMES = 6;           // need this many neutral frames before any new fire (was 4)
-  const MIN_HAND_BBOX      = 0.22;        // hand must occupy >=22% of frame on its longer axis (was 0.18)
+  // Per-gesture confidence floors. Closed_Fist routinely scores 0.75–0.90 in
+  // MediaPipe (esp. with motion / partial occlusion), so a flat 0.92 floor
+  // basically blocked it. Open_Palm is easy to detect reliably so it stays high.
+  const ML_MIN_CONFIDENCE_FIST = 0.72;
+  const ML_MIN_CONFIDENCE_PALM = 0.85;
+  const FIRE_FRAME_COUNT   = 8;           // hold ~0.65s @ 12fps  (was 14)
+  const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 6;
+  const GESTURE_COOLDOWN_MS = 3000;
+  const NEUTRAL_ARM_FRAMES = 4;           // need this many neutral frames before any new fire (was 6)
+  const MIN_HAND_BBOX      = 0.18;        // hand must occupy >=18% of frame on its longer axis (was 0.22)
   // After a WAKE_UP arrives, force the receiver to actively re-arm: the camera
   // must first see "no hand" or sustained neutral before any OPEN_PALM is
   // accepted. Prevents auto-receive when a relaxed hand is already in frame.
@@ -425,7 +429,9 @@
     const top = (results.gestures && results.gestures[0] && results.gestures[0][0]) || null;
     const rawLabel = top ? top.categoryName : 'None';
     const score    = top ? top.score : 0;
-    const gesture  = (score >= ML_MIN_CONFIDENCE) ? mapMlGesture(rawLabel) : null;
+    let gesture = mapMlGesture(rawLabel);
+    if (gesture === 'FIST'      && score < ML_MIN_CONFIDENCE_FIST) gesture = null;
+    if (gesture === 'OPEN_PALM' && score < ML_MIN_CONFIDENCE_PALM) gesture = null;
     if (lbl) {
       const armed = _candidateGesture === gesture ? _candidateStreak : 0;
       const pct = Math.round(score * 100);
