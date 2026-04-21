@@ -6625,6 +6625,166 @@ img.lazy-img:not([src]) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   AeroGrab — First-run Tutorial overlay
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ag-tut {
+  position: fixed; inset: 0; z-index: 950;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(8,18,26,0.92), rgba(2,6,10,0.97));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 24px;
+  animation: agTutFade 0.32s ease-out;
+}
+@keyframes agTutFade { from { opacity: 0; } to { opacity: 1; } }
+
+.ag-tut-card {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  background: linear-gradient(160deg, rgba(20,40,52,0.98), rgba(10,22,30,0.98));
+  border: 1px solid rgba(37,244,208,0.32);
+  border-radius: 26px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.7), 0 0 80px rgba(37,244,208,0.18);
+  padding: 28px 24px 22px;
+  display: flex; flex-direction: column;
+  gap: 18px;
+}
+.ag-tut-skip {
+  position: absolute; top: 14px; right: 16px;
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+  color: rgba(216,255,248,0.55);
+  padding: 4px 8px;
+  letter-spacing: 0.3px;
+}
+.ag-tut-skip:hover { color: #25f4d0; }
+
+/* ── Step body ──────────────────────────────────────────────────────────── */
+.ag-tut-step {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center;
+  animation: agTutSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes agTutSlide {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Art zone (emoji + pulses) ──────────────────────────────────────────── */
+.ag-tut-art {
+  position: relative;
+  width: 160px; height: 160px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 10px;
+}
+.ag-tut-pulse {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(37,244,208,0.5);
+  animation: agTutPulse 2.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes agTutPulse {
+  0%   { transform: scale(0.55); opacity: 0; }
+  10%  { opacity: 1; }
+  100% { transform: scale(1.2); opacity: 0; }
+}
+.ag-tut-emoji {
+  font-size: 88px; line-height: 1;
+  filter: drop-shadow(0 0 20px rgba(37,244,208,0.6));
+  animation: agTutBob 1.8s ease-in-out infinite;
+  z-index: 2;
+}
+@keyframes agTutBob {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50%      { transform: scale(1.06) translateY(-3px); }
+}
+
+/* ── Tips (step 3) ──────────────────────────────────────────────────────── */
+.ag-tut-tips {
+  display: flex; flex-direction: column; gap: 8px; width: 100%;
+  padding: 0 4px;
+}
+.ag-tut-tip {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  background: rgba(37,244,208,0.07);
+  border: 1px solid rgba(37,244,208,0.2);
+  border-radius: 12px;
+  font-size: 13px;
+  color: #d8fff8;
+  text-align: left;
+}
+.ag-tut-tip-icon {
+  font-size: 22px;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(37,244,208,0.12);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+/* ── Text ───────────────────────────────────────────────────────────────── */
+.ag-tut-kicker {
+  font-size: 11px; font-weight: 800; letter-spacing: 1.6px;
+  text-transform: uppercase; color: #25f4d0;
+}
+.ag-tut-title {
+  font-size: 22px; font-weight: 800;
+  color: #ffffff;
+  margin: 4px 0 4px;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+.ag-tut-title span {
+  color: #25f4d0;
+  text-shadow: 0 0 18px rgba(37,244,208,0.5);
+}
+.ag-tut-body {
+  font-size: 13.5px;
+  color: rgba(216,255,248,0.78);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 320px;
+}
+
+/* ── Footer (dots + next button) ────────────────────────────────────────── */
+.ag-tut-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 4px;
+}
+.ag-tut-dots { display: flex; gap: 8px; }
+.ag-tut-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(37,244,208,0.25);
+  transition: width 0.25s ease, background 0.25s ease;
+}
+.ag-tut-dot.is-active {
+  width: 24px;
+  border-radius: 4px;
+  background: #25f4d0;
+}
+.ag-tut-next {
+  padding: 11px 26px;
+  font-size: 14px; font-weight: 700;
+  color: #001a14;
+  background: linear-gradient(145deg, #7afbe5, #25f4d0);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(37, 244, 208, 0.4);
+  letter-spacing: 0.3px;
+  transition: transform 0.12s ease;
+}
+.ag-tut-next:active { transform: scale(0.96); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-tut-pulse, .ag-tut-emoji { animation: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    AeroGrab — Recent Receives history panel
    ═══════════════════════════════════════════════════════════════════════════ */
 .ag-history-list {

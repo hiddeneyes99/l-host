@@ -209,6 +209,13 @@
   async function toggleAeroGrab(enable) {
     if (enable === _enabled) return;
     if (enable) {
+      // First-time users: show the 3-step tutorial BEFORE we ask for camera
+      // permission. This way they understand WHY camera is needed before the
+      // browser prompt appears.
+      if (!hasSeenTutorial()) {
+        const proceed = await showTutorial();
+        if (!proceed) return;            // user skipped → don't activate
+      }
       _enabled = true;
       showGreenDot(true);
       const ok = await initMediaPipe();
@@ -1038,6 +1045,68 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // FIRST-RUN TUTORIAL — 3-step overlay shown before first AeroGrab activation
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Returns Promise<boolean>: true if user completed/got-it, false if skipped.
+  // Persistence: localStorage['aerograb_tutorial_seen'] = '1'
+  // Replay: window.aeroGrab.replayTutorial() (also re-runs from settings later).
+  // ─────────────────────────────────────────────────────────────────────────
+  const TUT_KEY = 'aerograb_tutorial_seen';
+  const TUT_TOTAL = 3;
+
+  function hasSeenTutorial() {
+    try { return localStorage.getItem(TUT_KEY) === '1'; }
+    catch (_) { return false; }
+  }
+  function markTutorialSeen() {
+    try { localStorage.setItem(TUT_KEY, '1'); } catch (_) {}
+  }
+
+  function showTutorial() {
+    return new Promise(resolve => {
+      const overlay = document.getElementById('aeroTutorial');
+      const nextBtn = document.getElementById('aeroTutNext');
+      const skipBtn = document.getElementById('aeroTutSkip');
+      if (!overlay || !nextBtn || !skipBtn) { markTutorialSeen(); return resolve(true); }
+
+      let step = 1;
+      const showStep = (n) => {
+        overlay.querySelectorAll('.ag-tut-step').forEach(el => {
+          el.classList.toggle('hidden', Number(el.dataset.step) !== n);
+        });
+        overlay.querySelectorAll('.ag-tut-dot').forEach(d => {
+          d.classList.toggle('is-active', Number(d.dataset.dot) === n);
+        });
+        nextBtn.textContent = (n === TUT_TOTAL) ? 'Got it ✓' : 'Next →';
+      };
+
+      const cleanup = (proceed) => {
+        overlay.classList.add('hidden');
+        nextBtn.onclick = null;
+        skipBtn.onclick = null;
+        markTutorialSeen();
+        resolve(proceed);
+      };
+
+      nextBtn.onclick = () => {
+        if (step < TUT_TOTAL) { step += 1; showStep(step); }
+        else                  { cleanup(true);  }
+      };
+      skipBtn.onclick = () => cleanup(false);
+
+      // Reset to step 1 every time we show
+      showStep(1);
+      overlay.classList.remove('hidden');
+    });
+  }
+
+  // Public replay (also lets us add a "Replay tutorial" button later from settings)
+  function replayTutorial() {
+    try { localStorage.removeItem(TUT_KEY); } catch (_) {}
+    return showTutorial();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // RECENT RECEIVES — persistent history panel below Cloud Storage
   // ═══════════════════════════════════════════════════════════════════════════
   // Stored in localStorage so it survives reloads. Capped at 30 entries.
@@ -1178,6 +1247,7 @@
     catch:     signalReadyToReceive,
     setTarget: (socketId) => { _targetSocketId = socketId || null; },
     mySocketId: () => _socket ? _socket.id : null,
+    replayTutorial,
   };
 
   // Helper used by initiateGrab to look up peer names (populated by Network tab)

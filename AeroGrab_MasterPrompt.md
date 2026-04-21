@@ -827,3 +827,57 @@ Located **directly below Cloud Storage** on the home view, hidden when the histo
 - [ ] Manually delete the file from disk via browser → click that history row → row dims, toast "File no longer exists".
 - [ ] Click "Clear" → confirm dialog → section disappears, files on disk untouched.
 - [ ] Reload the page → history persists (localStorage).
+
+---
+
+## v9 — First-Run Tutorial Overlay (April 21, 2026)
+
+### Why
+Brand-new users had no idea what to do when they tapped the AeroGrab toggle. They got hit with a camera-permission prompt with zero context, and even after granting they had to guess that "fist = send" and "open palm = receive." The toast on activation said as much, but it disappeared in 3 seconds and many users missed it. Net result: lots of failed first-attempt grabs, a couple of "what is this thing?" reactions.
+
+### What it does
+A 3-step overlay that auto-shows the **very first time** a user toggles AeroGrab on, BEFORE the camera permission prompt. Persists in `localStorage['aerograb_tutorial_seen'] = '1'`. Skippable, replayable.
+
+### Steps
+1. **Step 1 — "Make a Fist to GRAB"** — large ✊ emoji centered with two staggered cyan pulse rings expanding outward + gentle bob animation. Body: "Pick a file, then close your hand into a fist for ~1 second. The file launches into the air, ready to catch."
+2. **Step 2 — "Open Palm to CATCH"** — same art frame with 🖐️. Body: "When a friend grabs nearby, show your open palm for ~1 second. The file lands inside Hevi automatically."
+3. **Step 3 — "Quick Tips"** — three icon-tip rows (📷 close to camera, ⏱️ hold ~1 s, 👀 watch the live status label). Body: "That's it! AeroGrab will guide you with on-screen hints whenever it can't read your gesture."
+
+### UX details
+- **Backdrop**: radial-gradient dark + 16 px backdrop-blur, `z-index: 950` (sits above the animation stage but below toasts).
+- **Card**: max 380 px, gradient background, cyan accent border + glow shadow.
+- **Skip pill** top-right ("Skip"), greyed text → cyan on hover. Tapping skip → marks seen + resolves with `false` → AeroGrab does NOT activate (user clearly isn't ready).
+- **Next button** bottom-right: cyan gradient pill, advances steps. Reads "Next →" for steps 1–2, "Got it ✓" on step 3. Tapping "Got it ✓" → marks seen + resolves with `true` → AeroGrab continues to camera permission flow.
+- **Progress dots** bottom-left: 3 pills, active one stretches to 24 px width with full cyan fill (matches Hevi's overall pill-progress visual language).
+- **Step transition** — `agTutSlide` keyframe (12 px upward fade-in over 0.4 s with `cubic-bezier(0.16, 1, 0.3, 1)`).
+- **Reduced motion** — pulse + bob disabled under `prefers-reduced-motion: reduce`; transitions still play.
+
+### Hook point
+`toggleAeroGrab(enable)` in `public/aerograb.js`:
+```js
+if (enable) {
+  if (!hasSeenTutorial()) {
+    const proceed = await showTutorial();
+    if (!proceed) return;        // user skipped → don't activate
+  }
+  // ... existing activation flow (camera permission, MediaPipe init, etc.)
+}
+```
+Order is intentional: tutorial → camera permission → MediaPipe init. Users understand WHY the camera is needed before the browser prompt appears.
+
+### Public API
+`window.aeroGrab.replayTutorial()` — wipes the localStorage flag and re-shows the overlay. Can be wired to a future "Replay tutorial" button in Settings → AeroGrab without code changes here.
+
+### Files changed in v9
+- `public/index.html` — added `<div id="aeroTutorial">` overlay with 3 step blocks, skip + next buttons, progress dots. Bumped `aerograb.js?v=10`.
+- `public/style.css` — added ~140 lines of `.ag-tut*` styles (overlay, card, art zone, pulse, emoji bob, tips list, kicker/title/body, dots, next/skip buttons). Five new keyframes: `agTutFade`, `agTutSlide`, `agTutPulse`, `agTutBob`. Reduced-motion respected.
+- `public/aerograb.js` — added `hasSeenTutorial`, `markTutorialSeen`, `showTutorial` (returns `Promise<boolean>`), `replayTutorial`. Hooked into `toggleAeroGrab` ahead of camera permission. Exposed `replayTutorial` on `window.aeroGrab`.
+
+### v9 testing checklist
+- [ ] Fresh browser (or `localStorage.removeItem('aerograb_tutorial_seen')`) → tap AeroGrab toggle → tutorial appears BEFORE camera prompt.
+- [ ] Steps advance with Next button; dots indicate position; final button reads "Got it ✓".
+- [ ] Tap "Got it ✓" → overlay closes → camera permission prompt appears → AeroGrab activates.
+- [ ] Tap "Skip" on any step → overlay closes → AeroGrab does NOT activate (toggle stays off).
+- [ ] Reload the page → tap AeroGrab toggle again → tutorial does NOT show, AeroGrab activates directly.
+- [ ] In console: `aeroGrab.replayTutorial()` → overlay shows again from step 1.
+- [ ] On a device with `prefers-reduced-motion: reduce` → pulse rings + emoji bob stop, but step slide transitions still work.

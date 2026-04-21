@@ -2456,6 +2456,57 @@
     <!-- ── AEROGRAB: Animation Stage Overlay ── -->
     <div class="ag-anim-stage hidden" id="aeroAnimStage"></div>
 
+    <!-- ── AEROGRAB: First-run Tutorial Overlay ── -->
+    <div class="ag-tut hidden" id="aeroTutorial">
+      <div class="ag-tut-card">
+        <button class="ag-tut-skip" id="aeroTutSkip" type="button">Skip</button>
+
+        <div class="ag-tut-step" data-step="1">
+          <div class="ag-tut-art">
+            <div class="ag-tut-pulse"></div>
+            <div class="ag-tut-pulse" style="animation-delay:1.2s"></div>
+            <div class="ag-tut-emoji">✊</div>
+          </div>
+          <div class="ag-tut-kicker">Step 1 of 3</div>
+          <h3 class="ag-tut-title">Make a Fist to <span>GRAB</span></h3>
+          <p class="ag-tut-body">Pick a file, then close your hand into a fist for ~1 second.<br>The file launches into the air, ready to catch.</p>
+        </div>
+
+        <div class="ag-tut-step hidden" data-step="2">
+          <div class="ag-tut-art">
+            <div class="ag-tut-pulse"></div>
+            <div class="ag-tut-pulse" style="animation-delay:1.2s"></div>
+            <div class="ag-tut-emoji">🖐️</div>
+          </div>
+          <div class="ag-tut-kicker">Step 2 of 3</div>
+          <h3 class="ag-tut-title">Open Palm to <span>CATCH</span></h3>
+          <p class="ag-tut-body">When a friend grabs nearby, show your open palm for ~1 second.<br>The file lands inside Hevi automatically.</p>
+        </div>
+
+        <div class="ag-tut-step hidden" data-step="3">
+          <div class="ag-tut-art">
+            <div class="ag-tut-tips">
+              <div class="ag-tut-tip"><div class="ag-tut-tip-icon">📷</div><div>Keep your hand close to the camera</div></div>
+              <div class="ag-tut-tip"><div class="ag-tut-tip-icon">⏱️</div><div>Hold the gesture for about 1 second</div></div>
+              <div class="ag-tut-tip"><div class="ag-tut-tip-icon">👀</div><div>Watch the live status label for hints</div></div>
+            </div>
+          </div>
+          <div class="ag-tut-kicker">Step 3 of 3</div>
+          <h3 class="ag-tut-title">Quick Tips</h3>
+          <p class="ag-tut-body">That's it! AeroGrab will guide you with on-screen hints whenever it can't read your gesture.</p>
+        </div>
+
+        <div class="ag-tut-foot">
+          <div class="ag-tut-dots">
+            <span class="ag-tut-dot is-active" data-dot="1"></span>
+            <span class="ag-tut-dot" data-dot="2"></span>
+            <span class="ag-tut-dot" data-dot="3"></span>
+          </div>
+          <button class="ag-tut-next" id="aeroTutNext" type="button">Next →</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── CDN Scripts ── -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
@@ -2465,7 +2516,7 @@
     <script src="/iv.js?v=11"></script>
     <script src="/app.js?v=13"></script>
     <script src="/aerograb-animation.js?v=5"></script>
-    <script src="/aerograb.js?v=9"></script>
+    <script src="/aerograb.js?v=10"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js?v=14').then(reg => reg.update()).catch(() => {});
