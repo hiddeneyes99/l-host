@@ -1270,8 +1270,10 @@ function mpStartVisualizer() {
 
     function drawCircle(ts) {
       if (mp.vizMode !== 'circle') { mp.rafId = null; if (_ro) _ro.disconnect(); return; }
+      // Don't keep the RAF loop spinning when nothing is visible — saves CPU
+      // and noticeably reduces UI lag on lower-end phones.
+      if (document.hidden) { mp.rafId = null; return; }
       mp.rafId = requestAnimationFrame(drawCircle);
-      if (document.hidden) return;
       if (frameInterval && ts - lastTs < frameInterval) return;
       lastTs = ts;
       if (sizeDirty) vcResize();
@@ -1382,8 +1384,8 @@ function mpStartVisualizer() {
 
   function draw(ts) {
     if (mp.vizMode === 'off' || mp.vizMode === 'circle') { mp.rafId = null; if (_ro) _ro.disconnect(); return; }
+    if (document.hidden) { mp.rafId = null; return; }
     mp.rafId = requestAnimationFrame(draw);
-    if (document.hidden) return;
     if (frameInterval && ts - lastTs < frameInterval) return;
     lastTs = ts;
 

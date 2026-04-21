@@ -10,16 +10,16 @@
   "theme_color": "#0a1620",
   "icons": [
     {
-      "src": "/brand.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/twh-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/brand.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
+      "src": "/twh-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "categories": ["productivity", "utilities"]

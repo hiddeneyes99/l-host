@@ -3614,6 +3614,17 @@ app.put('/api/cloud/:accountId/share', express.json(), (req, res) => {
       });
     });
 
+    // Backup cancel relay — guarantees the other peer hides its UI even when
+    // the WebRTC data channel is too choked to deliver the in-band CANCEL.
+    socket.on('TRANSFER_CANCEL_RELAY', ({ sessionId } = {}) => {
+      const s = aeroSessions.get(sessionId);
+      if (!s) return;
+      const otherId = (s.senderId === socket.id) ? s.receiverId : s.senderId;
+      if (otherId && io.sockets.sockets.get(otherId)) {
+        io.to(otherId).emit('TRANSFER_CANCELLED_REMOTE', { sessionId });
+      }
+    });
+
     socket.on('SESSION_END', ({ sessionId }) => {
       const s = aeroSessions.get(sessionId);
       if (s && s.remote) {

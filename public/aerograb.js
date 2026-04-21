@@ -9,9 +9,9 @@
 (function AeroGrab() {
 
   // ── Constants ──────────────────────────────────────────────────────────────
-  const CHUNK_SIZE       = 256 * 1024;       // 256 KB per WebRTC chunk (SCTP max-safe)
-  const BUFFER_HIGH_WATER = 8 * 1024 * 1024; // pause when >8 MB buffered
-  const BUFFER_LOW_WATER  = 1 * 1024 * 1024; // resume when <1 MB buffered
+  const CHUNK_SIZE       = 512 * 1024;       // 512 KB per WebRTC chunk (auto-clamped to SCTP max)
+  const BUFFER_HIGH_WATER = 16 * 1024 * 1024; // pause when >16 MB buffered (more in-flight = faster)
+  const BUFFER_LOW_WATER  = 4 * 1024 * 1024;  // resume earlier so the pipe never goes dry
   const FOLDER_MAX_BYTES = 1024 * 1024 * 1024; // 1 GB
   const FOLDER_MAX_FILES = 20;
 
@@ -214,6 +214,17 @@
     _socket.on('SESSION_EXPIRED', () => {
       showToast('No one caught it. File is still on your device.', 'warn');
       resetSession();
+    });
+
+    // ── Peer cancelled the transfer (relayed via socket as backup)
+    _socket.on('TRANSFER_CANCELLED_REMOTE', ({ sessionId }) => {
+      if (sessionId !== _sessionId) return;
+      if (!_transferActive && !_myRole) return;
+      _transferActive = false;
+      _recvBuffer = []; _recvMeta = null; _recvReceived = 0;
+      showToast('Other side cancelled the transfer.', 'warn');
+      if (aeroAnim && aeroAnim.onCancelled) aeroAnim.onCancelled('Cancelled');
+      setTimeout(resetSession, 600);
     });
 
     // ── Session ended — everyone go to sleep
@@ -1046,12 +1057,22 @@
   // ── Cancel an in-progress transfer (sender or receiver) ───────────────────
   function cancelTransfer() {
     if (!_transferActive && !_myRole && !_dataChannel) return;
+    // Stop pumping IMMEDIATELY so we don't keep stuffing the buffer.
+    _transferActive = false;
     try {
       if (_dataChannel && _dataChannel.readyState === 'open') {
         _dataChannel.send('__TRANSFER_CANCEL__');
       }
     } catch (_) {}
-    _transferActive = false;
+    // BACKUP path: also relay the cancel via socket.io. The data-channel
+    // message can sit behind megabytes of queued chunks and never reach the
+    // peer before we tear the connection down — the socket message goes
+    // through instantly and guarantees the other side hides its UI.
+    try {
+      if (_socket && _sessionId) {
+        _socket.emit('TRANSFER_CANCEL_RELAY', { sessionId: _sessionId });
+      }
+    } catch (_) {}
     if (aeroAnim && aeroAnim.onCancelled) aeroAnim.onCancelled('Cancelled');
     if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
     showToast('Transfer cancelled.', 'warn');
