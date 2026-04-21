@@ -607,3 +607,91 @@ When two devices are available, verify ALL of these:
 - [ ] Receiver completes → green "Open file" button appears; file is also in Downloads.
 - [ ] Closing AeroGrab releases camera + recogniser; turning it on again loads from cache (instant).
 
+
+---
+
+## v6 — In-App Open + Hardened Gestures (April 21, 2026)
+
+### Problems reported in v5 testing
+
+**1. Receiver opened the file in a NEW BROWSER TAB**
+- v5 receiver flow finished by triggering a download AND calling `window.open(blobUrl, '_blank')`.
+- That new tab is a **raw blob viewer** — no Hevi Explorer UI, no sidebar, no AeroGrab. Just the bytes.
+- On mobile, `window.open()` outside a fresh user gesture is also frequently popup-blocked, so even the bare blob page sometimes did not appear and the user was left with only the silent download.
+- Net effect: the receive flow felt "complete but lost" — file landed somewhere outside the app and the user had to leave Hevi to view it.
+
+**2. Gestures fired without a deliberate hand pose**
+- During real-device testing, FIST/OPEN_PALM sometimes fired when the user was just holding the phone and walking around — hand not even pointed at the camera, sometimes barely visible.
+- Three contributing causes:
+  a. ML confidence floor was 0.80 — Tasks Vision occasionally hits 0.80–0.87 on stray fingers, partial palms, or face/clothing patches.
+  b. Hold time was only 6 frames (~0.5 s @ 12 fps) — too short to require deliberate intent.
+  c. The "neutral pose required first" guard (`_sawNeutralSinceHandAppeared`) only triggered the first time the hand entered frame. After one fire, the user could snap straight from FIST→OPEN or OPEN→FIST without passing through neutral — easy false re-trigger.
+  d. No hand-size guard at all — a 5%-of-frame "fist" detection from far away counted the same as a deliberate close-up fist.
+
+### Solutions added in v6
+
+#### 1. Save into `HeviExplorer/` and open INSIDE Hevi (no new tab, no popup)
+
+**Server (`server.js`, ~line 1581):** new endpoint
+```
+POST /api/aerograb/save?name=<encoded>&type=<encoded>
+body: raw bytes (Content-Type: application/octet-stream)
+```
+- Writes the body to `${ROOT_DIR}/HeviExplorer/<safeName>`.
+- Auto-creates the folder on first use.
+- Filename collision resolution: `foo.jpg` → `foo (1).jpg` → `foo (2).jpg` … → `foo-<ts>.jpg` after 9999.
+- Sanitises name with `path.basename` + strips `\\/:*?"<>|` and control chars.
+- Enforces `MAX_UPLOAD_BYTES` (2 GB) by counting `req.on('data')` bytes and aborting/cleaning up on overflow.
+- On finish, returns `{ ok: true, item, folder: 'HeviExplorer' }` where `item` matches Hevi's normal browse shape: `{ name, path, type:'file', size, ext, category, mimeType, modified }`.
+- Calls `incrementalUpdateDir(folderAbs)` so the file appears in the index immediately.
+- Privacy: this only ever runs on the receiver's OWN local Hevi server (same device the browser is on). The bytes never leave that device — they go from RAM to local disk only.
+
+**Client (`public/aerograb.js`, `finaliseReceivedFile` + new `saveAndOpenInHevi`):**
+- After WebRTC assembly, the blob is POSTed to `/api/aerograb/save` on the same origin.
+- On success: `window.openFile(item)` is called → Hevi's native viewer opens in the SAME window (image viewer, video player, audio player, PDF viewer, archive viewer, text viewer — picked by category/ext).
+- Animation layer is called with `openUrl=null`, so the success card has NO "Open file" button — the file is already open.
+- Fallback chain (only used if `/api/aerograb/save` fails or `window.openFile` is missing): old behaviour — download via anchor, then `window.open(blobUrl)`, then `<a target="_blank">` click. The "Open file" button still appears here as last resort.
+
+**Client (`public/app.js`, ~line 3584):**
+- Explicitly `window.openFile = openFile` so the function is reliably accessible from `aerograb.js` regardless of strict-mode top-level binding behaviour.
+
+#### 2. Stricter, more deliberate gesture detection
+
+**Constants (`public/aerograb.js`, top of IIFE):**
+| Constant | v5 | v6 | Purpose |
+|---|---|---|---|
+| `ML_MIN_CONFIDENCE` | 0.80 | **0.88** | Reject low-confidence noise from Tasks Vision. |
+| `FIRE_FRAME_COUNT` | 6 (~0.5 s) | **10 (~0.8 s)** | Force a longer deliberate hold. |
+| `NEUTRAL_FRAMES_BEFORE_RETRIGGER` | 5 | **6** | More gap between consecutive same-gesture fires. |
+| `GESTURE_COOLDOWN_MS` | 3500 | 3500 | (unchanged) absolute lockout after fire. |
+| `NEUTRAL_ARM_FRAMES` | — | **4** | NEW — required neutral run before EVERY fire (not just the first). |
+| `MIN_HAND_BBOX` | — | **0.18** | NEW — hand bounding box must cover ≥18 % of frame. |
+
+**Logic changes in `processGestureResults`:**
+- `if (!lm)` now sets `_neutralStreak = 0` (was `+= 1`) — when the hand leaves and re-enters, the neutral run must be rebuilt from scratch.
+- New hand-size guard: compute bbox `(maxX-minX, maxY-minY)` from landmarks, reject if `Math.max(w, h) < MIN_HAND_BBOX`. Tiny detections are also treated as neutral (don't reset `_neutralStreak`).
+- The neutral guard is now `if (_neutralStreak < NEUTRAL_ARM_FRAMES)` and runs BEFORE every fire — not just on first hand appearance. This blocks the FIST→OPEN snap and OPEN→FIST snap re-trigger paths.
+- Live debug label updated: shows `🔍 hand too small NN%`, `↺ relax hand first (k/4)`, `· neutral PP% (nN/4)`, and `✊ Closed_Fist PP% (k/10)` so the user can see exactly which gate is blocking.
+
+**Behavioural rule the user must follow now (deliberately):**
+1. Bring hand reasonably close to camera (≥18 % of frame).
+2. Show a relaxed/spread hand for ~0.3 s (4 neutral frames at 12 fps).
+3. Hold the target gesture (FIST or OPEN_PALM) at ≥88 % confidence for ~0.8 s (10 frames).
+4. Only then does the gesture fire.
+
+### Files changed in v6
+- `server.js` — added `POST /api/aerograb/save` endpoint with stream write, collision handling, byte-cap enforcement.
+- `public/aerograb.js` — rewrote `finaliseReceivedFile`, added `saveAndOpenInHevi`, retuned gesture constants, added hand-bbox guard, made `NEUTRAL_ARM_FRAMES` apply before every fire.
+- `public/aerograb-animation.js` — `onReceiverComplete` now hides the "Open file" button and switches sub-text to "opened automatically" + auto-hides in 4 s when `openUrl` is null.
+- `public/app.js` — explicit `window.openFile = openFile` export.
+- `public/index.html` — bumped `app.js?v=13`, `aerograb.js?v=8`, `aerograb-animation.js?v=3`.
+
+### v6 testing checklist
+- [ ] Receive a file on B → file appears under `ROOT_DIR/HeviExplorer/<name>` on B's disk.
+- [ ] On the same screen, Hevi's own viewer opens the received file (image / video / pdf / etc.) — no new tab, no popup, no Open button.
+- [ ] Browse to the `HeviExplorer/` folder via the sidebar — file is listed and openable normally.
+- [ ] Send the same filename twice → second copy lands as `<name> (1).<ext>`, not overwritten.
+- [ ] Hand far away (small in frame) → label shows `🔍 hand too small` and gesture never arms.
+- [ ] Snap from open → fist → open without pausing → only the FIRST gesture (open) fires; the snap-fist is rejected with `↺ relax hand first`.
+- [ ] Holding fist solidly for ~0.8 s → label counter goes `(0/10) → (10/10) → fire`.
+- [ ] Walking with closed hand visible to camera → no spurious receive triggers as long as hand bbox stays small or confidence stays below 0.88.
