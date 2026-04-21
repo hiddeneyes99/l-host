@@ -4765,6 +4765,20 @@ img.lazy-img:not([src]) {
 }
 .st-row:active { background: rgba(255,255,255,0.04); }
 .st-row-toggle { align-items: flex-start; padding: 14px 16px 14px 13px; }
+.st-row-action { align-items: flex-start; padding: 14px 16px 14px 13px; gap: 12px; flex-wrap: wrap; }
+.st-row-action .st-row-left { flex: 1 1 180px; }
+.st-row-action > .btn-primary {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 9px 18px;
+  font-size: 13px;
+  border-radius: 999px;
+  max-width: 100%;
+}
+@media (max-width: 420px) {
+  .st-row-action { flex-direction: column; align-items: stretch; }
+  .st-row-action > .btn-primary { width: 100%; align-self: stretch; }
+}
 .st-row-left { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .st-row-label { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; }
 .st-row-sub { font-size: 12px; color: var(--text2); line-height: 1.5; }
