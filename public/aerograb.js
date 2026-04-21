@@ -37,6 +37,16 @@
   let _detectCount       = 0;
   let _lastGestureAt     = 0;
   let _lastGesture       = null;
+  let _candidateGesture  = null;
+  let _candidateStreak   = 0;
+  let _neutralStreak     = 0;
+
+  // Tighter thresholds + frame debounce keep a resting hand from auto-firing.
+  const FIST_MAX_RATIO  = 0.55;
+  const PALM_MIN_RATIO  = 0.78;
+  const FIRE_FRAME_COUNT = 4;
+  const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 3;
+  const GESTURE_COOLDOWN_MS = 2000;
 
   // Expose the active-file hook so app.js can set it
   window.aeroGrabSetOpenFile = (fileMeta) => { _activeOpenFile = fileMeta; };
@@ -305,8 +315,8 @@
     const tips = [8, 12, 16, 20];
     const mcps = [5, 9, 13, 17];
     const ratios = tips.map((tip, i) => dist2D(lm[tip], lm[mcps[i]]) / handSize);
-    const fist = ratios.every(r => r < 0.65);
-    const palm = ratios.every(r => r > 0.65);
+    const fist = ratios.every(r => r < FIST_MAX_RATIO);
+    const palm = ratios.every(r => r > PALM_MIN_RATIO);
     return { gesture: fist ? 'FIST' : palm ? 'OPEN_PALM' : null, ratios };
   }
 
@@ -345,23 +355,39 @@
     const lbl = $('aeroGestureLbl');
     if (!lm) {
       if (lbl) lbl.textContent = `👁 ${_frameCount} | no hand`;
-      _lastGesture = null;
+      _candidateGesture = null;
+      _candidateStreak = 0;
+      _neutralStreak += 1;
       return;
     }
     _detectCount += 1;
     const { gesture, ratios } = classifyGesture(lm);
+    const shortRatios = ratios.map(r => r.toFixed(2)).join(',');
     if (lbl) {
-      const shortRatios = ratios.map(r => r.toFixed(2)).join(',');
-      lbl.textContent = gesture ? `✅ ${gesture} | [${shortRatios}]` : `H:${_detectCount} [${shortRatios}]`;
+      const armed = _candidateGesture === gesture ? _candidateStreak : 0;
+      lbl.textContent = gesture
+        ? `${gesture === 'FIST' ? '✊' : '✋'} ${gesture} ${armed}/${FIRE_FRAME_COUNT} [${shortRatios}]`
+        : `· hold steady [${shortRatios}]`;
     }
     if (!gesture) {
-      _lastGesture = null;
+      _candidateGesture = null;
+      _candidateStreak = 0;
+      _neutralStreak += 1;
       return;
     }
+    if (_candidateGesture !== gesture) {
+      _candidateGesture = gesture;
+      _candidateStreak = 1;
+      return;
+    }
+    _candidateStreak += 1;
+    if (_candidateStreak < FIRE_FRAME_COUNT) return;
     const now = Date.now();
-    if (_lastGesture === gesture && now - _lastGestureAt < 1200) return;
+    if (now - _lastGestureAt < GESTURE_COOLDOWN_MS) return;
+    if (_lastGesture === gesture && _neutralStreak < NEUTRAL_FRAMES_BEFORE_RETRIGGER) return;
     _lastGesture = gesture;
     _lastGestureAt = now;
+    _neutralStreak = 0;
     onGestureDetected(gesture);
   }
 
@@ -582,11 +608,23 @@
 
     function sendNextChunk() {
       if (offset >= totalSize) {
-        _dataChannel.send('__TRANSFER_DONE__');
-        showToast('File sent successfully!', 'success');
-        _socket.emit('SESSION_END', { sessionId: _sessionId });
-        aeroAnim.onSenderComplete();
-        resetSession();
+        try { _dataChannel.send('__TRANSFER_DONE__'); } catch (_) {}
+        // Drain WebRTC buffer before tearing down the channel; otherwise the
+        // last chunks + DONE marker can be silently dropped, leaving the
+        // receiver stuck on the landing animation with an incomplete file.
+        const drainAndClose = () => {
+          if (_dataChannel && _dataChannel.bufferedAmount > 0) {
+            setTimeout(drainAndClose, 80);
+            return;
+          }
+          showToast('File sent successfully!', 'success');
+          if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
+          aeroAnim.onSenderComplete();
+          // Give the receiver a moment to flush its onmessage queue before
+          // we close the peer connection.
+          setTimeout(resetSession, 800);
+        };
+        drainAndClose();
         return;
       }
       if (_dataChannel.readyState !== 'open') return;
@@ -630,23 +668,40 @@
     if (_recvMeta && _recvMeta.size > 0) {
       const pct = Math.round((_recvReceived / _recvMeta.size) * 100);
       aeroAnim.updateReceiverProgress(pct);
+      // Auto-finalise once all bytes are in, even if the DONE marker was
+      // dropped because the sender tore down the channel too fast.
+      if (_recvReceived >= _recvMeta.size) {
+        setTimeout(() => {
+          if (_recvMeta && _recvBuffer.length) finaliseReceivedFile();
+        }, 250);
+      }
     }
   }
 
   function finaliseReceivedFile() {
     if (!_recvMeta || !_recvBuffer.length) return;
-    const blob = new Blob(_recvBuffer, { type: _recvMeta.type || 'application/octet-stream' });
+    const meta = _recvMeta;
+    const chunks = _recvBuffer;
+    _recvBuffer = [];
+    _recvMeta = null;
+    const blob = new Blob(chunks, { type: meta.type || 'application/octet-stream' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = _recvMeta.name;
+    a.download = meta.name || `aerograb-${Date.now()}`;
+    a.rel      = 'noopener';
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 3000);
+    // Also try to open the file in a new tab so phones/Termux browsers show
+    // the result immediately even if the download saved silently.
+    setTimeout(() => {
+      try { window.open(url, '_blank', 'noopener'); } catch (_) {}
+    }, 120);
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 8000);
 
-    showToast(`Received: ${_recvMeta.name}`, 'success');
-    aeroAnim.onReceiverComplete(_recvMeta);
-    _socket.emit('SESSION_END', { sessionId: _sessionId });
+    showToast(`Received: ${meta.name}`, 'success');
+    aeroAnim.onReceiverComplete(meta);
+    if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
     resetSession();
   }
 
@@ -717,6 +772,9 @@
     if (_peerConn) { try { _peerConn.close(); } catch (_) {} _peerConn = null; }
     _dataChannel = null;
     _lastGesture = null;
+    _candidateGesture = null;
+    _candidateStreak = 0;
+    _neutralStreak = NEUTRAL_FRAMES_BEFORE_RETRIGGER;
   }
 
   // ── Deactivate AeroGrab completely ────────────────────────────────────────

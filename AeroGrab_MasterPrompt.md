@@ -471,3 +471,52 @@ When two devices are available, verify ALL of these:
 *Document maintained by Technical White Hat (TWH).*
 *Communicate with developer in casual Hinglish — bhai, yaar, chill tone.*
 *Always read `AeroGrab_Blueprint.md` for detailed engineering spec.*
+
+---
+
+## v3 — Auto LAN Discovery + Stable Gestures + Reliable Transfer (April 21, 2026)
+
+### Problems reported in v2 testing
+1. **Receiver catch animation atak jata hai** — file transfer "complete" dikhta but actual file download/open nahi hota tha. WebRTC DataChannel sender immediately `peerConn.close()` kar raha tha after `send('__TRANSFER_DONE__')`, jiske karan bufferedAmount drain hone se pehle channel close ho jata tha aur last chunks + DONE marker silently drop ho jate the.
+2. **Grab gesture apne aap fire ho raha tha** — har thoda hand movement par FIST trigger ho jata. Threshold loose tha (`< 0.65`), sirf 1 frame chahiye tha, aur same-gesture cooldown sirf 1200ms tha — jab user neutral hand show karta to bhi 1.2s baad fir trigger ho jata.
+3. **Cross-server signalling missing** — har device apna server chala raha hai, lekin signalling sirf same-server sockets tak limited thi.
+
+### Solutions added in v3
+
+**1. Auto LAN discovery (server.js)**
+- UDP broadcast on port `45555` (env override `AEROGRAB_DISCOVERY_PORT`, disable via `AEROGRAB_LAN_DISCOVERY=0`).
+- Each server announces `{ serverId, name, port, ts }` every 3s; peer TTL 12s.
+- Cross-server HTTP relays: `/api/aerograb/lan/{wake,drop,signal,end}` — a remote server can POST a signalling event addressed to one of our local sockets.
+- Composite peer IDs `lan:<serverId>:<socketId>` carried inside `webrtc_signal`, `WAKE_UP_CAMERAS`, `DROP_HERE`, `SESSION_END`, `TRANSFER_APPROVED` payloads.
+- Combined device list endpoint exposes `source: 'local' | 'lan'` so the UI can label cards.
+
+**2. Stable gesture engine (public/aerograb.js)**
+- Tighter thresholds with neutral gap: FIST `<0.55`, OPEN_PALM `>0.78`, in-between = neutral (no firing).
+- Frame debounce: gesture must be detected on **4 consecutive frames** (`FIRE_FRAME_COUNT`) before firing.
+- Re-trigger gate: same gesture cannot fire twice in a row until **3 neutral frames** seen (`NEUTRAL_FRAMES_BEFORE_RETRIGGER`).
+- Cooldown raised to `2000ms` (`GESTURE_COOLDOWN_MS`).
+- Live debug label now shows `✊ FIST 2/4 [0.42,0.39,0.41,0.45]` so user can see arming progress.
+
+**3. Reliable WebRTC file transfer**
+- **Sender drain-and-close:** after `__TRANSFER_DONE__` is queued, sender now polls `_dataChannel.bufferedAmount` until it hits 0, then waits an extra 800ms before closing the peer connection. This guarantees the receiver actually gets the last bytes + the DONE marker.
+- **Receiver auto-finalise:** if `_recvReceived >= _recvMeta.size`, receiver calls `finaliseReceivedFile()` after a 250ms grace, even if the DONE marker never arrives (belt-and-suspenders).
+- **Receiver double-output:** in addition to `<a download>`, the file blob URL is also `window.open()`-ed in a new tab so phone browsers (Chrome on Android, Termux WebView) show the file immediately even when the silent-download path doesn't surface a notification.
+- Snapshot of `_recvMeta` + `_recvBuffer` before clearing them prevents the empty-buffer early-return race when finalise runs twice.
+
+**4. Live gesture HUD restored**
+- `aeroGesturePreview` (168×126) bottom-right with `<video>` mirror + landmark overlay canvas.
+- 12 fps MediaPipe loop with `_processingHands` concurrency guard.
+- Live curl-ratio numbers shown so user can self-calibrate hand distance from camera.
+
+**5. Cache busting**
+- `index.html` bumped `aerograb.js?v=4` so phones don't keep stale gesture/transfer code.
+- Service worker `lhost-shell-v13` already covers `/aerograb.js` via network-first.
+
+### v3 testing checklist
+- [ ] Two devices on same WiFi each start their own Hevi → both auto-discover within ~5s.
+- [ ] Devices appear in Hevi Network panel labelled "Online · Auto LAN".
+- [ ] Hand at rest in front of camera does NOT auto-fire grab (label stays at `0/4` or `1/4`).
+- [ ] Closing fist for ~0.5s consistently triggers grab; opening palm for ~0.5s triggers catch.
+- [ ] After a transfer, receiver's downloaded file actually opens (or new tab shows preview); animation closes within ~3s of progress hitting 100%.
+- [ ] No duplicate trigger when hand briefly disappears and reappears in same pose (must pass through neutral first).
+
