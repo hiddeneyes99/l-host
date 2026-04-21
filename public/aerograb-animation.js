@@ -266,11 +266,12 @@
     const emoji = getFileEmoji(meta || {});
     const wrap = document.createElement('div');
     wrap.className = 'ag-done';
+    const autoOpened = !openUrl;
     wrap.innerHTML = `
       <div class="ag-done-icon">${emoji}</div>
       <div class="ag-done-label">Caught: ${safeName}</div>
-      <button class="ag-open-btn" type="button">Open file</button>
-      <div class="ag-done-sub">Saved to Downloads · tap to open</div>
+      ${autoOpened ? '' : '<button class="ag-open-btn" type="button">Open file</button>'}
+      <div class="ag-done-sub">${autoOpened ? 'Saved to Downloads · opened automatically' : 'Saved to Downloads · tap to open'}</div>
     `;
     stage.appendChild(wrap);
     spawnParticles(stage, 24, 'var(--accent)');
@@ -283,10 +284,8 @@
           if (!w) location.href = openUrl;
         } catch (_) { location.href = openUrl; }
       });
-    } else if (btn) {
-      btn.style.display = 'none';
     }
-    setTimeout(hideStage, 12000);
+    setTimeout(hideStage, autoOpened ? 4000 : 12000);
   }
 
   // ── Utilities ──────────────────────────────────────────────────────────────

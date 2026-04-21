@@ -732,12 +732,34 @@
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { a.remove(); }, 1000);
-    // Hand the URL to the receiver-complete animation so it can show a
-    // tappable "Open" button — auto-window.open() gets blocked as a popup
-    // on most mobile browsers, so the user must tap to open.
+    // Auto-open the file in a new tab — no "Open" button, no user tap required.
+    // Browsers may block popups outside a user gesture, so we try several
+    // strategies in order of reliability:
+    //   1. window.open(_blank) — works on desktop & most modern mobile browsers
+    //   2. Programmatic anchor click with target=_blank — works when (1) is blocked
+    //   3. If both blocked, fall back to a tappable Open button (last resort)
+    let opened = false;
+    try {
+      const w = window.open(url, '_blank', 'noopener');
+      if (w) opened = true;
+    } catch (_) { /* ignored */ }
+    if (!opened) {
+      try {
+        const oa = document.createElement('a');
+        oa.href = url;
+        oa.target = '_blank';
+        oa.rel = 'noopener';
+        document.body.appendChild(oa);
+        oa.click();
+        setTimeout(() => { oa.remove(); }, 1000);
+        opened = true;
+      } catch (_) { /* ignored */ }
+    }
     showToast(`Received: ${meta.name}`, 'success');
-    aeroAnim.onReceiverComplete(meta, url);
-    // Revoke later so the user has time to tap "Open".
+    // Pass openUrl only when auto-open failed, so the animation layer shows
+    // the fallback "Open" button. When auto-open worked, no button is shown.
+    aeroAnim.onReceiverComplete(meta, opened ? null : url);
+    // Revoke later so the file stays openable for a while.
     setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
     if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
     resetSession();
