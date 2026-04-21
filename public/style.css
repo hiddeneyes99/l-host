@@ -6779,7 +6779,27 @@ img.lazy-img:not([src]) {
   font-size: 18px;
   font-weight: 700;
   color: var(--success);
+  text-align: center;
+  max-width: 80vw;
+  word-break: break-word;
 }
+.ag-done-sub {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+}
+.ag-open-btn {
+  margin-top: 8px;
+  padding: 12px 28px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #001a14;
+  background: var(--accent);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 244, 208, 0.4);
+}
+.ag-open-btn:active { transform: scale(0.96); }
 
 /* ── AeroGrab camera overlay ─────────────────────────────────────────────── */
 .ag-cam-overlay {

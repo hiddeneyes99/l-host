@@ -520,3 +520,40 @@ When two devices are available, verify ALL of these:
 - [ ] After a transfer, receiver's downloaded file actually opens (or new tab shows preview); animation closes within ~3s of progress hitting 100%.
 - [ ] No duplicate trigger when hand briefly disappears and reappears in same pose (must pass through neutral first).
 
+
+---
+
+## v4 — Tap-to-Open + Hardened Gesture Gate (April 21, 2026)
+
+### Problems reported in v3 testing
+1. **File downloaded but never opened** — receiver got the file in Downloads, but the auto-`window.open()` I added in v3 was being **blocked as a popup** by the mobile browser (Chrome/Termux WebView treat any `window.open()` not directly tied to a user click as a popup). The user only saw a "popup blocked" notification.
+2. **AeroGrab "in-air" window suddenly appeared on BOTH phones without intent** — gesture detection still misfired on hand entering frame in a partially-curled pose, and once a stray fist was detected on phone A, it sent WAKE_UP to phone B; phone B's hand happened to be near a palm pose, so it auto-caught immediately.
+
+### Solutions added in v4
+
+**1. Tap-to-Open receiver UI (no more popup blocker)**
+- Removed the auto `window.open()` call entirely.
+- The receiver-complete animation now renders a real `<button class="ag-open-btn">Open file</button>` along with the file emoji + name.
+- The button click *is* a user gesture, so `window.open(blobUrl)` succeeds without being flagged as a popup. Falls back to `location.href` if the popup is still blocked.
+- Animation stage stays visible for **12 s** instead of 2.5 s so the user has time to tap.
+- Blob URL is revoked after 60 s instead of 8 s — gives the user real time to actually open the file.
+
+**2. Hardened gesture gate (prevents accidental triggers)**
+- `FIST_MAX_RATIO` 0.55 → `0.50`, `PALM_MIN_RATIO` 0.78 → `0.85` — wider neutral band, harder to satisfy by accident.
+- `FIRE_FRAME_COUNT` 4 → `6` — gesture must be held visibly steady for half a second.
+- `NEUTRAL_FRAMES_BEFORE_RETRIGGER` 3 → `5`.
+- `GESTURE_COOLDOWN_MS` 2000 → `3500`.
+- New gate `_sawNeutralSinceHandAppeared` — when hand first enters frame, label shows `↺ relax hand first` and **no gesture can fire** until the user passes through a neutral pose. This kills the "hand walks in already curled → auto-fist" failure mode.
+- New session-lock: while `_myRole` or `_wakePayload` is set, gesture detection is frozen and label shows `🔒 session in progress`. Prevents a second gesture firing mid-transfer.
+
+**3. Cache busting**
+- Bumped `aerograb.js?v=5` and `aerograb-animation.js?v=2` in `index.html`.
+
+### v4 testing checklist
+- [ ] Hand enters frame curled → label shows `↺ relax hand first` → no auto-fire.
+- [ ] Open palm fully, then close fist for ~0.6 s → grab fires; label shows `✊ FIST 6/6` before firing.
+- [ ] During a transfer, neither device's UI re-fires a gesture (label shows `🔒 session in progress`).
+- [ ] After receiver progress hits 100 %, a centred green "Open file" button appears for 12 s on the receiver.
+- [ ] Tapping "Open file" opens the file in a new tab without a popup-blocked banner.
+- [ ] File is also already in Downloads (silent-save still works in parallel).
+

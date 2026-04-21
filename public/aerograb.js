@@ -42,11 +42,12 @@
   let _neutralStreak     = 0;
 
   // Tighter thresholds + frame debounce keep a resting hand from auto-firing.
-  const FIST_MAX_RATIO  = 0.55;
-  const PALM_MIN_RATIO  = 0.78;
-  const FIRE_FRAME_COUNT = 4;
-  const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 3;
-  const GESTURE_COOLDOWN_MS = 2000;
+  const FIST_MAX_RATIO  = 0.50;
+  const PALM_MIN_RATIO  = 0.85;
+  const FIRE_FRAME_COUNT = 6;
+  const NEUTRAL_FRAMES_BEFORE_RETRIGGER = 5;
+  const GESTURE_COOLDOWN_MS = 3500;
+  let _sawNeutralSinceHandAppeared = false;
 
   // Expose the active-file hook so app.js can set it
   window.aeroGrabSetOpenFile = (fileMeta) => { _activeOpenFile = fileMeta; };
@@ -358,6 +359,14 @@
       _candidateGesture = null;
       _candidateStreak = 0;
       _neutralStreak += 1;
+      _sawNeutralSinceHandAppeared = false;
+      return;
+    }
+    // Block any gesture firing while a session is already in progress.
+    if (_myRole || _wakePayload) {
+      if (lbl) lbl.textContent = `🔒 session in progress`;
+      _candidateGesture = null;
+      _candidateStreak = 0;
       return;
     }
     _detectCount += 1;
@@ -373,6 +382,16 @@
       _candidateGesture = null;
       _candidateStreak = 0;
       _neutralStreak += 1;
+      _sawNeutralSinceHandAppeared = true;
+      return;
+    }
+    // First time hand enters frame, force the user to pass through a neutral
+    // pose before any gesture can fire — prevents auto-fire when hand enters
+    // already curled.
+    if (!_sawNeutralSinceHandAppeared) {
+      if (lbl) lbl.textContent = `↺ relax hand first`;
+      _candidateGesture = null;
+      _candidateStreak = 0;
       return;
     }
     if (_candidateGesture !== gesture) {
@@ -686,21 +705,21 @@
     _recvMeta = null;
     const blob = new Blob(chunks, { type: meta.type || 'application/octet-stream' });
     const url  = URL.createObjectURL(blob);
+    // Trigger silent save to the device's download folder.
     const a    = document.createElement('a');
     a.href     = url;
     a.download = meta.name || `aerograb-${Date.now()}`;
     a.rel      = 'noopener';
     document.body.appendChild(a);
     a.click();
-    // Also try to open the file in a new tab so phones/Termux browsers show
-    // the result immediately even if the download saved silently.
-    setTimeout(() => {
-      try { window.open(url, '_blank', 'noopener'); } catch (_) {}
-    }, 120);
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 8000);
-
+    setTimeout(() => { a.remove(); }, 1000);
+    // Hand the URL to the receiver-complete animation so it can show a
+    // tappable "Open" button — auto-window.open() gets blocked as a popup
+    // on most mobile browsers, so the user must tap to open.
     showToast(`Received: ${meta.name}`, 'success');
-    aeroAnim.onReceiverComplete(meta);
+    aeroAnim.onReceiverComplete(meta, url);
+    // Revoke later so the user has time to tap "Open".
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
     if (_socket && _sessionId) _socket.emit('SESSION_END', { sessionId: _sessionId });
     resetSession();
   }

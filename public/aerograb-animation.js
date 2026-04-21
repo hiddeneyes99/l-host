@@ -258,13 +258,35 @@
     setTimeout(hideStage, 2000);
   }
 
-  function onReceiverComplete(meta) {
-    const pct = $('agRingPct');
-    if (pct) pct.textContent = '100%';
-    const fill = $('agRingFill');
-    if (fill) fill.style.strokeDashoffset = 0;
-    spawnParticles(getStage() || document.body, 24, 'var(--accent)');
-    setTimeout(hideStage, 2500);
+  function onReceiverComplete(meta, openUrl) {
+    const stage = getStage();
+    if (!stage) return;
+    clearStage();
+    const safeName = escHtml(meta && meta.name ? meta.name : 'file');
+    const emoji = getFileEmoji(meta || {});
+    const wrap = document.createElement('div');
+    wrap.className = 'ag-done';
+    wrap.innerHTML = `
+      <div class="ag-done-icon">${emoji}</div>
+      <div class="ag-done-label">Caught: ${safeName}</div>
+      <button class="ag-open-btn" type="button">Open file</button>
+      <div class="ag-done-sub">Saved to Downloads · tap to open</div>
+    `;
+    stage.appendChild(wrap);
+    spawnParticles(stage, 24, 'var(--accent)');
+    anime({ targets: wrap, scale: [0.6, 1.1, 1], opacity: [0, 1], duration: 500, easing: 'easeOutBack' });
+    const btn = wrap.querySelector('.ag-open-btn');
+    if (btn && openUrl) {
+      btn.addEventListener('click', () => {
+        try {
+          const w = window.open(openUrl, '_blank', 'noopener');
+          if (!w) location.href = openUrl;
+        } catch (_) { location.href = openUrl; }
+      });
+    } else if (btn) {
+      btn.style.display = 'none';
+    }
+    setTimeout(hideStage, 12000);
   }
 
   // ── Utilities ──────────────────────────────────────────────────────────────
