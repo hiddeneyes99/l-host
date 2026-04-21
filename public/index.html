@@ -2481,6 +2481,72 @@
     <!-- ── AEROGRAB: Animation Stage Overlay ── -->
     <div class="ag-anim-stage hidden" id="aeroAnimStage"></div>
 
+    <!-- ── PWA "How to install" instructions modal ── -->
+    <div class="pwa-help hidden" id="pwaHelpModal" role="dialog" aria-modal="true" aria-labelledby="pwaHelpTitle">
+      <div class="pwa-help-card">
+        <button class="pwa-help-close" id="pwaHelpClose" type="button" aria-label="Close">×</button>
+        <div class="pwa-help-head">
+          <div class="pwa-help-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          </div>
+          <div>
+            <div class="pwa-help-kicker">PWA · Install Guide</div>
+            <h3 class="pwa-help-title" id="pwaHelpTitle">How to install Hevi as an app</h3>
+            <p class="pwa-help-sub">Pick your device — full step-by-step instructions below.</p>
+          </div>
+        </div>
+
+        <div class="pwa-tabs" role="tablist">
+          <button class="pwa-tab is-active" data-pwatab="android" type="button" role="tab">📱 Android</button>
+          <button class="pwa-tab" data-pwatab="ios" type="button" role="tab">🍎 iPhone / iPad</button>
+          <button class="pwa-tab" data-pwatab="desktop" type="button" role="tab">💻 Windows / Mac / Linux</button>
+        </div>
+
+        <div class="pwa-panes">
+
+          <!-- Android -->
+          <div class="pwa-pane is-active" data-pwapane="android">
+            <div class="pwa-note pwa-note-tip">✅ Best browsers: <b>Chrome, Edge, Brave, Samsung Internet</b>. Firefox works too but uses a slightly different menu.</div>
+            <ol class="pwa-steps">
+              <li><div class="pwa-step-num">1</div><div><b>Open Hevi Explorer in Chrome (or Edge / Brave)</b><span>If you're already in the right browser, you're good. If not, copy the URL and open it there.</span></div></li>
+              <li><div class="pwa-step-num">2</div><div><b>Tap the menu (⋮) at the top-right</b><span>The three vertical dots inside your browser's address bar.</span></div></li>
+              <li><div class="pwa-step-num">3</div><div><b>Tap "Install app" or "Add to Home screen"</b><span>The exact label depends on your browser. Some browsers also show a small ⊕ icon in the address bar — tap that.</span></div></li>
+              <li><div class="pwa-step-num">4</div><div><b>Confirm "Install"</b><span>Hevi installs in seconds, lands on your home screen with the TWH icon, and opens in its own window — just like a normal app.</span></div></li>
+            </ol>
+            <div class="pwa-note">Tip: After installing, open Hevi from the home screen — not the browser — to get the standalone app experience and offline UI.</div>
+          </div>
+
+          <!-- iOS -->
+          <div class="pwa-pane" data-pwapane="ios">
+            <div class="pwa-note pwa-note-warn">⚠️ On iPhone / iPad, installing PWAs <b>only works inside Safari</b>. Chrome on iOS cannot install — Apple blocks it.</div>
+            <ol class="pwa-steps">
+              <li><div class="pwa-step-num">1</div><div><b>Open Hevi Explorer in Safari</b><span>Not Chrome, not Firefox — it must be Safari for the install option to appear.</span></div></li>
+              <li><div class="pwa-step-num">2</div><div><b>Tap the Share button</b><span>The square with an arrow pointing up — bottom of the screen on iPhone, top-right on iPad.</span></div></li>
+              <li><div class="pwa-step-num">3</div><div><b>Scroll down and tap "Add to Home Screen"</b><span>Look for the icon that looks like a square with a + inside.</span></div></li>
+              <li><div class="pwa-step-num">4</div><div><b>Tap "Add" in the top-right</b><span>Hevi appears on your home screen with its own icon and opens fullscreen — no Safari address bar.</span></div></li>
+            </ol>
+          </div>
+
+          <!-- Desktop -->
+          <div class="pwa-pane" data-pwapane="desktop">
+            <div class="pwa-note pwa-note-tip">✅ Works on <b>Chrome, Edge, Brave, Opera, Arc</b> on Windows, macOS, Linux, and ChromeOS.</div>
+            <ol class="pwa-steps">
+              <li><div class="pwa-step-num">1</div><div><b>Look at the right side of the address bar</b><span>You'll see a small install icon — usually a monitor with a downward arrow, or a ⊕ symbol.</span></div></li>
+              <li><div class="pwa-step-num">2</div><div><b>Click that install icon</b><span>If you don't see it, click the menu (⋮ or …) in the top-right and choose <b>"Install Hevi…"</b> or <b>"Apps → Install this site as an app"</b>.</span></div></li>
+              <li><div class="pwa-step-num">3</div><div><b>Click "Install" in the popup</b><span>Hevi installs as a real desktop app — Start Menu / Launchpad / app drawer entry, taskbar pinning, and its own window.</span></div></li>
+              <li><div class="pwa-step-num">4</div><div><b>Done — launch from your apps</b><span>Search "Hevi" in Start / Spotlight / your launcher and open it like any other app.</span></div></li>
+            </ol>
+            <div class="pwa-note">Firefox desktop currently does not support installing PWAs natively. Use Chrome, Edge, Brave, or Arc for the install option.</div>
+          </div>
+
+        </div>
+
+        <div class="pwa-help-foot">
+          <button class="btn-ghost" id="pwaHelpDone" type="button">Got it</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── AEROGRAB: First-run Tutorial Overlay ── -->
     <div class="ag-tut hidden" id="aeroTutorial">
       <div class="ag-tut-card">
@@ -2578,20 +2644,57 @@
           if (sub) sub.textContent = 'Hevi Explorer is installed on this device. Open it from your home screen or app drawer.';
         }
 
+        function detectPlatform() {
+          const ua = navigator.userAgent;
+          if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
+          if (/Android/i.test(ua))          return 'android';
+          return 'desktop';
+        }
+
+        function openHowToInstall() {
+          const modal = document.getElementById('pwaHelpModal');
+          if (!modal) return;
+          const plat = detectPlatform();
+          modal.querySelectorAll('.pwa-tab').forEach(t => {
+            t.classList.toggle('is-active', t.dataset.pwatab === plat);
+          });
+          modal.querySelectorAll('.pwa-pane').forEach(p => {
+            p.classList.toggle('is-active', p.dataset.pwapane === plat);
+          });
+          modal.classList.remove('hidden');
+          document.body.style.overflow = 'hidden';
+        }
+
+        function closeHowToInstall() {
+          const modal = document.getElementById('pwaHelpModal');
+          if (!modal) return;
+          modal.classList.add('hidden');
+          document.body.style.overflow = '';
+        }
+
         function setNotSupported() {
           btn.textContent = 'How to install';
-          if (sub) {
-            const ua = navigator.userAgent;
-            if (/iPhone|iPad|iPod/i.test(ua)) {
-              sub.textContent = 'On iPhone/iPad: tap the Share button in Safari, then choose "Add to Home Screen".';
-            } else if (/Firefox/i.test(ua) && /Android/i.test(ua)) {
-              sub.textContent = 'In Firefox Android: tap the menu (⋮) and choose "Install" or "Add to Home Screen".';
-            } else {
-              sub.textContent = 'Open this site in Chrome, Edge, or Brave on Android/Desktop, then use the browser menu → "Install app".';
-            }
-          }
-          btn.addEventListener('click', () => {
-            if (typeof toast === 'function') toast(sub ? sub.textContent : 'Use your browser menu to install.', 'info');
+          if (sub) sub.textContent = 'Tap "How to install" for step-by-step instructions for your device — Android, iPhone/iPad, or Desktop.';
+          btn.addEventListener('click', openHowToInstall);
+        }
+
+        // Wire modal once at boot
+        const modal = document.getElementById('pwaHelpModal');
+        if (modal) {
+          modal.querySelectorAll('.pwa-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+              const k = tab.dataset.pwatab;
+              modal.querySelectorAll('.pwa-tab').forEach(t => t.classList.toggle('is-active', t === tab));
+              modal.querySelectorAll('.pwa-pane').forEach(p => p.classList.toggle('is-active', p.dataset.pwapane === k));
+            });
+          });
+          const closeBtn = document.getElementById('pwaHelpClose');
+          const doneBtn  = document.getElementById('pwaHelpDone');
+          if (closeBtn) closeBtn.addEventListener('click', closeHowToInstall);
+          if (doneBtn)  doneBtn.addEventListener('click', closeHowToInstall);
+          modal.addEventListener('click', (e) => { if (e.target === modal) closeHowToInstall(); });
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeHowToInstall();
           });
         }
 
