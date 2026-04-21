@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
     <title>Hevi Explorer — Private Media Vault</title>
-    <link rel="stylesheet" href="/style.css?v=18" />
+    <link rel="stylesheet" href="/style.css?v=19" />
     <meta name="theme-color" content="#0b1220" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -24,6 +24,18 @@
     ></script>
   </head>
   <body>
+    <!-- Force-portrait overlay (browser context — manifest only locks PWA) -->
+    <div class="rotate-portrait-overlay" aria-hidden="true">
+      <div class="rp-icon">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="6" y="3" width="12" height="18" rx="2.5"/>
+          <line x1="9" y1="18" x2="15" y2="18"/>
+        </svg>
+      </div>
+      <div class="rp-title">Please rotate to portrait</div>
+      <div class="rp-sub">Hevi Explorer is designed for portrait orientation. Turn your device upright to continue.</div>
+    </div>
+
     <!-- ── LOCK SCREEN ── -->
     <div class="lock-screen hidden" id="lockScreen">
       <div class="lock-card">
@@ -2617,12 +2629,20 @@
 
     <script src="/iv.js?v=11"></script>
     <script src="/app.js?v=14"></script>
-    <script src="/aerograb-animation.js?v=7"></script>
-    <script src="/aerograb.js?v=13"></script>
+    <script src="/aerograb-animation.js?v=8"></script>
+    <script src="/aerograb.js?v=14"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js?v=15').then(reg => reg.update()).catch(() => {});
+        navigator.serviceWorker.register('/sw.js?v=16').then(reg => reg.update()).catch(() => {});
       }
+
+      // Lock orientation to portrait when running as PWA (manifest sets it,
+      // but Screen Orientation API enforces it when supported).
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock('portrait').catch(() => {});
+        }
+      } catch (_) {}
 
       // ── PWA "Install as App" support ──────────────────────────────────────
       (function() {

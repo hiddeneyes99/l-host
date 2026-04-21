@@ -7307,6 +7307,43 @@ img.lazy-img:not([src]) {
 }
 .ag-cam-close:active { transform: scale(0.92); }
 
+/* ── Force-portrait overlay for browser context (manifest can't lock outside PWA) ── */
+.rotate-portrait-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  z-index: 9999998;
+  background: radial-gradient(ellipse at center, #0a1620, #050912 80%);
+  color: #e6f8ff;
+  flex-direction: column; align-items: center; justify-content: center;
+  text-align: center;
+  padding: 32px 24px;
+  font-family: inherit;
+}
+.rotate-portrait-overlay .rp-icon {
+  width: 80px; height: 80px;
+  border-radius: 22px;
+  background: rgba(37,244,208,0.12);
+  border: 2px solid rgba(37,244,208,0.5);
+  color: #25f4d0;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 22px;
+  animation: rpRock 1.4s ease-in-out infinite;
+}
+@keyframes rpRock {
+  0%, 100% { transform: rotate(-12deg); }
+  50%      { transform: rotate(12deg); }
+}
+.rotate-portrait-overlay .rp-title {
+  font-size: 22px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.3px;
+}
+.rotate-portrait-overlay .rp-sub {
+  font-size: 14px; color: rgba(216,255,248,0.72); max-width: 320px; line-height: 1.55;
+}
+@media (orientation: landscape) and (max-width: 932px) and (max-height: 500px) {
+  .rotate-portrait-overlay { display: flex !important; }
+  body > *:not(.rotate-portrait-overlay) { visibility: hidden !important; }
+}
+
 /* ── AeroGrab cancel button (body-fixed during transfer) ─────────────────── */
 .ag-cancel-btn {
   position: fixed;

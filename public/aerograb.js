@@ -740,6 +740,22 @@
     _transferActive = true;
     _transferStartedAt = Date.now();
 
+    // Show cancel button IMMEDIATELY (don't wait for first progress chunk)
+    if (aeroAnim && aeroAnim.showCancelButton) aeroAnim.showCancelButton();
+
+    // Determine the SAFE max chunk size for this peer connection. Some mobile
+    // browsers cap SCTP messages at 64 KB; sending larger fails silently and
+    // tanks the transfer. Honour the negotiated limit, capped at 256 KB.
+    let chunkSize = CHUNK_SIZE;
+    try {
+      const sctpMax = _peerConn && _peerConn.sctp && _peerConn.sctp.maxMessageSize;
+      if (sctpMax && sctpMax > 0) {
+        // Leave 1 KB headroom for SCTP framing overhead
+        chunkSize = Math.min(CHUNK_SIZE, Math.max(16 * 1024, sctpMax - 1024));
+      }
+    } catch (_) {}
+    console.log(`[AeroGrab] transfer start: ${(totalSize/1024/1024).toFixed(2)} MB · chunk=${(chunkSize/1024).toFixed(0)} KB · sctpMax=${_peerConn && _peerConn.sctp ? _peerConn.sctp.maxMessageSize : '?'}`);
+
     // Send metadata header first
     const headerStr = JSON.stringify({ name, size: totalSize, type: blob.type });
     _dataChannel.send(headerStr);
@@ -753,7 +769,7 @@
       while (_transferActive && offset < totalSize) {
         if (!_dataChannel || _dataChannel.readyState !== 'open') return;
         if (_dataChannel.bufferedAmount > BUFFER_HIGH_WATER) return; // wait for low event
-        const end   = Math.min(offset + CHUNK_SIZE, totalSize);
+        const end   = Math.min(offset + chunkSize, totalSize);
         const slice = blob.slice(offset, end);
         try {
           // Modern Blob → ArrayBuffer (single Promise, no FileReader churn)
@@ -835,6 +851,8 @@
         _recvBuffer   = [];
         _recvReceived = 0;
         _transferActive = true;
+        // Show cancel button on receiver IMMEDIATELY when transfer starts
+        if (aeroAnim && aeroAnim.showCancelButton) aeroAnim.showCancelButton();
       } catch (_) {}
       return;
     }

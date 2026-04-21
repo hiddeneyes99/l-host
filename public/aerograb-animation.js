@@ -563,6 +563,8 @@
     onSenderComplete,
     onReceiverComplete,
     onCancelled,
+    showCancelButton: ensureCancelButton,
+    hideCancelButton: removeCancelButton,
   };
 
 })();
