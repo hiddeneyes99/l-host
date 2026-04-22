@@ -3,7 +3,7 @@
 
 **Project:** AeroGrab inside Hevi Explorer (TWH Eco System Technology)
 **Author:** Technical White Hat (TWH)
-**Last Updated:** April 20, 2026
+**Last Updated:** April 22, 2026 (latest stable: v10)
 **Language with developer:** Hinglish (Hindi + English mixed, casual tone — use "bhai", "yaar", "karo", "aaja", etc.)
 **Brand accent color:** `#25f4d0` (CSS variable: `--accent`)
 
@@ -20,7 +20,7 @@
 - **Closed fist ✊** = "Grab this file" (sender)
 - **Open palm ✋** = "I'll catch it" (receiver)
 - File travels **device-to-device via WebRTC DataChannel** — server never sees file bytes
-- Gesture detection uses **Google MediaPipe Hands** running 100% on-device
+- Gesture detection uses **Google MediaPipe Tasks Vision `GestureRecognizer`** running 100% on-device (since v5; replaces the legacy custom curl-ratio classifier)
 - Camera feed NEVER leaves the device (privacy first-class requirement)
 - Works on same WiFi LAN only (no TURN server yet, so no 4G/5G)
 
@@ -881,3 +881,115 @@ Order is intentional: tutorial → camera permission → MediaPipe init. Users u
 - [ ] Reload the page → tap AeroGrab toggle again → tutorial does NOT show, AeroGrab activates directly.
 - [ ] In console: `aeroGrab.replayTutorial()` → overlay shows again from step 1.
 - [ ] On a device with `prefers-reduced-motion: reduce` → pulse rings + emoji bob stop, but step slide transitions still work.
+
+---
+
+## v10 — Cancel Hardening + Heating Optimisations + Auto-Update (April 22, 2026)
+
+### Why
+Real-device launch testing surfaced three issues that needed to ship before public release:
+1. **Cancel button only worked on one side** — pressing Cancel on the receiver did not stop the sender, and pressing Cancel on the sender sometimes left a phantom receiver UI alive that re-mounted itself when the last few late chunks arrived.
+2. **Phones got hot during long idle periods with AeroGrab on** — even when no transfer was happening, the camera + ML loop kept running at full 12 fps, the WebRTC keep-alive used a fat 16 MB buffer, and the music UI fed the audio visualiser at 60 fps RAF.
+3. **End-users on `git clone`-based installs had no way to receive bug fixes** — they had to manually `git pull` to pick up new releases.
+
+### Solutions added in v10
+
+**1. Cancel button — both-sides reliable**
+- `_cancelDisabled` is now a sticky boolean. Set to `true` the moment cancel is pressed; any late `onmessage` data chunks that arrive after that point are dropped on the floor without re-instantiating the receiver UI. Without this guard, late chunks were calling `showReceiverLanding()` again 1–2 s after cancel, recreating the animation stage from scratch.
+- New `armCancelButton()` helper resets `_cancelDisabled = false` at the start of every new transfer (`initiateGrab` + `signalReadyToReceive`). Without this, the second transfer in a session would never be cancellable because the sticky guard from the previous transfer was still latched.
+- New socket event **`TRANSFER_CANCEL_RELAY`** — when either side presses cancel, the client emits this with the `sessionId`. Server forwards it to the other peer (works across local sockets AND cross-server LAN peers via the `/api/aerograb/lan/end` relay). This is the backup in case the WebRTC channel is already torn down by the cancelling side.
+- Symmetric teardown on cancel: both sides close `RTCPeerConnection`, null out `_dataChannel` / `_recvBuffer` / `_recvMeta`, hide animation stage, toast "Transfer cancelled".
+
+**2. Heating + battery optimisations (the big sweep)**
+
+*Camera + ML loop (`public/aerograb.js`):*
+- Camera resolution dropped from 320×240 to **256×192** (50  0.000000ewer pixels per frame for the recogniser to chew on).
+- Adaptive 3-tier ML loop: **12 fps** when a hand is detected, **5 fps** after 3 s no-hand, **2 fps** after 10 s no-hand or when tab is hidden.
+- `visibilitychange` listener now sets `track.enabled = false` on the camera track when tab is hidden — sensor parks completely. Re-enables on visibility-true and ramps back to active tier on first hand detection.
+
+*WebRTC (`public/aerograb.js`):*
+- `BUFFER_HIGH_WATER` lowered **16 MB → 8 MB**. RAM pressure on phones was causing GC stalls during 100+ MB transfers.
+
+*Sender UI (`public/aerograb.js`):*
+- The "Sending… X
+---
+
+## v10 — Cancel Hardening + Heating Optimisations + Auto-Update (April 22, 2026)
+
+### Why
+Real-device launch testing surfaced three issues that needed to ship before public release:
+1. **Cancel button only worked on one side** — pressing Cancel on the receiver did not stop the sender, and pressing Cancel on the sender sometimes left a phantom receiver UI alive that re-mounted itself when the last few late chunks arrived.
+2. **Phones got hot during long idle periods with AeroGrab on** — even when no transfer was happening, the camera + ML loop kept running at full 12 fps, the WebRTC keep-alive used a fat 16 MB buffer, and the music UI fed the audio visualiser at 60 fps RAF.
+3. **End-users on `git clone`-based installs had no way to receive bug fixes** — they had to manually `git pull` to pick up new releases.
+
+### Solutions added in v10
+
+**1. Cancel button — both-sides reliable**
+- `_cancelDisabled` is now a sticky boolean. Set to `true` the moment cancel is pressed; any late `onmessage` data chunks that arrive after that point are dropped on the floor without re-instantiating the receiver UI. Without this guard, late chunks were calling `showReceiverLanding()` again 1–2 s after cancel, recreating the animation stage from scratch.
+- New `armCancelButton()` helper resets `_cancelDisabled = false` at the start of every new transfer (`initiateGrab` + `signalReadyToReceive`). Without this, the second transfer in a session would never be cancellable because the sticky guard from the previous transfer was still latched.
+- New socket event **`TRANSFER_CANCEL_RELAY`** — when either side presses cancel, the client emits this with the `sessionId`. Server forwards it to the other peer (works across local sockets AND cross-server LAN peers via the `/api/aerograb/lan/end` relay). This is the backup in case the WebRTC channel is already torn down by the cancelling side.
+- Symmetric teardown on cancel: both sides close `RTCPeerConnection`, null out `_dataChannel` / `_recvBuffer` / `_recvMeta`, hide animation stage, toast "Transfer cancelled".
+
+**2. Heating + battery optimisations (the big sweep)**
+
+*Camera + ML loop (`public/aerograb.js`):*
+- Camera resolution dropped from 320×240 to **256×192** (50 % fewer pixels per frame for the recogniser to chew on).
+- Adaptive 3-tier ML loop: **12 fps** when a hand is detected, **5 fps** after 3 s no-hand, **2 fps** after 10 s no-hand or when tab is hidden.
+- `visibilitychange` listener now sets `track.enabled = false` on the camera track when tab is hidden — sensor parks completely. Re-enables on visibility-true and ramps back to active tier on first hand detection.
+
+*WebRTC (`public/aerograb.js`):*
+- `BUFFER_HIGH_WATER` lowered **16 MB → 8 MB**. RAM pressure on phones was causing GC stalls during 100+ MB transfers.
+
+*Sender UI (`public/aerograb.js`):*
+- The "Sending… X%" label was being repainted at ~30 fps. Throttled to **10 fps** — visually identical, way less main-thread work.
+
+*Service worker (`public/sw.js`):*
+- Bumped `lhost-shell-v17` → `v18` → `v19` to evict the old caches.
+- Added LRU cap of **200 entries** on the thumbnail cache (`lhost-thumbs-v19`). Previously unbounded — long Hevi Explorer sessions could accumulate hundreds of MB of cached thumbnails.
+
+*Music page (separate fix, mentioned for completeness):*
+- Audio visualiser RAF loop now stops when tab is hidden. Was burning ~10 % CPU even when the user was on a different tab.
+
+*Project size (`public/img/`):*
+- `twh-logo.png` recompressed 1.25 MB → 21 KB.
+- Avatar + background PNGs recompressed.
+- Deleted duplicate `twh-logo.jpeg` and `creator/twh-logo.png`.
+- Total payload cut by ~5.7 MB — huge cold-start improvement on slow LAN.
+
+**3. Auto-update wrapper (`start.sh`)**
+- On startup, runs `git pull --ff-only origin <current-branch>` against the configured remote.
+- Internet check (ping `1.1.1.1` with 2 s timeout) — if offline, skips the pull silently and continues to boot.
+- Dirty-tree guard — if `git status --porcelain` shows local changes, skips the pull and warns the user, so dev work is never clobbered.
+- If `package.json` changed during the pull, automatically runs `npm install` before starting the server.
+- Honours `HEVI_NO_UPDATE=1` env var to skip the entire update step (useful for offline / pinned deployments).
+- End-users who installed via `git clone https://github.com/technicalwhitehat-yt/hevi-explorer` now receive every release automatically the next time they restart the app — no manual `git pull` required.
+
+**4. YouTube Subscribe pill (small UX add)**
+- Replaced the static "Made by TWH" watermark with a clickable Subscribe pill in the corner.
+- Dark glass background + red YouTube icon chip + red "Subscribe" text. Blends with the teal aesthetic instead of fighting it (full red would have looked cheap).
+- Links to `youtube.com/@technicalwhitehat?sub_confirmation=1` so the subscribe dialog opens directly.
+
+### Files changed in v10
+- `public/aerograb.js` — sticky `_cancelDisabled` guard, `armCancelButton()`, `TRANSFER_CANCEL_RELAY` emit + handler, adaptive 3-tier ML loop, camera 256×192, sender label throttle 30→10 fps, `visibilitychange` track parking.
+- `server.js` — `TRANSFER_CANCEL_RELAY` socket relay (local + LAN cross-server), `BUFFER_HIGH_WATER` constant updated.
+- `public/sw.js` — bumped to `lhost-shell-v19` / `lhost-thumbs-v19`, added 200-entry LRU thumb cache cap.
+- `public/index.html` — Subscribe pill markup, bumped `aerograb.js?v=10` and `sw.js?v=19`.
+- `public/style.css` — Subscribe pill styles.
+- `start.sh` — auto-update wrapper with internet check, dirty-tree guard, npm reinstall trigger, `HEVI_NO_UPDATE` skip flag.
+- `public/img/*` — twh-logo + avatars + background recompressed; duplicates deleted.
+- `package.json` — version bumped (so the in-app "Check for update" button has a new tag to compare against).
+
+### v10 testing checklist
+- [ ] Press Cancel on the SENDER mid-transfer → sender hides, receiver hides within ~500 ms (via `TRANSFER_CANCEL_RELAY`), no phantom UI re-appears even if late chunks arrive.
+- [ ] Press Cancel on the RECEIVER mid-transfer → same behaviour, sender stops sending, both UIs gone.
+- [ ] Cancel a transfer, then immediately start a second transfer → second transfer is fully cancellable (no latched sticky guard from the previous one).
+- [ ] Turn AeroGrab on, hold phone idle facing wall for 30 s → label transitions to idle then standby tier; phone temperature stays normal.
+- [ ] Switch to another tab for 1 minute → `visibilitychange` fires, camera track parks, ML loop drops to 2 fps. Switch back → ramps up.
+- [ ] Run `git tag v1.0.X && git push --tags` → user with auto-update enabled restarts their server → `start.sh` pulls the new release on boot, runs `npm install` if `package.json` changed, then starts.
+- [ ] Set `HEVI_NO_UPDATE=1` and restart → `start.sh` prints "Skipping auto-update (HEVI_NO_UPDATE set)" and starts immediately.
+- [ ] Subscribe pill bottom-right opens YouTube with `?sub_confirmation=1` → subscribe dialog appears.
+
+### Notes for the next AI
+- The git remote inside the Replit dev environment still points to the old `hiddeneyes99/l-host` repo (left untouched — destructive to change). End-users clone from `technicalwhitehat-yt/hevi-explorer` so their `start.sh` auto-update points at the right place. The in-app "Check for update" button uses the correct repo regardless.
+- To ship a new auto-update release: bump `package.json` `"version"` AND create a GitHub Release with a matching tag (e.g. `v1.0.1`). The "Check" button compares against the latest release tag.
+- The Blueprint (`AeroGrab_Blueprint.md`) was fully refreshed to v3.0 in this same session and now reflects everything from v1 through v10 in its main body — phased rollout, function reference, tech stack, and gesture/transfer/cancel/discovery sections all describe the current stable code, not historical state.

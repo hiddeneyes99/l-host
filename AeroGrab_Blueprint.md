@@ -13,12 +13,12 @@
 
 ### by Technical White Hat (TWH)
 
-**Document Version:** 2.0 — Distributed Architecture Release
+**Document Version:** 3.0 — Latest Stable (v10)
 **Classification:** Internal Engineering Blueprint
 **Author:** Technical White Hat (TWH), Independent Developer
-**Created:** April 18, 2026 | **Updated:** April 18, 2026
+**Created:** April 18, 2026 | **Updated:** April 22, 2026
 **Platform:** TWH Eco System Technology (Hevi Explorer)
-**Status:** 🟢 v1 Implemented — v2 (LAN Discovery) In Design
+**Status:** 🟢 v1 → v10 ALL SHIPPED — Auto LAN discovery, MediaPipe Tasks Vision gestures, in-app open, cancel both-sides, heating-optimised, history, tutorial — all live in production
 
 </div>
 
@@ -281,11 +281,30 @@ Targeted mode is more private and more precise — like pointing at someone befo
 
 ### LAN vs WAN
 
-In v2, the signaling server can be:
+The signaling server can be:
 - **Deployed on Replit** (accessible from internet) — works over 4G/5G too, as long as both devices connect to same signaling server
 - **Running on local device** (one phone runs the server, others connect via LAN IP) — fully offline, zero internet dependency
 
 For Termux users: one device runs `node server.js` on port 5000. All other devices connect to `http://[that-device-ip]:5000`. They all auto-discover each other.
+
+### Cross-Server Auto LAN Discovery (v3+) — UDP Broadcast Bridge
+
+The "every device runs its own server" model creates a problem: by default, devices on different localhost servers can't see each other through Socket.io alone. v3 added a **UDP broadcast bridge** so two phones each running their own Hevi can still discover each other on the same WiFi without anyone connecting to anyone else's URL.
+
+| Component | Detail |
+|---|---|
+| **Discovery port** | UDP `45555` (override `AEROGRAB_DISCOVERY_PORT`, disable `AEROGRAB_LAN_DISCOVERY=0`). |
+| **Announce packet** | Each server broadcasts `{ serverId, name, port, ts }` every 3 s. |
+| **Peer TTL** | 12 s. Missing 4 announces → drop from `lanServers` Map. |
+| **Cross-server signalling** | HTTP relay endpoints on every Hevi: `POST /api/aerograb/lan/{wake,drop,signal,end}`. A remote server posts a signalling event addressed to one of our local sockets. |
+| **Composite peer IDs** | `lan:<serverId>:<socketId>` — embedded inside `webrtc_signal`, `WAKE_UP_CAMERAS`, `DROP_HERE`, `SESSION_END`, `TRANSFER_APPROVED` payloads. |
+| **Combined device list** | Server merges `heviDevices` + `lanServers` and tags each with `source: 'local' \| 'lan'` so the UI labels cards "Online · Auto LAN". |
+
+Result: two phones each open `http://localhost:5000` on their own device, never enter each other's URL, and still see each other in the Hevi Network panel within ~5 s.
+
+### Stale-Device Sweep
+
+A `setInterval` on the server runs every 15 s and removes any registered device with `lastSeen > 45 s`, then re-broadcasts `HEVI_PEERS_UPDATE`. This kills ghost entries from browsers that crashed or lost network without a clean disconnect.
 
 ---
 
@@ -316,19 +335,38 @@ Step 5: P2P connection established — Server steps out completely
 Step 6: File streams directly Sender → Receiver at full LAN/WiFi speed
 ```
 
-### How Sender Reads the File in v2
+### How Sender Reads the File
 
-In v2, the sender fetches the file from **its own local Hevi Explorer server** (`/file?path=...`). Since each device's browser is pointed at its own `localhost:5000`, this naturally reads from the sender's own storage:
+The sender fetches the file from **its own local Hevi Explorer server** (`/file?path=...`). Since each device's browser is pointed at its own `localhost:5000`, this naturally reads from the sender's own storage:
 
 ```javascript
-// Sender's browser fetches from THEIR OWN Hevi Explorer
 const resp = await fetch(`/file?path=${encodeURIComponent(payload.path)}`);
-// This hits localhost:5000 on the SENDER's device — their own files
 const blob = await resp.blob();
 // Blob is then streamed via WebRTC to the receiver
 ```
 
-The receiver gets the file as a browser download — saved to their device's local storage. **No shared filesystem. Genuinely separate devices.**
+### Chunking, Buffering & Back-Pressure (current stable values)
+
+| Constant | Value | Purpose |
+|---|---|---|
+| `CHUNK_SIZE` | **512 KB** (524,288 B) | Each WebRTC `dataChannel.send()` payload. Larger than the old 64 KB → fewer JS round-trips → much higher throughput on LAN. |
+| `BUFFER_HIGH_WATER` | **8 MB** | When `dataChannel.bufferedAmount` exceeds this, the sender pauses pulling more bytes. (Was 16 MB — halved to reduce RAM pressure on phones.) |
+| `BUFFER_LOW_WATER` | **2 MB** | `bufferedAmountLowThreshold` — sender resumes when buffer drains below this. |
+| `SUPER_CHUNK` | **4 MB** read-ahead | The blob is sliced and `arrayBuffer()`-decoded in 4 MB super-chunks, then sent as 8× 512 KB chunks. Cuts FileReader overhead 8×. |
+| Drain-and-close | bufferedAmount → 0 + 800 ms | After queuing `__TRANSFER_DONE__`, sender waits for the buffer to fully drain, then waits another 800 ms before closing the peer connection. Without this, the last chunks + DONE marker were silently dropped. |
+
+### Receiver-Side Save Path — In-App Open (v6+)
+
+The current stable receiver does **not** trigger a browser download into the OS Downloads folder. Instead:
+
+1. Chunks assemble into a `Blob` in RAM.
+2. The blob is `POST`ed to the receiver's OWN local server at `POST /api/aerograb/save?name=...&type=...` (raw `application/octet-stream` body).
+3. Server writes it to `${ROOT_DIR}/HeviExplorer/<safeName>` with sanitised filename, collision resolution (`foo (1).jpg` → `foo (2).jpg`), and a 2 GB cap. Folder is auto-created on first use.
+4. Server returns the file as a Hevi-shaped item and incrementally indexes the folder.
+5. Client calls `window.openFile(item)` → file opens in Hevi's native viewer (image / video / audio / PDF / archive / text) **in the same tab** — no new window, no popup blocker, no leaving Hevi.
+6. Receiver-side belt-and-suspenders: if `_recvReceived >= _recvMeta.size` and the DONE marker hasn't arrived after 250 ms, finalise anyway.
+
+The bytes only ever live on the receiver's own device — the `/api/aerograb/save` endpoint listens on `localhost`, never reachable from another device.
 
 ### Performance Comparison
 
@@ -366,65 +404,72 @@ If the user has 5 files selected but then opens an image in the viewer — AeroG
 
 ## 9. Gesture Recognition Engine
 
-### Technology: Google MediaPipe Hands
+### Technology: Google MediaPipe Tasks Vision — `GestureRecognizer`
 
-MediaPipe Hands tracks 21 key landmarks on the human hand in real time, running entirely inside the browser — no data sent to any server.
+The current stable engine uses **MediaPipe Tasks Vision `GestureRecognizer`** (the off-the-shelf Google model), NOT a hand-crafted curl-ratio classifier. The model is loaded once from Google's CDN (`storage.googleapis.com`), cached by the browser, and then runs entirely on-device with WASM/GPU acceleration.
 
 ```
-Hand Landmark Map (21 Points):
-        8   12  16  20      ← Fingertips
-        |   |   |   |
-    7   11  15  19
-    |   |   |   |
-    6   10  14  18
-        |   |   |
-    5───9───13──17          ← MCP Knuckles
-        \           |
-     4   \          |
-     |    2─────────0       ← Wrist (landmark 0)
+Loaded once (~7 MB), cached forever:
+  GestureRecognizer.createFromOptions({
+    baseOptions: { modelAssetPath: 'gesture_recognizer.task' },
+    runningMode: 'VIDEO',
+    numHands: 1,
+  })
 ```
 
-### Gesture Classification — Distance-Based (v2 Algorithm)
+The recogniser returns a labelled gesture per frame (`Closed_Fist`, `Open_Palm`, `Thumb_Up`, `Victory`, `Pointing_Up`, `ILoveYou`, `None`) plus a confidence score (`categoryScore`) and 21 hand landmarks (used for the live skeleton overlay + the hand-bbox guard).
 
-The v2 gesture engine uses **2D distance-based classification** — ignoring z-axis (depth) because MediaPipe z values are not on the same scale as normalized x,y coordinates.
+### Gesture Mapping
 
-```javascript
-// Hand size = wrist(0) to middle-MCP(9) in 2D normalized space
-const handSize = dist2D(lm[0], lm[9]);
-
-// Curl ratio for each finger: tipToMCP / handSize
-// Small ratio (< 0.65) = finger is curled → FIST
-// Large ratio (> 0.65) = finger is extended → OPEN PALM
-```
-
-| Gesture | Condition | Meaning |
+| Model Label | AeroGrab Action | Confidence Floor |
 |---|---|---|
-| **FIST** | All 4 curl ratios < 0.65 | Grab trigger |
-| **OPEN_PALM** | All 4 curl ratios > 0.65 | Catch trigger |
-| **null** | Mixed/ambiguous | Ignored |
+| **`Closed_Fist`** | Grab (sender) | `categoryScore ≥ 0.88` |
+| **`Open_Palm`**   | Catch (receiver) | `categoryScore ≥ 0.88` |
+| All others (`Thumb_Up`, `Victory`, `Pointing_Up`, `ILoveYou`, `None`) | Ignored — explicitly rejected | — |
 
-### Why NOT Y-coordinate comparison (the v1 mistake)
+### Anti-Misfire Gate (the v6 hardening)
 
-The original algorithm compared fingertip.y to knuckle.y. This only works when the hand is held in one specific orientation (horizontal, facing up). A hand held sideways, rotated, or at an angle will produce incorrect y-coordinate relationships. The distance-based approach works for any hand orientation.
+A misfire-prone gesture engine ruins the whole product, so the firing path is gated by **five independent guards** that all have to agree before a gesture triggers:
 
-### Performance Configuration
+| Guard | Constant | Default | Purpose |
+|---|---|---|---|
+| ML confidence floor | `ML_MIN_CONFIDENCE` | `0.88` | Reject low-confidence noise from Tasks Vision. |
+| Hand bbox size | `MIN_HAND_BBOX` | `0.18` | Hand must cover ≥18 % of frame. Tiny far-away detections are treated as neutral. |
+| Frame-debounce hold | `FIRE_FRAME_COUNT` | `10` (~0.8 s @ 12 fps) | Same gesture must persist this many consecutive frames. |
+| Neutral-arm gap | `NEUTRAL_ARM_FRAMES` | `4` | At least 4 consecutive neutral/relaxed frames are required BEFORE every fire — blocks FIST→OPEN and OPEN→FIST snap re-triggers. |
+| Cooldown lockout | `GESTURE_COOLDOWN_MS` | `3500` ms | Absolute lockout after any fire. |
+
+Live debug label exposes which gate is blocking, e.g. `🔍 hand too small 11%`, `↺ relax hand first (2/4)`, `· neutral 91% (n3/4)`, `✊ Closed_Fist 92% (6/10)`.
+
+### Adaptive 3-Tier ML FPS (heating mitigation)
+
+To stop phones from heating up while AeroGrab idles, the ML loop runs at one of three tiers, switched dynamically based on detection state:
+
+| Tier | FPS | Trigger |
+|---|---|---|
+| **Active** | 12 | A hand is currently detected in frame |
+| **Idle**   | 5  | No hand for ~3 s |
+| **Standby**| 2  | No hand for ~10 s, or browser tab hidden |
+
+When the tab is hidden (`visibilitychange`), the loop drops to standby and the camera track is `track.enabled = false`'d so the sensor is electrically idle. Returning to the tab re-enables and ramps back to active on first hand detection.
+
+### Camera Configuration
 
 | Parameter | Value | Reason |
 |---|---|---|
-| FPS | 12 | Battery-efficient, sufficient for gesture detection |
-| maxNumHands | 1 | Lower compute, single-user per device |
-| modelComplexity | 0 | Lite model — best for mobile performance |
-| minDetectionConfidence | 0.6 | Lenient enough to work on mid-range phones |
-| minTrackingConfidence | 0.5 | Allows detection in varied lighting |
+| Resolution | **256 × 192** | Just enough pixels for a 21-point landmark model. Halves shader cost vs 320×240. |
+| Frame rate | **12 fps** (active tier) | Battery-efficient, plenty for gesture detection. |
+| facingMode | `'user'` (with `OverconstrainedError` retry) | Front camera; falls back to default cam on desktops. |
+| `track.enabled` | toggled on `visibilitychange` | Sensor parked when tab hidden. |
+| `_processingHands` flag | concurrency guard | Prevents overlapping `recognizeForVideo()` calls. |
 
-### Debug Mode
+### Live HUD (the bottom-right preview)
 
-The gesture label in the camera preview shows live debug data:
-- `👁 42 | no hand` — model running but no hand detected (shows frame count)
-- `H:0.18 [0.32,0.28,0.30,0.25]` — hand detected, showing curl ratios per finger
-- `✅ FIST` or `✅ OPEN_PALM` — gesture confirmed, action triggering
+A 168 × 126 px draggable overlay shows the live mirrored camera feed + the 21-point landmark skeleton (drawn with mirrored x-coords so it matches the user's view) + the live debug label + a manual `✊ Grab` fallback button. Drag handle (`⋮⋮ drag`) repositions the preview anywhere on screen; position is persisted in `localStorage['ag_preview_pos']`.
 
-This lets developers and users diagnose detection issues in real time.
+### Manual Override
+
+A `✊ Grab` button on the camera overlay bypasses gesture detection entirely — useful when camera conditions are poor or for users who prefer UI interaction.
 
 ### Manual Override
 
@@ -569,16 +614,30 @@ If no receiver responds within 60 seconds:
 
 | Scenario | Detection | Response |
 |---|---|---|
-| No hand detected | Frame counter shows no landmarks | Debug label: "👁 N \| no hand" |
-| MediaPipe model fails to load | Promise rejection | "AeroGrab: Camera AI failed to load." |
-| Camera permission denied | getUserMedia rejection | "AeroGrab needs camera access." |
-| Receiver disconnects mid-transfer | WebRTC channel closes | "Connection lost. Resend?" |
-| Multiple senders grab simultaneously | Each creates independent session | Sessions are isolated |
-| WebRTC P2P fails (NAT/firewall) | ICE connection failure | Fallback offer via traditional download |
-| Session timeout (60s) | Server timer | "Transfer expired. File still on your device." |
-| Folder too large/many files | Pre-transfer validation | Specific error dialog |
-| No file to grab | getAeroGrabPayload returns null | "No file to grab. Open or select a file first." |
-| Device leaves network mid-transfer | Heartbeat timeout | Device removed from registry, all notified |
+| No hand detected | Tasks Vision returns empty `gestures[]` | Debug label: "👁 N \| no hand"; ML loop drops to idle/standby tier after 3 s / 10 s |
+| Recogniser model fails to load | `createFromOptions` rejection | Toast "AeroGrab: Hand AI failed to load." + retry button |
+| HTTP origin blocks camera | `!window.isSecureContext` | Show clipboard-copyable HTTPS URL via auto-generated self-signed cert (`https://<lan-ip>:5443`) |
+| Camera permission denied | `NotAllowedError` | "Camera access denied. Browser Settings → Site permissions → Camera → Allow." |
+| Camera in use by another app | `NotReadableError` | "Camera is being used by another app." |
+| Camera doesn't support facingMode | `OverconstrainedError` | Auto-retry without `facingMode` constraint (desktop cameras) |
+| Receiver disconnects mid-transfer | WebRTC `iceconnectionstate` → `failed`/`disconnected` | "Connection lost. Resend?" + auto-cleanup of session |
+| Multiple senders grab simultaneously | Each creates independent session | Sessions are isolated by `sessionId` |
+| Session timeout (60 s) | Server timer | "Transfer expired. File still on your device." |
+| Folder too large/many files | Pre-transfer validation | Specific error dialog (1 GB / 20 files cap) |
+| No file to grab | `getAeroGrabPayload()` returns null | "No file to grab. Open or select a file first." |
+| Device leaves network mid-transfer | 15 s heartbeat sweep + 45 s TTL | Device removed from registry, all notified |
+| Stray browser cache | Service worker `lhost-shell-v19` (network-first for `/aerograb*.js`) | Cache version bump on every gesture-engine change forces eviction |
+
+### Cancel Flow — Both-Sides Reliable (current stable)
+
+The cancel button has its own hardened path because earlier versions had two recurring bugs: (a) cancel only worked on one side, (b) late-arriving WebRTC chunks would re-create the receiver UI 1–2 seconds after the user had pressed cancel. The current stable design:
+
+| Mechanism | Where | Purpose |
+|---|---|---|
+| Sticky `_cancelDisabled` guard | client | Set to `true` the moment user presses cancel; any late `onmessage` chunks are dropped without re-instantiating the receiver UI. |
+| `armCancelButton()` | client | Called at the start of every new transfer to reset the sticky guard. Without this, the second transfer would never be cancellable. |
+| `TRANSFER_CANCEL_RELAY` socket event | client → server → other peer | Backup signal in case the WebRTC channel is already torn down. Server forwards by `sessionId` so cross-server LAN peers also receive it. |
+| Symmetric teardown | both sides | On cancel, both sides: close `RTCPeerConnection`, null out `_dataChannel`/`_recvBuffer`/`_recvMeta`, hide animation stage, toast "Transfer cancelled". |
 
 ---
 
@@ -586,139 +645,191 @@ If no receiver responds within 60 seconds:
 
 ## 15. Developer Implementation Guide
 
-### Current State (v1 — What Is Already Built)
+### Current State (v1 → v10 — All Shipped, Stable in Production)
 
 ```
-✅ Socket.io signaling server (FILE_GRABBED, DROP_HERE, webrtc_signal, SESSION_END)
+─── Core signalling & sessions ───
+✅ Socket.io signaling server (FILE_GRABBED, DROP_HERE, webrtc_signal, SESSION_END, TRANSFER_CANCEL_RELAY)
 ✅ 60s timeout + First-Confirmed-Receiver-Wins rule
-✅ MediaPipe Hands at 12fps via direct getUserMedia (no Camera utility)
-✅ 2D distance-based gesture classification (FIST + OPEN_PALM)
-✅ WebRTC P2P data channel with 64KB chunking
-✅ Folder auto-zip with JSZip
-✅ Permission dialog (one-time, localStorage remembered)
-✅ Wake-up notification panel for receivers
-✅ Green dot indicator (active = AeroGrab ON)
-✅ Sidebar toggle + context menu "AeroGrab" button
-✅ Energy Squeeze + Rocket Launch + Receiver Landing + Progress Ring animations
-✅ Camera preview (150x112px, bottom-right, live while AeroGrab ON)
-✅ Debug gesture label (shows curl ratios live, or gesture name when detected)
-✅ Manual ✊ Grab button (bypasses gesture detection)
-✅ Privacy .gitignore (files/, uploads/, *.db, .env excluded)
+✅ Server-side sessions 100% in-memory, never written to disk
+
+─── Network discovery ───
+✅ HEVI_ANNOUNCE / HEVI_HEARTBEAT / HEVI_PEERS_UPDATE  (v2)
+✅ Device Registry (heviDevices Map) with 15s sweep + 45s TTL  (v2 + April-20 fix)
+✅ Cross-server UDP broadcast on port 45555 (v3) — devices on different localhost servers see each other
+✅ Composite peer IDs `lan:<serverId>:<socketId>` carried inside signalling payloads
+✅ HTTP relay endpoints `/api/aerograb/lan/{wake,drop,signal,end}`
+✅ Combined device list with `source: 'local' | 'lan'` tagging
+✅ Hevi Network sidebar panel + auto-expand + pulse on new peer
+✅ Targeted "Send →" per-device selection + broadcast fallback
+
+─── Camera & gesture engine ───
+✅ MediaPipe Tasks Vision GestureRecognizer (off-the-shelf model, ~7 MB, browser-cached)
+✅ Camera 256×192 @ 12 fps, single getUserMedia call (stream reused into recogniser)
+✅ Adaptive 3-tier ML loop: 12 fps active / 5 fps idle / 2 fps standby + visibilitychange park
+✅ Anti-misfire 5-guard gate: ML conf 0.88 + bbox 0.18 + 10-frame hold + 4-frame neutral arm + 3.5 s cooldown
+✅ Live HUD with mirrored landmark overlay + draggable preview (position persisted)
+✅ Manual ✊ Grab fallback button
+✅ Permissions-Policy header + isSecureContext guard + named-error camera handling
+✅ Auto-generated self-signed SSL cert (10-year, RSA 2048) on PORT+443 for LAN HTTPS
+
+─── File transfer ───
+✅ WebRTC P2P data channel: 512 KB chunks, 8 MB high water, 2 MB low water, 4 MB super-chunk read-ahead
+✅ Drain-and-close (bufferedAmount → 0 + 800 ms wait) before peerConn.close()
+✅ Receiver auto-finalise belt-and-suspenders (250 ms grace if DONE marker missing)
+✅ Folder auto-zip with JSZip (1 GB / 20 file caps)
+✅ Save to `${ROOT_DIR}/HeviExplorer/<safeName>` via POST /api/aerograb/save
+✅ Filename collision resolution (foo (1).jpg … foo (9999).jpg → foo-<ts>.jpg)
+✅ 2 GB upload cap with stream byte-counting + abort/cleanup
+✅ Incremental folder index update on save
+✅ Cancel: sticky _cancelDisabled guard + armCancelButton + TRANSFER_CANCEL_RELAY socket fallback
+
+─── UX / animation ───
+✅ Animation Engine v2.0 (v7): SVG rocket comet, conic glow, radar dish, sky beam, shockwave, confetti
+✅ Live receiver progress (v8): _pendingRecvPct cache so progress arrives before card mount don't get lost
+✅ "Recent AeroGrab" history panel below Cloud Storage (v8) — 30-entry localStorage, dedup by path, HEAD check on click
+✅ Permission dialog with privacy explanation (one-time, localStorage remembered)
+✅ Wake-up notification panel with sender name + filename + Catch button
+✅ First-run 3-step tutorial overlay (v9), runs BEFORE camera permission, replayable via aeroGrab.replayTutorial()
+✅ Privacy .gitignore (files/, uploads/, thumbnails/, *.db, .env excluded)
+✅ prefers-reduced-motion respected throughout animation engine
+
+─── Cache hygiene ───
+✅ Service worker bumped to lhost-shell-v19 / lhost-thumbs-v19, network-first for /aerograb*.js
+✅ Per-script ?v= cache busters bumped on every release
 ```
 
-### What Needs to Be Built (v2 — LAN Discovery)
-
-```
-❌ HEVI_ANNOUNCE event (client sends on connection)
-❌ HEVI_HEARTBEAT event (client sends every 15s)
-❌ HEVI_PEERS_UPDATE broadcast (server sends on any join/leave)
-❌ Device Registry (server-side Map of all online Hevi instances)
-❌ Network tab UI in Hevi Explorer (shows all online devices)
-❌ Device name + avatar setup (first-run prompt or settings)
-❌ Targeted transfer mode (select a device → then grab → only that device wakes up)
-❌ Broadcast transfer mode (grab without target → everyone wakes up, first palm wins)
-❌ "N devices on this network" live counter
-❌ Device-specific wake-up notification (shows WHICH device is sending and what)
-```
-
-### File Structure
+### File Structure (current)
 
 ```
 hevi-explorer/
-├── server.js                    ← Socket.io server + AeroGrab signals (v1 done)
-│                                   + Add: device registry, HEVI_ANNOUNCE, HEVI_HEARTBEAT
+├── server.js                    ← Express + Socket.io + AeroGrab signalling + UDP discovery
+│                                  + /api/aerograb/save + /api/aerograb/lan/{wake,drop,signal,end}
+│                                  + heviDevices + lanServers + ensureSslCert
+├── start.sh                     ← Auto-update wrapper (git pull --ff-only on boot, npm reinstall on package.json change)
 ├── public/
-│   ├── app.js                   ← Hevi Explorer main app
-│   │                               + Add: Network tab, device list rendering
-│   ├── aerograb.js              ← All AeroGrab client logic (v1 done)
-│   │                               + Add: HEVI_ANNOUNCE on connect, heartbeat, targeted grab
-│   ├── aerograb-animation.js    ← Animations (v1 done)
-│   ├── index.html               ← UI markup
-│   │                               + Add: Network tab, device list container
-│   └── style.css                ← Styles
-│                                   + Add: Network tab + device card styles
-└── AeroGrab_Blueprint.md        ← This document
+│   ├── app.js                   ← Hevi Explorer main app (browse/upload/viewer)
+│   ├── aerograb.js              ← All AeroGrab client logic (IIFE, ~1100 lines)
+│   ├── aerograb-animation.js    ← Animation Engine v2.0 (SVG-driven scenes)
+│   ├── index.html               ← UI markup + inline Hevi Network script + tutorial overlay
+│   ├── style.css                ← Styles incl. AeroGrab + history + tutorial blocks
+│   └── sw.js                    ← Service worker (lhost-shell-v19)
+├── AeroGrab_Blueprint.md        ← This document (engineering spec)
+└── AeroGrab_MasterPrompt.md     ← AI handoff document with v3-v10 changelog
 ```
 
-### Coding Conventions (MUST follow when implementing v2)
+### Coding Conventions
 
-1. **Keep aerograb.js isolated** — all AeroGrab logic stays inside `(function AeroGrab() { ... })()` IIFE
-2. **No shared globals** — communicate with app.js only through `window.aeroGrab*` and `window.onHeviPeersUpdate` hooks
-3. **Server sessions are in-memory only** — never write AeroGrab or device data to disk
-4. **Toast notifications** use the existing Hevi Explorer `toast(msg, type)` function — types: `'success'`, `'error'`, `'warn'`, `''`
-5. **CSS accent color** is `--accent: #25f4d0` — all AeroGrab UI uses this color
-6. **Device IDs** are generated once via `crypto.randomUUID()` and stored in `localStorage('ag_device_id')`
-7. **Socket events** follow the naming convention: `HEVI_*` for network/peer events, `AG_*` or existing names for AeroGrab transfer events
+1. **Keep aerograb.js isolated** — all AeroGrab logic stays inside `(function AeroGrab() { ... })()` IIFE.
+2. **No shared globals** — communicate with app.js only through `window.aeroGrab*`, `window.aeroGrabSetOpenFile`, `window.openFile`, `window.onHeviPeersUpdate`, `window.heviSendTo`.
+3. **Server sessions / device registry are in-memory only** — never written to disk.
+4. **Toast notifications** use `toast(msg, type)` — types: `'success'`, `'error'`, `'warn'`, `''`.
+5. **CSS accent** is `--accent: #25f4d0` — all AeroGrab UI uses this colour.
+6. **Device IDs** are generated once via `crypto.randomUUID()` and stored in `localStorage('ag_device_id')`.
+7. **2D landmark math only** — never use z-axis from Tasks Vision landmarks.
+8. **Cache-bust** every `aerograb*.js` change with both the per-script `?v=N` query AND a service-worker version bump.
+9. **Bump service worker** (`lhost-shell-vN`) on any change touching cached assets.
+10. **Naming**: `HEVI_*` for network/peer events, transfer events keep their established names.
 
-### v2 Socket Events Reference
+### Socket Events Reference (current stable)
 
 ```
 Client → Server:
-  HEVI_ANNOUNCE  { deviceId, deviceName, avatar }   ← on connect
-  HEVI_HEARTBEAT { deviceId }                        ← every 15s
-  FILE_GRABBED   { sessionId, metadata, targetId? } ← grab (targetId = optional targeted device)
-  DROP_HERE      { sessionId }
-  webrtc_signal  { to, signal }
-  SESSION_END    { sessionId }
+  HEVI_ANNOUNCE          { deviceId, deviceName, avatar }              ← on connect + reconnect
+  HEVI_HEARTBEAT         { deviceId }                                    ← every 15s
+  FILE_GRABBED           { sessionId, metadata, targetId? }              ← grab (targetId optional, can be lan:<serverId>:<socketId>)
+  DROP_HERE              { sessionId }
+  webrtc_signal          { to, signal }                                  ← peer ID may be local socket.id or lan:<serverId>:<socketId>
+  SESSION_END            { sessionId }
+  TRANSFER_CANCEL_RELAY  { sessionId }                                   ← backup cancel signal (out-of-band of WebRTC)
 
 Server → Client:
-  HEVI_PEERS_UPDATE  { devices: [...], total: N }   ← on any join/leave
-  WAKE_UP_CAMERAS    { senderId, senderName, metadata, sessionId }
-  TRANSFER_APPROVED  { peerId, sessionId }
-  TRANSFER_TAKEN     { sessionId }
-  SESSION_EXPIRED    { sessionId }
-  webrtc_signal      { from, signal }
+  HEVI_PEERS_UPDATE      { devices: [{ ..., source: 'local'|'lan' }], total: N }
+  WAKE_UP_CAMERAS        { senderId, senderName, metadata, sessionId }
+  YOU_ARE_RECEIVER       { sessionId, peerId }                           ← signals which device won the catch race
+  TRANSFER_APPROVED      { peerId, sessionId }
+  TRANSFER_TAKEN         { sessionId }                                   ← losing palms get this
+  SESSION_EXPIRED        { sessionId }
+  TRANSFER_CANCEL_RELAY  { sessionId }                                   ← forwarded cancel
+  webrtc_signal          { from, signal }
+
+Server-internal HTTP (cross-server LAN bridge):
+  POST /api/aerograb/lan/wake    { ... }
+  POST /api/aerograb/lan/drop    { ... }
+  POST /api/aerograb/lan/signal  { ... }
+  POST /api/aerograb/lan/end     { ... }
+
+Server-internal HTTP (receiver save):
+  POST /api/aerograb/save?name=<encoded>&type=<encoded>
+       body: raw bytes (Content-Type: application/octet-stream)
+       → 200 { ok: true, item, folder: 'HeviExplorer' }
 ```
 
 ---
 
 <br/>
 
-## 16. Function Reference
+## 16. Function Reference (current stable)
 
-### Existing v1 Functions (client-side, `aerograb.js`)
-
-| Function | Description |
-|---|---|
-| `toggleAeroGrab(bool)` | Enable/disable AeroGrab, manage camera + MediaPipe lifecycle |
-| `showPermissionDialog()` | Show custom permission explanation before browser prompt |
-| `initMediaPipe()` | Load MediaPipe, start getUserMedia, setInterval at 12fps |
-| `processGestureResults(results)` | MediaPipe callback — classifies gesture, updates debug label |
-| `classifyGesture(lm)` | 2D distance-based classification → 'FIST' / 'OPEN_PALM' / null |
-| `onGestureDetected(gesture)` | Route FIST→initiateGrab, OPEN_PALM→signalReadyToReceive |
-| `initiateGrab()` | Get payload, emit FILE_GRABBED, start animation Phase 1 |
-| `getAeroGrabPayload()` | Read app state → return file/folder/batch descriptor |
-| `signalReadyToReceive()` | Emit DROP_HERE, start receiver animation |
-| `openP2PBridge(peerId, role)` | Create RTCPeerConnection, set up data channel |
-| `startFileTransfer()` | Fetch file from own server, stream via WebRTC |
-| `streamFileOverBridge(blob, name)` | Chunk blob into 64KB pieces, send over data channel |
-| `onChunkReceived(event)` | Receive chunks, track progress, call finaliseReceivedFile |
-| `finaliseReceivedFile()` | Assemble blob → browser download (saves to device local storage) |
-| `deactivateAeroGrab()` | Stop MediaPipe, stop camera, clear state |
-| `showGreenDot(bool)` | Toggle green dot indicator + camera overlay visibility |
-| `resetSession()` | Clear all session state (role, peer, channel, buffers) |
-
-### New v2 Functions to Implement (client-side)
+### Client (`public/aerograb.js`)
 
 | Function | Description |
 |---|---|
-| `announceToNetwork()` | Emit HEVI_ANNOUNCE with deviceId, deviceName, avatar on connect |
-| `startHeartbeat()` | setInterval 15s → emit HEVI_HEARTBEAT |
-| `stopHeartbeat()` | clearInterval on disconnect |
-| `onPeersUpdate(devices)` | Receive HEVI_PEERS_UPDATE → update Network tab UI |
-| `renderDeviceList(devices)` | Render device cards in Network tab |
-| `setTargetDevice(deviceId)` | Set targeted device for next grab (null = broadcast) |
-| `getDeviceIdentity()` | Return/generate deviceId + deviceName from localStorage |
+| `toggleAeroGrab(bool)` | Enable/disable AeroGrab; runs first-run tutorial → permission dialog → camera + recogniser lifecycle |
+| `showTutorial()` | Promise-based 3-step first-run overlay; returns `false` if user skips |
+| `showPermissionDialog()` | Custom privacy explanation before browser camera prompt |
+| `requestCameraPermission()` | Single getUserMedia call (256×192, facingMode:'user', OverconstrainedError fallback); returns the live `MediaStream` for reuse |
+| `initRecognizer(stream)` | Load Tasks Vision GestureRecognizer, attach reused stream, start adaptive ML loop |
+| `processGestureResults(results)` | Per-frame callback — runs the 5-guard anti-misfire gate, updates debug label, fires `onGestureDetected` |
+| `onGestureDetected(gesture)` | Route `Closed_Fist`→`initiateGrab`, `Open_Palm`→`signalReadyToReceive` (gated by `_wakePayload`) |
+| `initiateGrab()` | Get payload, emit FILE_GRABBED, start sender animation, `armCancelButton()` |
+| `getAeroGrabPayload()` | Read app state → priority: open viewer file → selected files → folder → last opened |
+| `signalReadyToReceive()` | Emit DROP_HERE, start receiver landing animation |
+| `openP2PBridge(peerId, role)` | Create RTCPeerConnection, set up 512 KB data channel, wire ICE/SDP signalling |
+| `startFileTransfer()` | Fetch file from own `/file?path=...`, stream via WebRTC |
+| `streamFileOverBridge(blob, name)` | 4 MB super-chunk read → 8× 512 KB sends; respects `BUFFER_HIGH_WATER` (8 MB); drain-and-close on completion |
+| `onChunkReceived(event)` | Drop-if-`_cancelDisabled`; assemble into `_recvBuffer`; update progress; call `finaliseReceivedFile` on DONE or auto-finalise |
+| `finaliseReceivedFile()` | Snapshot meta+buffer → `saveAndOpenInHevi()` → fallback to anchor download |
+| `saveAndOpenInHevi(blob, meta)` | POST to `/api/aerograb/save` → on success call `window.openFile(item)` |
+| `recordReceiveHistory(item)` | Push to `localStorage['aerograb_history']` (cap 30, dedup by path) |
+| `armCancelButton()` | Reset sticky `_cancelDisabled = false` at start of every transfer |
+| `cancelTransfer()` | Set sticky guard, close peerConn, emit TRANSFER_CANCEL_RELAY, hide animation |
+| `deactivateAeroGrab()` | Stop recogniser, stop camera tracks, clear state |
+| `wireDraggablePreview()` | Mouse + touch drag for live HUD; persist `{x,y}` to `localStorage['ag_preview_pos']` |
+| `announceToNetwork()` | Emit HEVI_ANNOUNCE on connect AND reconnect |
+| `startHeartbeat()` / `stopHeartbeat()` | 15 s interval → emit HEVI_HEARTBEAT |
+| `getOrCreateDeviceId()` / `getDeviceName()` / `getDeviceAvatar()` | localStorage-persisted identity helpers |
+| `replayTutorial()` | Wipes `aerograb_tutorial_seen` flag and re-shows first-run overlay |
 
-### New v2 Functions to Implement (server-side, `server.js`)
+### Public API surface (`window.aeroGrab`)
+
+```js
+window.aeroGrab = {
+  toggle:         toggleAeroGrab,
+  isOn:           () => _enabled,
+  grab:           initiateGrab,
+  catch:          signalReadyToReceive,
+  cancel:         cancelTransfer,
+  setTarget:      (peerId) => { _targetSocketId = peerId || null; },  // accepts lan:<srv>:<sock>
+  mySocketId:     () => _socket?.id,
+  replayTutorial: replayTutorial,
+};
+window.aeroGrabSetOpenFile = (fileMeta) => { _activeOpenFile = fileMeta; };
+```
+
+### Server (`server.js`)
 
 | Function | Description |
 |---|---|
-| `registerDevice(socket, info)` | Add to heviDevices Map, broadcast HEVI_PEERS_UPDATE |
-| `removeDevice(socketId)` | Remove from Map on disconnect, broadcast update |
-| `heartbeatCheck()` | setInterval 30s → remove devices with lastSeen > 30s |
-| `broadcastPeersUpdate()` | io.emit('HEVI_PEERS_UPDATE', { devices, total }) |
-| `handleFileGrabbed(socket, data)` | v2 version: supports targetId for directed wake-up |
+| `registerDevice(socket, info)` | Add to `heviDevices` Map, broadcast HEVI_PEERS_UPDATE |
+| `removeDevice(socketId)` | Remove from Map on disconnect, clean up active sessions, broadcast update |
+| `heartbeatSweep()` | 15 s setInterval → remove devices with `lastSeen > 45 s`, re-broadcast |
+| `broadcastPeersUpdate()` | `io.emit('HEVI_PEERS_UPDATE', { devices: merged(local + lan), total })` |
+| `handleFileGrabbed(socket, data)` | Creates session; supports `targetId` for directed wake-up; relays to LAN servers if targetId is `lan:...` |
+| `ensureSslCert()` | Generates 10-year RSA-2048 self-signed cert with SAN for all current LAN IPs; cached in `data/ssl/`; regenerated when LAN IPs change |
+| `startUdpDiscovery()` | UDP socket on port 45555; broadcast announce every 3 s; expire peers after 12 s |
+| `POST /api/aerograb/save` | Receiver-side endpoint — sanitised filename, collision resolution, 2 GB cap, returns Hevi-shaped item, calls `incrementalUpdateDir` |
+| `POST /api/aerograb/lan/{wake,drop,signal,end}` | Cross-server signalling relays for UDP-discovered peers |
 
 ---
 
@@ -726,84 +837,97 @@ Server → Client:
 
 ## 17. Phased Rollout Plan
 
-### ✅ Phase 1 — Foundation (COMPLETE)
+### ✅ Phase 1 — Foundation (SHIPPED)
+Socket.io signalling, camera permission, MediaPipe + 12 fps loop, basic gesture detection.
 
-- Socket.io signaling server
-- Camera permission system
-- MediaPipe Hands at 12fps
-- Basic gesture detection (v1 — Y-coordinate, replaced in debug)
+### ✅ Phase 2 — File Transfer Core (SHIPPED)
+WebRTC P2P data channel, file chunking, folder auto-zip (JSZip), session management (60 s timeout, First-Wins rule).
 
-### ✅ Phase 2 — File Transfer Core (COMPLETE)
+### ✅ Phase 3 — Experience Layer (SHIPPED)
+Sender/Receiver animations, progress ring, wake-up notification panel, green dot, sidebar toggle, context menu, camera preview, debug label, manual Grab button.
 
-- WebRTC P2P data channel
-- 64KB file chunking
-- Folder auto-zip (JSZip)
-- Session management (60s timeout, First-Wins rule)
+### ✅ Phase 3.5 — Gesture Debug & Stabilisation (SHIPPED)
+Concurrent-processing guard, live debug output, manual Grab fallback.
 
-### ✅ Phase 3 — Experience Layer (COMPLETE)
+### ✅ Phase 4 — LAN Discovery & Device Registry (SHIPPED — v2)
+`HEVI_ANNOUNCE` / `HEVI_HEARTBEAT` / `HEVI_PEERS_UPDATE`, server-side `heviDevices` Map, Hevi Network sidebar panel, device name + avatar, live counter, auto-expand + pulse on first peer.
 
-- Energy Squeeze + Rocket Launch + Receiver Landing animations
-- Progress Ring for large files
-- Wake-up notification panel
-- Green dot + sidebar toggle + context menu button
-- Camera preview + debug gesture label + manual Grab button
+### ✅ Phase 5 — Targeted Transfer (SHIPPED — v2)
+Per-device "Send →" button, bidirectional, device-aware wake-up notification.
 
-### ✅ Phase 3.5 — Gesture Debug & Stabilization (COMPLETE)
+### ✅ Phase 6 — Cross-Server Auto LAN Discovery (SHIPPED — v3)
+UDP broadcast on port 45555, composite `lan:<serverId>:<socketId>` peer IDs, HTTP relay endpoints, combined device list with `source` tagging.
 
-- Replaced Y-coordinate classification with 2D distance-based algorithm
-- Added concurrent processing guard (`_processingHands` flag)
-- Added live debug output (curl ratios, frame counter, hand detection counter)
-- Added manual Grab button fallback
-- Lowered confidence thresholds (0.6 / 0.5)
+### ✅ Phase 7 — Reliability Hardening (SHIPPED — v3 + v4)
+Drain-and-close before peerConn.close(), receiver auto-finalise grace, `_cancelDisabled` sticky guard, `TRANSFER_CANCEL_RELAY` socket fallback, `armCancelButton()` reset.
 
-### 🔲 Phase 4 — LAN Discovery & Device Registry (NEXT)
+### ✅ Phase 8 — ML Engine Upgrade (SHIPPED — v5 + v6)
+Migrated from custom curl-ratio classifier to MediaPipe Tasks Vision `GestureRecognizer`. 5-guard anti-misfire gate. Hand-bbox size guard. Neutral-arm pre-fire gap.
 
-- `HEVI_ANNOUNCE` + `HEVI_HEARTBEAT` client events
-- Device Registry on server (`heviDevices` Map)
-- `HEVI_PEERS_UPDATE` broadcast on any change
-- Network tab UI in Hevi Explorer showing all online devices
-- Device name + avatar (auto-generated from hostname or user-set)
-- "N devices on this network" live counter
+### ✅ Phase 9 — In-App Open + Save (SHIPPED — v6)
+`POST /api/aerograb/save` endpoint, `${ROOT_DIR}/HeviExplorer/` folder, collision resolution, `window.openFile(item)` integration — no more popup blocker, no new tab.
 
-### 🔲 Phase 5 — Targeted Transfer
+### ✅ Phase 10 — Premium Animation Engine v2.0 (SHIPPED — v7)
+SVG rocket comet, conic glow, radar dish, sky beam, shockwave, confetti, progress shimmer cap, draw-on checkmark, `prefers-reduced-motion` respected.
 
-- Select a specific device in Network tab
-- Grab → only that device gets wake-up (not broadcast)
-- Bi-directional: any device can send to any other device
-- Device-aware wake-up notification: *"📱 Rahul Ka Phone is sending you: photo.jpg"*
+### ✅ Phase 11 — UX Polish (SHIPPED — v8 + v9)
+Live receiver progress (cache-replay on card mount), Recent AeroGrab history panel, first-run 3-step tutorial overlay, draggable HUD with persisted position.
 
-### 🔲 Phase 6 — Robustness
+### ✅ Phase 12 — Heating & Battery Optimisation (SHIPPED — v10, April 2026)
+Adaptive 3-tier ML loop (12/5/2 fps), camera 256×192, `track.enabled` parking on `visibilitychange`, sender UI tick 30→10 fps, WebRTC buffer 16→8 MB, service-worker thumb cache LRU cap 200.
 
+### 🔲 Phase 13 — Future
 - TURN server support (for 4G/5G where STUN alone fails)
 - Transfer resume on connection drop
 - Multiple simultaneous transfers (different sessions independent)
 - Speed indicator during transfer (MB/s)
+- Device name customisation UI (currently auto-detected from userAgent)
 
 ---
 
 <br/>
 
-## 18. Technology Stack Summary
+## 18. Technology Stack Summary (current stable)
 
 | Component | Technology | Version | Source |
 |---|---|---|---|
 | Server Runtime | Node.js | ≥18 | Pre-installed |
-| Realtime Signaling | Socket.io | 4.7.5 | CDN + npm |
-| Gesture AI | Google MediaPipe Hands | Latest | CDN |
+| HTTP framework | Express | ^4.x | npm |
+| Realtime Signalling | Socket.io | ^4.8.3 | CDN + npm |
+| **Gesture AI** | **MediaPipe Tasks Vision `GestureRecognizer`** | latest | CDN (`@mediapipe/tasks-vision`) + Google CDN model |
 | P2P Transfer | WebRTC Data Channel | Native browser API | — |
-| File Compression | JSZip | 3.x | CDN |
-| Animation | anime.js | 3.x | CDN |
-| Camera Access | getUserMedia API | Native browser API | — |
-| Device Identity | crypto.randomUUID() | Native browser API | — |
+| File Compression | JSZip | 3.10.1 | CDN |
+| Animation | Custom SVG + CSS keyframes | — | inline |
+| Camera Access | `getUserMedia` | Native browser API | — |
+| Self-Signed SSL | `selfsigned` | ^5.x | npm |
+| LAN Discovery | UDP datagram (`dgram`) | Node native | — |
+| Device Identity | `crypto.randomUUID()` | Native browser API | — |
 | UI Framework | Vanilla JS + HTML5 | — | — |
 | Styling | CSS3 Custom Properties | — | — |
-| Accent Color | `#25f4d0` | — | TWH Eco System branding |
+| Accent Colour | `#25f4d0` | — | TWH Eco System branding |
+| Service Worker | `lhost-shell-v19` / `lhost-thumbs-v19` | network-first for `/aerograb*.js`, LRU thumb cache cap 200 | — |
+
+### CDN Scripts (current `index.html`)
+
+```html
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script type="module">
+  import { GestureRecognizer, FilesetResolver }
+    from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.mjs';
+  // GestureRecognizer model fetched from storage.googleapis.com (~7 MB, browser-cached)
+</script>
+<script src="/aerograb-animation.js?v=5"></script>
+<script src="/aerograb.js?v=10"></script>
+```
+
+The legacy `@mediapipe/hands` and `@mediapipe/camera_utils` script tags have been **removed** — Tasks Vision replaces both.
 
 ---
 
 <div align="center">
 
-**AeroGrab Blueprint v2.0**
+**AeroGrab Blueprint v3.0 — Latest Stable (v10)**
 **by Technical White Hat (TWH)**
 **TWH Eco System Technology**
 
