@@ -6352,36 +6352,43 @@ img.lazy-img:not([src]) {
   box-shadow: 0 0 18px rgba(0,212,200,0.18);
 }
 
-/* ── YouTube Subscribe variant of the floating pill ── */
+/* ── YouTube Subscribe variant of the floating pill ─────────────────────────
+   Dark glass pill that matches the app's aesthetic, with a red YouTube icon
+   chip + red "Subscribe" text. Noticeable but not jarring. */
 .twh-watermark.twh-watermark--yt {
-  background: #FF0000;                       /* YouTube red */
-  border: 1px solid rgba(255, 0, 0, 0.55);   /* red border, no teal bleed */
-  color: #ffffff;
-  padding: 6px 12px 6px 8px;
-  gap: 6px;
-  box-shadow: 0 2px 10px rgba(255, 0, 0, 0.35),
-              0 0 0 1px rgba(255, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 0, 0, 0.28);
+  color: #ff3b3b;
+  padding: 5px 12px 5px 5px;
+  gap: 7px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
   font-size: 11px;
 }
 .twh-watermark.twh-watermark--yt .twh-wm-yt-icon {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
+  padding: 3px 4px;
+  background: #FF0000;
   color: #ffffff;
+  border-radius: 5px;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 .twh-watermark.twh-watermark--yt strong {
-  color: #ffffff;
+  color: #ff3b3b;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
 }
 .twh-watermark.twh-watermark--yt:hover {
-  background: #e60000;
-  border-color: rgba(255, 0, 0, 0.8);
-  color: #ffffff;
+  background: rgba(255, 0, 0, 0.12);
+  border-color: rgba(255, 0, 0, 0.55);
+  color: #ff5252;
   transform: scale(1.05);
-  box-shadow: 0 4px 16px rgba(255, 0, 0, 0.55),
-              0 0 0 1px rgba(255, 0, 0, 0.3);
+  box-shadow: 0 4px 14px rgba(255, 0, 0, 0.28);
 }
+.twh-watermark.twh-watermark--yt:hover strong { color: #ffffff; }
 
 /* ── SIDEBAR TWH CREDIT ── */
 .sidebar-twh-credit {
