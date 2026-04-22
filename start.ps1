@@ -17,6 +17,63 @@ Write-Host "║      Hevi Explorer - Smart Auto-Setup        ║" -ForegroundCol
 Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 
+# ── Auto-update from GitHub ─────────────────────────────────────
+# Force-pulls latest commit on every start. Local edits are auto-stashed first.
+# Skip with: $env:HEVI_NO_UPDATE=1 ; .\start.ps1
+function Invoke-AutoUpdate {
+    if ($env:HEVI_NO_UPDATE -eq "1") { info "Auto-update skipped (HEVI_NO_UPDATE=1)"; return }
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { warn "git not found — skipping auto-update"; return }
+    if (-not (Test-Path ".git")) { warn "Not a git repo — skipping auto-update"; return }
+
+    info "Checking for updates from GitHub..."
+    git ls-remote --heads origin *> $null
+    if ($LASTEXITCODE -ne 0) { warn "GitHub unreachable — starting with current code"; return }
+
+    $branch = (git rev-parse --abbrev-ref HEAD 2>$null)
+    if (-not $branch) { $branch = "main" }
+    git fetch origin $branch --quiet 2>$null
+    if ($LASTEXITCODE -ne 0) { warn "git fetch failed — continuing"; return }
+
+    $localSha  = (git rev-parse HEAD 2>$null)
+    $remoteSha = (git rev-parse "origin/$branch" 2>$null)
+
+    # Detect runtime-dirty working tree
+    git diff --quiet 2>$null;        $dirty1 = ($LASTEXITCODE -ne 0)
+    git diff --cached --quiet 2>$null; $dirty2 = ($LASTEXITCODE -ne 0)
+    $isDirty = $dirty1 -or $dirty2
+
+    if ($localSha -eq $remoteSha) {
+        if ($isDirty) {
+            info "Resetting runtime-modified tracked files..."
+            git reset --hard "origin/$branch" --quiet 2>$null
+        }
+        ok ("Already up to date ($branch @ " + $localSha.Substring(0,7) + ")")
+        return
+    }
+
+    info ("New version found - updating " + $localSha.Substring(0,7) + " -> " + $remoteSha.Substring(0,7) + "...")
+
+    if ($isDirty) {
+        $stashMsg = "hevi-autoupdate-" + [int][double]::Parse((Get-Date -UFormat %s))
+        git stash push -u -m $stashMsg --quiet 2>$null
+        if ($LASTEXITCODE -eq 0) { info "Local changes stashed as: $stashMsg (recover with: git stash list)" }
+    }
+
+    git reset --hard "origin/$branch" --quiet
+    if ($LASTEXITCODE -eq 0) {
+        ok ("Updated to " + $remoteSha.Substring(0,7))
+        # If package.json/lock changed, force a fresh npm install
+        git diff --quiet $localSha $remoteSha -- package.json package-lock.json 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            info "Dependencies changed — will reinstall"
+            (Get-Item "package.json").LastWriteTime = Get-Date
+        }
+    } else {
+        warn "Update failed — starting with current code"
+    }
+}
+Invoke-AutoUpdate
+
 # ── Check Node.js ───────────────────────────────────────────────
 function Get-NodeOk {
     $node = Get-Command node -ErrorAction SilentlyContinue

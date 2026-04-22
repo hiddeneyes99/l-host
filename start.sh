@@ -147,48 +147,61 @@ PLATFORM=$(detect_platform)
 ok "Platform detected: $PLATFORM"
 
 # ── Auto-update from GitHub ─────────────────────────────────────
-# Pulls latest commit on every start. Skip with: HEVI_NO_UPDATE=1 bash start.sh
+# Force-pulls latest commit on every start. Local edits (rare for end-users)
+# are auto-stashed first so nothing is silently lost.
+# Skip entirely with: HEVI_NO_UPDATE=1 bash start.sh
 auto_update() {
   [ "${HEVI_NO_UPDATE:-0}" = "1" ] && { info "Auto-update skipped (HEVI_NO_UPDATE=1)"; return; }
   command -v git &>/dev/null || { warn "git not found — skipping auto-update"; return; }
   [ -d ".git" ] || { warn "Not a git repo — skipping auto-update"; return; }
 
   info "Checking for updates from GitHub..."
-  # Quick reachability test (3s timeout) so offline starts don't hang
+  # Quick reachability test so offline starts don't hang
   if ! git ls-remote --heads origin &>/dev/null; then
     warn "GitHub unreachable — starting with current code"
     return
   fi
 
-  # Fetch quietly, then compare local vs remote on the current branch
   local branch local_sha remote_sha
   branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
   git fetch origin "$branch" --quiet 2>/dev/null || { warn "git fetch failed — continuing"; return; }
   local_sha=$(git rev-parse HEAD 2>/dev/null)
   remote_sha=$(git rev-parse "origin/$branch" 2>/dev/null)
 
+  # Detect runtime-dirty working tree (Hevi writes to data/*.json on every run)
+  local is_dirty=0
+  if ! git diff --quiet || ! git diff --cached --quiet; then is_dirty=1; fi
+
   if [ "$local_sha" = "$remote_sha" ]; then
+    # Same commit — but reset any runtime drift so the next run starts clean
+    if [ "$is_dirty" = "1" ]; then
+      info "Resetting runtime-modified tracked files..."
+      git reset --hard "origin/$branch" --quiet 2>/dev/null || true
+    fi
     ok "Already up to date ($branch @ ${local_sha:0:7})"
     return
   fi
 
-  # Refuse to overwrite uncommitted local changes (safety)
-  if ! git diff --quiet || ! git diff --cached --quiet; then
-    warn "Local uncommitted changes detected — skipping auto-update"
-    warn "Commit/stash them or run: git stash && bash start.sh"
-    return
+  info "New version found — updating ${local_sha:0:7} → ${remote_sha:0:7}..."
+
+  # Stash any local changes (runtime or user edits) so nothing is silently lost
+  if [ "$is_dirty" = "1" ]; then
+    local stash_msg="hevi-autoupdate-$(date +%s)"
+    if git stash push -u -m "$stash_msg" --quiet 2>/dev/null; then
+      info "Local changes stashed as: $stash_msg (recover with: git stash list)"
+    fi
   fi
 
-  info "New version found — pulling ${remote_sha:0:7}..."
-  if git pull --ff-only origin "$branch" --quiet; then
+  # Force fast-forward to remote — safer than 'pull' when working tree drifted
+  if git reset --hard "origin/$branch" --quiet; then
     ok "Updated to ${remote_sha:0:7}"
-    # If package.json changed, force a fresh npm install on next step
+    # If package.json/lock changed, trigger a fresh npm install below
     if ! git diff --quiet "$local_sha" "$remote_sha" -- package.json package-lock.json 2>/dev/null; then
       info "Dependencies changed — will reinstall"
-      touch package.json   # makes the freshness check below trigger npm install
+      touch package.json
     fi
   else
-    warn "git pull failed (maybe diverged history) — starting with current code"
+    warn "Update failed — starting with current code"
   fi
 }
 auto_update
