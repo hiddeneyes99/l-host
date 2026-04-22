@@ -146,6 +146,53 @@ banner
 PLATFORM=$(detect_platform)
 ok "Platform detected: $PLATFORM"
 
+# ── Auto-update from GitHub ─────────────────────────────────────
+# Pulls latest commit on every start. Skip with: HEVI_NO_UPDATE=1 bash start.sh
+auto_update() {
+  [ "${HEVI_NO_UPDATE:-0}" = "1" ] && { info "Auto-update skipped (HEVI_NO_UPDATE=1)"; return; }
+  command -v git &>/dev/null || { warn "git not found — skipping auto-update"; return; }
+  [ -d ".git" ] || { warn "Not a git repo — skipping auto-update"; return; }
+
+  info "Checking for updates from GitHub..."
+  # Quick reachability test (3s timeout) so offline starts don't hang
+  if ! git ls-remote --heads origin &>/dev/null; then
+    warn "GitHub unreachable — starting with current code"
+    return
+  fi
+
+  # Fetch quietly, then compare local vs remote on the current branch
+  local branch local_sha remote_sha
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+  git fetch origin "$branch" --quiet 2>/dev/null || { warn "git fetch failed — continuing"; return; }
+  local_sha=$(git rev-parse HEAD 2>/dev/null)
+  remote_sha=$(git rev-parse "origin/$branch" 2>/dev/null)
+
+  if [ "$local_sha" = "$remote_sha" ]; then
+    ok "Already up to date ($branch @ ${local_sha:0:7})"
+    return
+  fi
+
+  # Refuse to overwrite uncommitted local changes (safety)
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    warn "Local uncommitted changes detected — skipping auto-update"
+    warn "Commit/stash them or run: git stash && bash start.sh"
+    return
+  fi
+
+  info "New version found — pulling ${remote_sha:0:7}..."
+  if git pull --ff-only origin "$branch" --quiet; then
+    ok "Updated to ${remote_sha:0:7}"
+    # If package.json changed, force a fresh npm install on next step
+    if ! git diff --quiet "$local_sha" "$remote_sha" -- package.json package-lock.json 2>/dev/null; then
+      info "Dependencies changed — will reinstall"
+      touch package.json   # makes the freshness check below trigger npm install
+    fi
+  else
+    warn "git pull failed (maybe diverged history) — starting with current code"
+  fi
+}
+auto_update
+
 # ── Node.js ────────────────────────────────────────────────────
 if node_version_ok; then
   ok "Node.js $(node --version) — OK"
