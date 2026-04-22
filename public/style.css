@@ -6355,11 +6355,12 @@ img.lazy-img:not([src]) {
 /* ── YouTube Subscribe variant of the floating pill ── */
 .twh-watermark.twh-watermark--yt {
   background: #FF0000;                       /* YouTube red */
-  border-color: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 0, 0, 0.55);   /* red border, no teal bleed */
   color: #ffffff;
   padding: 6px 12px 6px 8px;
   gap: 6px;
-  box-shadow: 0 4px 14px rgba(255, 0, 0, 0.32);
+  box-shadow: 0 2px 10px rgba(255, 0, 0, 0.35),
+              0 0 0 1px rgba(255, 0, 0, 0.18);
   font-size: 11px;
 }
 .twh-watermark.twh-watermark--yt .twh-wm-yt-icon {
@@ -6374,11 +6375,12 @@ img.lazy-img:not([src]) {
   letter-spacing: 0.08em;
 }
 .twh-watermark.twh-watermark--yt:hover {
-  background: #cc0000;
-  border-color: rgba(255, 255, 255, 0.32);
+  background: #e60000;
+  border-color: rgba(255, 0, 0, 0.8);
   color: #ffffff;
-  transform: scale(1.06);
-  box-shadow: 0 6px 20px rgba(255, 0, 0, 0.5);
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(255, 0, 0, 0.55),
+              0 0 0 1px rgba(255, 0, 0, 0.3);
 }
 
 /* ── SIDEBAR TWH CREDIT ── */
